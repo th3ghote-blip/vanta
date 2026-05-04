@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-05-05 — Git restored, agent unblocked
+
+**Action taken:** Initialized git repo at `/c/Claude/vanta`. `main` branch. User identity configured locally as `Vanta Dev <vanta-dev@local>` (change later if you want commits attributed to a real account).
+
+**Initial commit:** `20b4420` — covers all 73 tracked files (entire current state of scaffold + backend + docs). Secrets verified ignored: `.env`, `server/.env`, `.vercel/`, `node_modules/`, `dist/`, `.expo/`.
+
+**No remote configured.** Work happens locally for now. If you want a GitHub/GitLab remote, add one with `git remote add origin <url>` and push. Not required for the cowork loop.
+
+**Next agent:** working tree is clean on `main`. Run the standard precheck and proceed with **Phase 1.1 — Server worker for stop-loss / take-profit / stop-out** from `TODO.md`.
+
+---
+
 ## 2026-05-05T00:00Z — Skipped run (repeat): no git repository
 
 **Agent:** scheduled cowork auto-work pass
