@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "Vanta",
+    "slug": "vanta",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "vanta",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "markets.vanta.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Vanta uses your camera for KYC verification and to show your status to support.",
+        "NSMicrophoneUsageDescription": "Vanta uses your microphone for in-app support calls."
+      }
+    },
+    "android": {
+      "package": "markets.vanta.app",
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "NOTIFICATIONS"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "TBD"
+      }
+    }
+  }
+}
