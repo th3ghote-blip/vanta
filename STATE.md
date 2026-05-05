@@ -34,6 +34,34 @@ Alternatively, set `git config core.autocrlf false` in this repo if you'd prefer
 
 ---
 
+## 2026-05-05T late — Line-ending blocker fixed, agent fully unblocked
+
+**The blocker:** Windows `core.autocrlf=true` (default on Git for Windows) was re-marking `.gitignore` and `server/.gitignore` as modified every time anything touched them. This kept failing the agent's "working tree clean" precheck, so it was skipping every scheduled run.
+
+**The fix (committed in `2fa3692`):**
+- Added `.gitattributes` pinning all text files to LF eol with `* text=auto eol=lf` plus explicit per-extension rules.
+- Set local `git config core.autocrlf false`.
+- Renormalized the working tree via `git add --renormalize .`.
+- Verified `git check-attr eol .gitignore` returns `lf`.
+
+**What this means for future agents:** any clone of this repo on any platform will get LF line endings consistently. The CRLF drift can't recur unless someone changes `.gitattributes`.
+
+**Stale lock file:** also cleared `.git/index.lock` (was a leftover from a prior interrupted git op).
+
+**Full precheck verified:**
+1. `pwd` → /c/Claude/vanta
+2. `git status` clean
+3. `git branch --show-current` → main
+4. Client `tsc --noEmit` silent
+5. Server `tsc --noEmit` silent
+6. Backend `/health` returns `{"ok":true}`
+7. Frontend returns HTTP 200
+8. `.gitignore` and `server/.gitignore` resolve to `eol: lf` per `.gitattributes`
+
+**Next agent:** all green, pick up Phase 1.1 — Server worker for stop-loss / take-profit / stop-out.
+
+---
+
 ## 2026-05-05 — Precheck verified end-to-end
 
 Backed up the git restoration with full agent-precheck verification:
