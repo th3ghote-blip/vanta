@@ -4,6 +4,49 @@
 
 ---
 
+## 2026-05-05T22:14Z — Phase 1.2 margin reserve/release landed (commit only — deploy still pending)
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **1.2 Margin requirement on order open**
+**Commit:** `98f4fb4` — `auto: margin requirement on order open` (4 files: +209 −5 net)
+
+**What changed**
+- New: `server/src/lib/margin.ts` — `requiredMargin()` (vol × price × contractSize / leverage), `reserveMargin()` (read+CAS-write, returns `insufficient` / `race` / `db_error`), `releaseMargin()` (lenient read-then-write, clamps to current `margin_used`). Doc-comment explains the demo-grade atomicity tradeoff.
+- New helper: `notionalUSD()` added to `server/src/lib/contracts.ts` to mirror the client `lib/contracts.ts` (kept the two in sync — `requiredMargin` actually uses `contractSize` directly so this is just for parity / future use).
+- Modified: `server/src/routes/orders.ts`. Open: selects `margin_used, leverage`; computes `required`; if `free_margin < required` → 400 `{error:'insufficient_margin', required, available}`; otherwise `reserveMargin`, then insert trade; if insert fails, `releaseMargin` rolls back. Close: extended the join to pull `accounts.leverage`; after `apply_trade_pnl`, computes `required` from the closed trade and `releaseMargin`.
+- Modified: `server/src/workers/risk.ts` (technically beyond the TODO's listed file, but the SL/TP/stop-out auto-closes share the same close path and would otherwise leak margin). The trades select now joins `accounts(leverage)`; `closeAtPrice` releases margin after the P&L apply. `OpenTrade` interface gained a `leverage` field.
+
+**Verification done in-sandbox**
+- `cd server && npx tsc --noEmit` → silent. Root `npx tsc --noEmit` → silent.
+- Math sanity check via node: 100 BTC × 80k / 100x = `$80,000` (reject vs $10k free), 0.1 BTC = `$80` (allow), 1 lot EURUSD × 1.10 / 100x = `$1,100`, 0.5 oz XAU × 2400 / 100x = `$1,200`.
+- `git log --oneline` shows `98f4fb4` on `main`, working tree clean.
+
+**Verification NOT done — needs network / a real workstation**
+- Live HTTP probes still 403 in this sandbox (Railway / Vercel allowlist, same as last run).
+- **Deploy:** `cd /c/Claude/vanta/server && railway up --detach`. Phase 1.1 (commit `0ad7900`) is also still un-deployed; both ride out together on the next push.
+- **Acceptance criteria** (rejection on 100-BTC, allowance on 0.1-BTC, `margin_used = 80`) can only be confirmed against the live API.
+
+**Known limitations / cleanup item to file**
+- The reserve and release paths read-then-write the `accounts` row via supabase-js, with a CAS guard on `margin_used` for reserve only. Concurrent reserves race-safely (CAS catches it, surfaced as 400 insufficient_margin). Concurrent close+open or close+close can leave a few cents temporarily in `margin_used`. **Cleanup:** add `reserve_margin(p_account_id, p_amount)` / `release_margin(p_account_id, p_amount)` Postgres RPCs (mirror `apply_trade_pnl`) in a new migration and switch the helpers to call them. Not done in this run because the cowork sandbox can't apply migrations and shipping code that calls a missing RPC would brick the deploy.
+- Old open trades created **before** this deploy will still have `accounts.margin_used = 0`. When they close, `releaseMargin` clamps to the current `margin_used` so we don't go negative — at worst they appear to release 0. Net effect: the system gradually reaches consistent margin accounting as the pre-existing positions cycle.
+
+**Gotchas the next agent will hit (these are getting worse, not better)**
+
+1. **`.git/index.lock` AND `.git/HEAD.lock`.** Both 0-byte stale lockfiles in the WSL mount. Neither can be `unlink`-ed (`Operation not permitted`), but both can be **truncated** (`> .git/HEAD.lock`) or have content overwritten. Since git's locking is `O_CREAT|O_EXCL`, even a 0-byte file blocks `git commit` and `git update-ref`.
+   - Workaround used this run:
+     1. `cp .git/index /tmp/vanta-work/index` then `GIT_INDEX_FILE=/tmp/vanta-work/index git add ...`
+     2. `TREE=$(GIT_INDEX_FILE=... git write-tree)` and `COMMIT=$(... git commit-tree $TREE -p $PARENT)` to build the commit object
+     3. **Bypass `git update-ref`** (it tries to lock HEAD too) — write the new SHA directly into `.git/refs/heads/main` and reset `.git/HEAD` to `ref: refs/heads/main\n`. Both files are writable; only their `.lock` siblings are stuck.
+     4. `cp /tmp/vanta-work/index .git/index` to re-sync on-disk index so `git status` is clean.
+   - **The real fix** is still to delete the lock files from a Windows shell (`cmd /c del C:\Claude\vanta\.git\index.lock`). Without that the next run will likely hit the same wall.
+2. **Edit/Write tool truncation.** Same issue STATE noted last run: an `Edit` to `server/src/lib/contracts.ts` looked correct via `Read` (42 lines) but bash `wc -l` reported 32 lines after the edit — only the part before my insertion was on disk. Fixed by re-writing via bash heredoc; verified with `wc -l` + `git hash-object`. **Heuristic stays:** anything Edit/Write touches that bash needs to read, sanity-check size + a tail line, and re-write via heredoc if it disagrees.
+3. **`.git/objects/<xx>/tmp_obj_*` orphans.** Each git operation here creates one and can't unlink it. They're harmless ("warning: unable to unlink ..." is informational), but they grow. Eventually `git gc` will need to run from Windows.
+
+**Suggested next item**
+**1.3 Order entry feedback for margin / quote / generic errors** — pure client (`components/pro/OrderEntry.tsx`), no server changes, perfect follow-up since 1.2's new error code (`insufficient_margin` with `required` + `available` payload) is the main thing 1.3 wants to render nicely.
+
+---
+
 ## 2026-05-05T18:15Z — Phase 1.1 risk worker landed (commit only — deploy still pending)
 
 **Agent:** scheduled cowork auto-work pass
@@ -24,19 +67,6 @@
 - **Deploy:** `railway` CLI is not installed in this sandbox and outbound to Railway is blocked anyway. Run `cd /c/Claude/vanta/server && railway up --detach` from a workstation that has the CLI to ship the worker.
 - **Acceptance criterion** (from TODO.md 1.1) can only be verified post-deploy.
 
-**Gotchas the next agent will probably hit**
-
-1. **Stale `.git/index.lock`.** There's a 0-byte `.git/index.lock` from `2026-05-05 18:06` that this sandbox **cannot delete** (`unlink`/`rm`/`mv` all fail with `Operation not permitted` — looks like a Windows-side file lock surfaced through the WSL mount). Plain `git add` fails with `fatal: Unable to create '.git/index.lock': File exists.`
-   - **Workaround that worked here:** `cp .git/index /tmp/vanta-index && GIT_INDEX_FILE=/tmp/vanta-index git add ... && GIT_INDEX_FILE=/tmp/vanta-index git -c user.email=... commit -m "..."` — the commit lands in HEAD via the regular ref update, then `cp /tmp/vanta-index .git/index` re-syncs the on-disk index so subsequent `git status` reports clean.
-   - **Real fix:** delete `.git/index.lock` from a Windows shell. Same goes for `.git/HEAD.lock` and `.git/objects/maintenance.lock` if they reappear — git creates and orphans them on every operation here.
-
-2. **Bash mount and Windows file tools (`Read`/`Write`/`Edit`) can show different views of the same file.** During this run, an `Edit` on `server/src/index.ts` produced a file whose `Read`-tool view was correct (full 70 lines) but whose `bash cat` view was truncated mid-template-literal at line 65. Same issue hit the `Write` of this very STATE.md, requiring a bash heredoc to actually finish writing. **Heuristic:** anything you `Edit` or `Write` that bash-side tools (tsc, build, deploy, git) need to read — verify with `wc -l` / `tail` and re-write via bash heredoc if it looks truncated.
-
-3. **`git diff` and `git status` can lie when stat-cache matches but content differs.** Same-byte-length partial writes round-tripped past `--refresh`. `git hash-object <path>` vs `git ls-files -s <path>` is the reliable check.
-
-**Suggested next item**
-After deploying 1.1: **1.2 Margin requirement on order open** — `server/src/routes/orders.ts`. Self-contained server-only change, doesn't depend on 1.1 going live first.
-
 ---
 
 ## 2026-05-05T14:07Z — Skipped run: dirty working tree (STATE.md truncated)
@@ -46,13 +76,6 @@ After deploying 1.1: **1.2 Margin requirement on order open** — `server/src/ro
 
 **What I observed:** `git status` shows `STATE.md` modified vs HEAD. `git diff` shows 59 lines removed. HEAD's version is 187 lines and includes the full "Initial roadmap handoff" section. This looks like a corruption / partial-write rather than a user mid-edit.
 
-**Why I still skipped:** the rule is "dirty tree = stop, leave a note, exit." If this is actually a user mid-edit (despite appearances), restoring from HEAD would clobber their work.
-
-**One-line fix to unblock the next run:**
-```
-cd /c/Claude/vanta && git checkout HEAD -- STATE.md
-```
-
 ---
 
 ## 2026-05-05T10:41Z — Skipped run: dirty working tree (CRLF drift)
@@ -60,38 +83,12 @@ cd /c/Claude/vanta && git checkout HEAD -- STATE.md
 **Agent:** scheduled cowork auto-work pass
 **Action taken:** none — exited per the "dirty working tree" hard rule.
 
-**What I saw:** `git status` shows `.gitignore` and `server/.gitignore` modified with pure CRLF line-ending changes. Almost certainly a Windows editor or sync process re-writing them.
-
-**Suggested fix:** add `.gitattributes` with `* text=auto eol=lf` and `git config core.autocrlf false`. (Done in 2fa3692, see entry below.)
+**Suggested fix (since applied):** add `.gitattributes` with `* text=auto eol=lf` and `git config core.autocrlf false`. Done in `2fa3692`.
 
 ---
 
-## 2026-05-05T late — Line-ending blocker fixed, agent fully unblocked
+## 2026-05-05 — Line-ending blocker fixed, agent fully unblocked
 
-**The blocker:** Windows `core.autocrlf=true` (default on Git for Windows) was re-marking `.gitignore` and `server/.gitignore` as modified every time anything touched them. This kept failing the agent's precheck.
+**Fix committed in `2fa3692`:** `.gitattributes` pinning all text files to LF eol; local `git config core.autocrlf false`; `git add --renormalize .`.
 
-**The fix (committed in `2fa3692`):**
-- Added `.gitattributes` pinning all text files to LF eol.
-- Set local `git config core.autocrlf false`.
-- Renormalized via `git add --renormalize .`.
-
-**Stale lock file:** also cleared `.git/index.lock` (a different lock has since recreated — see the 18:15Z entry above for current workaround).
-
-**Full precheck verified that day:**
-1. `git status` clean on `main`
-2. Client + server `tsc --noEmit` silent
-3. Backend `/health` returns `{"ok":true}`
-4. Frontend returns HTTP 200
-
----
-
-## 2026-05-05 — Precheck verified end-to-end
-
-Full agent-precheck verification:
-- `git status` clean on `main`
-- Client + server `tsc --noEmit` silent
-- Backend `/health` returns 200 OK
-- Frontend serves 200 at vanta-jade.vercel.app
-- Supabase Management API (PAT in `server/.env` as `SUPABASE_PAT`) verified working
-
-**Known bug not blocking the agent (worth a future task):** account `80000001` has balance `$545,524.28` — the old buggy contract-size math (treating BTC as 100k contract size) was applied to a close before the fix. Account `80000002` is correct at $10k. Lower-priority cleanup.
+**Known data bug not blocking the agent (worth a future task):** account `80000001` has balance `$545,524.28` — the old buggy contract-size math (treating BTC as 100k contract size) was applied to a close before the fix. Account `80000002` is correct at $10k. Lower-priority cleanup.

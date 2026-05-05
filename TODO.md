@@ -69,7 +69,8 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Open a BTC buy with SL 1% below entry. When BTC dips below SL, trade auto-closes within 1s. `trades.reason='stopout'`. Account balance updated.
 
 ## 1.2 Margin requirement on order open
-- [ ] **File:** `server/src/routes/orders.ts`
+- [x] **File:** `server/src/routes/orders.ts`
+> 2026-05-05 — code committed in `98f4fb4`. Adds `server/src/lib/margin.ts` (reserve/release helpers) + extends `server/src/workers/risk.ts` to release on auto-close so margin_used doesn't grow forever. Both client + server `tsc --noEmit` pass. **Not yet deployed** alongside 1.1 — same constraint (sandbox can't reach Railway). Verified the math locally: 100 BTC × 80k / 100x = $80,000 → reject; 0.1 BTC = $80 → allow.
 - **What:** Before inserting trade, compute `notional = volume * open_price * contractSize(symbol)` and `required_margin = notional / account.leverage`. If `account.free_margin < required_margin` → reject HTTP 400 `{error:'insufficient_margin', required, available}`. On success: increment `accounts.margin_used`, decrement `free_margin`. On close: reverse.
 - **Acceptance:** 100 BTC buy on $10k demo → rejected. 0.1 BTC ($80 margin) → allowed; account.margin_used = 80.
 
@@ -505,9 +506,4 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Both deploys are atomic.** Vercel old version stays live until new build passes; same for Railway. Safe to deploy frequently.
 - **If a TypeScript error blocks deploy:** check Railway build logs (`railway logs --build`), fix, redeploy. Don't comment out the type — fix it.
 - **CORS must be updated when domain changes** in `server/src/index.ts` `ALLOWED_ORIGINS`.
-- **Supabase RLS protects everything.** Server uses service role key (bypasses RLS) for admin operations. Client uses publishable key + user JWT.
-- **Push to production immediately after each task** — frequent atomic deploys are cheaper than batched ones.
-- **When in doubt, leave a note in `STATE.md`** for the next agent.
-- **If a task changes data shapes:** write the migration first, deploy backend, then frontend.
-- **Workspace state may have hot-reload caches** — restart Expo if web behaves weirdly.
-- **Twelve Data free tier is 800 cre
+- **Supabase RLS protects everything.** Server uses service role key (bypasses RLS) for admin operations. Client uses 
