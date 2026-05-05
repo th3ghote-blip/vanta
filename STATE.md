@@ -4,6 +4,27 @@
 
 ---
 
+## 2026-05-05T14:07Z — Skipped run: dirty working tree (STATE.md truncated)
+
+**Agent:** scheduled cowork auto-work pass
+**Action taken:** none beyond writing this note — exited per the "dirty working tree" hard rule.
+
+**What I observed:** `git status` shows `STATE.md` modified vs HEAD. `git diff` shows 59 lines removed: the file on disk is 128 lines and ends mid-sentence ("Confirm Railway/Vercel deploy sources don't depend on git" — no newline, no trailing entries). HEAD's version is 187 lines and includes the full "Initial roadmap handoff" section. This looks like a corruption / partial-write rather than a user mid-edit.
+
+**Why I still skipped:** the rule is "dirty tree = stop, leave a note, exit." If this is actually a user mid-edit (despite appearances), restoring from HEAD would clobber their work. I left the truncated content untouched below and just prepended this entry.
+
+**One-line fix to unblock the next run:**
+```
+cd /c/Claude/vanta
+git checkout HEAD -- STATE.md   # restore the full file
+```
+
+**Next agent:** if working tree is clean, start with Phase 1.1 (server worker for SL/TP/stop-out) per the prior handoff.
+
+**Nothing else was modified.**
+
+---
+
 ## 2026-05-05T10:41Z — Skipped run: dirty working tree (CRLF drift)
 
 **Agent:** scheduled cowork auto-work pass
@@ -126,62 +147,4 @@ Backed up the git restoration with full agent-precheck verification:
 **What the user should do:**
 - If there's a remote (GitHub/GitLab), reclone into a temp dir and copy `.git/` over, OR clone fresh and migrate any uncommitted work.
 - If there's no remote yet: `cd /c/Claude/vanta && git init && git add . && git commit -m "initial commit"` — but verify what should/shouldn't be committed first (the existing `.gitignore` should handle node_modules, .env, etc.).
-- Confirm Railway/Vercel deploy sources don't depend on git history that's now missing.
-
-**Next agent:** do NOT proceed with TODO items until git is restored. Re-running this scheduled task will keep skipping.
-
-**Nothing was modified except this STATE.md entry.**
-
----
-
-## 2026-05-04 — Initial roadmap handoff
-
-**Current state:** Vanta is live in production. MT4-style auth working end-to-end. Pro mode trading with live charts, live order book, real Coinbase + Twelve Data feeds. Quick mode UI scaffolded but not wired. Robots UI scaffolded, compile endpoint working, execution engine is a stub.
-
-**Live URLs:**
-- Frontend: https://vanta-jade.vercel.app
-- Backend: https://vanta-server-production.up.railway.app
-- Supabase project ref: `auavcfwytrwurawcvrsc`
-
-**Test account:**
-- Login: `80000001`
-- Password: `smw5WjSWwKZ7Dh`
-- Has $10k demo balance + 1 open BTC trade
-
-**Recently fixed bugs (don't reintroduce):**
-- Contract size logic was treating BTCUSD as forex (100k contract size). Fixed via `lib/contracts.ts` shared between client and server. Crypto = 1 unit per lot.
-- Yahoo Finance was failing on Railway with "fetch failed" — replaced entirely with Twelve Data for non-crypto.
-- Binance WS gets HTTP 451 from Railway (geo-blocked) — using Coinbase Advanced Trade WS instead. Don't try to bring Binance back without a proxy.
-- PositionsTable.tsx was deleted because Metro was bundling both old and new code. Don't recreate it — TradeBook.tsx is the replacement.
-- Sign-out wasn't navigating; fixed with `router.replace('/(auth)/login')` + tabs route guard.
-- Email confirmation was blocking login; we use force-confirmed accounts for now. Resend is configured but only sends to th3ghote@gmail.com (testing mode) until a domain is verified.
-
-**Migrations applied:**
-- 001_init.sql ✓
-- 002_signup_trigger.sql ✓
-- 003_login_numbers.sql ✓
-- 004_login_attempts.sql ✓
-
-**Pending migrations to apply with later phases:**
-- 005_streaks.sql (Phase 2.6)
-- 006_public_robots.sql (Phase 3.5)
-- 007_admin.sql (Phase 4.3)
-- 008_price_alerts.sql (Phase 6.4)
-- 010_login_streak.sql (Phase 11.2)
-- 011_achievements.sql (Phase 11.3)
-
-**Tooling/credentials all set:**
-- `SUPABASE_PAT` in `server/.env` → `scripts/apply-migration.py` works
-- Railway CLI logged in
-- Vercel CLI logged in (team `andrew-nifields-projects-0604ec39`)
-
-**Known TODOs not in main roadmap:**
-- The expo-image dependency was added but not used; can remove from package.json
-- `expo-image-picker` and `expo-camera` need installing for Phase 5.1
-- The `assets/` folder is empty; needs proper PNGs for app icons before mobile builds (Phase 9.2)
-- App store assets, screenshots, marketing copy — all TODO for Phase 9.3+
-
-**Agent gotcha:**
-- Do NOT impersonate users in browser (Claude in Chrome). User logs in on their own machine. Use curl/the Management API for verification.
-- Vercel `vercel deploy` from `/server/` directory creates a new project — always run from `/c/Claude/vanta`.
-- If you see `STATE.md` getting too long, archive sections older than 30 days into `STATE-archive.md`.
+- Confirm Railway/Vercel deploy sources don't depend on git
