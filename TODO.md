@@ -62,7 +62,8 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 # Phase 1 — Trading core (must work before anything else)
 
 ## 1.1 Server worker for stop-loss / take-profit / stop-out
-- [ ] **File:** `server/src/workers/risk.ts` (new)
+- [x] **File:** `server/src/workers/risk.ts` (new)
+> 2026-05-05 — code committed in `0ad7900`. Both client + server `tsc --noEmit` pass. **Not yet deployed** — the cowork sandbox can't reach Railway and `railway` CLI isn't installed there. Run `cd /c/Claude/vanta/server && railway up --detach` from a machine with the CLI to ship it. Acceptance criterion (BTC SL auto-close) can be verified once deployed.
 - **What:** Every 1s, scan all `trades` with `status='open'`. For each, compute live mid from quote cache. If `(side='buy' AND mid <= stop_loss) OR (side='sell' AND mid >= stop_loss)` → close at `stop_loss` with reason='stopout'. Same for take_profit (buy: mid >= tp, sell: mid <= tp). Then: if `account.equity + total_unrealized_pnl < 0` → close worst-loser to recover, mark reason='stopout'.
 - **Wire it up:** Import + start in `server/src/index.ts`.
 - **Acceptance:** Open a BTC buy with SL 1% below entry. When BTC dips below SL, trade auto-closes within 1s. `trades.reason='stopout'`. Account balance updated.
@@ -509,9 +510,4 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **When in doubt, leave a note in `STATE.md`** for the next agent.
 - **If a task changes data shapes:** write the migration first, deploy backend, then frontend.
 - **Workspace state may have hot-reload caches** — restart Expo if web behaves weirdly.
-- **Twelve Data free tier is 800 credits/day, 8/min** — keep `pollYahoo` removed and respect rate limits in any new endpoint that hits it.
-- **Coinbase, Resend, Anthropic, Twelve Data, Supabase keys are all in `server/.env` and Railway env vars.**
-
----
-
-*Maintain ordering within phases (dependencies flow downward). Strike `[x]` completed items in place — don't delete (history is useful).*
+- **Twelve Data free tier is 800 cre
