@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { authUser, supabaseAdmin } from '../lib/supabase.js';
 import { getQuote } from '../lib/quoteCache.js';
 import { calculatePnL } from '../lib/contracts.js';
+import { requiredMargin, reserveMargin, releaseMargin } from '../lib/margin.js';
 
 const OpenOrderSchema = z.object({
   accountId: z.string().uuid(),
@@ -28,10 +29,10 @@ export async function ordersRoutes(app: FastifyInstance) {
     if (!parsed.success) return reply.code(400).send({ error: 'invalid_input', issues: parsed.error.issues });
     const body = parsed.data;
 
-    // Verify account ownership
+    // Verify account ownership and pull margin-relevant fields.
     const { data: account, error: accErr } = await supabaseAdmin
       .from('accounts')
-      .select('id, user_id, balance, free_margin')
+      .select('id, user_id, balance, free_margin, margin_used, leverage')
       .eq('id', body.accountId)
       .single();
 
@@ -43,6 +44,45 @@ export async function ordersRoutes(app: FastifyInstance) {
     if (!quote) return reply.code(400).send({ error: 'no_quote', symbol: body.symbol });
 
     const openPrice = body.side === 'buy' ? quote.ask : quote.bid;
+
+    // Phase 1.2 — margin requirement.
+    const required = +requiredMargin(
+      body.volume,
+      openPrice,
+      body.symbol,
+      Number(account.leverage) || 1,
+    ).toFixed(2);
+    const available = Number(account.free_margin) || 0;
+
+    if (available < required) {
+      return reply.code(400).send({
+        error: 'insufficient_margin',
+        required,
+        available: +available.toFixed(2),
+      });
+    }
+
+    // Reserve first so a failed trade insert can roll it back.
+    const reserve = await reserveMargin(
+      {
+        id: account.id,
+        free_margin: available,
+        margin_used: Number(account.margin_used) || 0,
+      },
+      required,
+      app.log,
+    );
+
+    if (!reserve.ok) {
+      if (reserve.reason === 'insufficient' || reserve.reason === 'race') {
+        return reply.code(400).send({
+          error: 'insufficient_margin',
+          required,
+          available: +available.toFixed(2),
+        });
+      }
+      return reply.code(500).send({ error: 'margin_reserve_failed' });
+    }
 
     const { data: trade, error: tradeErr } = await supabaseAdmin
       .from('trades')
@@ -61,6 +101,12 @@ export async function ordersRoutes(app: FastifyInstance) {
       .single();
 
     if (tradeErr) {
+      // Roll back the margin reservation so the user isn't billed for a phantom trade.
+      try {
+        await releaseMargin(account.id, required, app.log);
+      } catch (e) {
+        app.log.error({ err: e, accountId: account.id, required }, 'failed to roll back margin after trade insert error');
+      }
       app.log.error({ tradeErr }, 'failed to insert trade');
       return reply.code(500).send({ error: 'insert_failed' });
     }
@@ -78,7 +124,7 @@ export async function ordersRoutes(app: FastifyInstance) {
 
     const { data: trade, error } = await supabaseAdmin
       .from('trades')
-      .select('*, accounts!inner(user_id)')
+      .select('*, accounts!inner(user_id, leverage)')
       .eq('id', tradeId)
       .eq('status', 'open')
       .single();
@@ -105,12 +151,25 @@ export async function ordersRoutes(app: FastifyInstance) {
 
     if (closeErr) return reply.code(500).send({ error: 'close_failed' });
 
-    // Update account balance
+    // Apply P&L to balance/equity/free_margin.
     try {
       await supabaseAdmin.rpc('apply_trade_pnl', { p_account_id: trade.account_id, p_amount: profit });
     } catch {}
 
+    // Phase 1.2 — release the margin we reserved when the trade was opened.
+    const accLeverage = Number((trade as any).accounts?.leverage) || 1;
+    const release = +requiredMargin(
+      Number(trade.volume),
+      Number(trade.open_price),
+      trade.symbol,
+      accLeverage,
+    ).toFixed(2);
+    try {
+      await releaseMargin(trade.account_id, release, app.log);
+    } catch (e) {
+      app.log.error({ err: e, tradeId, release }, 'failed to release margin on close');
+    }
+
     return { tradeId, profit, closePrice };
   });
 }
-

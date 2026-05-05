@@ -30,3 +30,13 @@ export function calculatePnL(
   const direction = side === 'buy' ? 1 : -1;
   return (currentPrice - openPrice) * direction * volume * contractSize(symbol);
 }
+
+/**
+ * Notional value of a position in USD — base for margin calculations.
+ *   notional = volume × price × contractSize
+ * For a 0.1 BTC position at $80,000: 0.1 × 80000 × 1 = $8,000.
+ * For 1 lot EURUSD at 1.10:        1 × 1.10 × 100,000 = $110,000.
+ */
+export function notionalUSD(volume: number, price: number, symbol: string): number {
+  return volume * price * contractSize(symbol);
+}

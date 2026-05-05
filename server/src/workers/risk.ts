@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { supabaseAdmin } from '../lib/supabase.js';
 import { getMid, getQuote } from '../lib/quoteCache.js';
 import { calculatePnL } from '../lib/contracts.js';
+import { requiredMargin, releaseMargin } from '../lib/margin.js';
 
 /**
  * Risk worker — Phase 1.1
@@ -20,7 +21,9 @@ import { calculatePnL } from '../lib/contracts.js';
  *      force-close that account's worst loser at current bid/ask.
  *
  * Closes call the same `apply_trade_pnl` RPC the manual close path uses, so
- * balance / equity / free_margin all stay consistent.
+ * balance / equity / free_margin all stay consistent. Phase 1.2 also adds a
+ * margin release on each auto-close so `accounts.margin_used` doesn't grow
+ * monotonically.
  *
  * Concurrency: a single in-flight tick at a time. If a tick runs long, the
  * next setInterval fire is skipped (no overlapping reads/writes).
@@ -37,6 +40,7 @@ interface OpenTrade {
   open_price: number;
   stop_loss: number | null;
   take_profit: number | null;
+  leverage: number;
 }
 
 async function closeAtPrice(
@@ -88,13 +92,28 @@ async function closeAtPrice(
     app.log.error({ err, tradeId: trade.id }, 'risk: apply_trade_pnl failed');
   }
 
+  // Phase 1.2 — release reserved margin so margin_used doesn't grow forever.
+  try {
+    const release = +requiredMargin(
+      trade.volume,
+      trade.open_price,
+      trade.symbol,
+      trade.leverage,
+    ).toFixed(2);
+    await releaseMargin(trade.account_id, release, app.log);
+  } catch (err) {
+    app.log.warn({ err, tradeId: trade.id }, 'risk: release margin failed');
+  }
+
   return profit;
 }
 
 async function tick(app: FastifyInstance): Promise<void> {
   const { data: trades, error } = await supabaseAdmin
     .from('trades')
-    .select('id, account_id, symbol, side, volume, open_price, stop_loss, take_profit')
+    .select(
+      'id, account_id, symbol, side, volume, open_price, stop_loss, take_profit, accounts!inner(leverage)',
+    )
     .eq('status', 'open');
 
   if (error) {
@@ -106,13 +125,17 @@ async function tick(app: FastifyInstance): Promise<void> {
   const remaining: OpenTrade[] = [];
 
   // Pass 1 — SL / TP triggers.
-  for (const raw of trades as OpenTrade[]) {
+  for (const raw of trades as any[]) {
     const t: OpenTrade = {
-      ...raw,
+      id: raw.id,
+      account_id: raw.account_id,
+      symbol: raw.symbol,
+      side: raw.side,
       volume: Number(raw.volume),
       open_price: Number(raw.open_price),
       stop_loss: raw.stop_loss == null ? null : Number(raw.stop_loss),
       take_profit: raw.take_profit == null ? null : Number(raw.take_profit),
+      leverage: Number(raw.accounts?.leverage) || 1,
     };
 
     const mid = getMid(t.symbol);
