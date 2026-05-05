@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-05-05 — Precheck verified end-to-end
+
+Backed up the git restoration with full agent-precheck verification:
+- `git status` clean on `main`, 3 commits (initial + restore + tsconfig fix)
+- Client `tsc --noEmit` silent (was previously sweeping in `server/` and erroring on top-level await — fixed by adding `exclude: ["server", ...]` to root `tsconfig.json`)
+- Server `tsc --noEmit` silent
+- Backend `/health` returns 200 OK
+- Frontend serves 200 at vanta-jade.vercel.app
+- Supabase Management API (PAT in `server/.env` as `SUPABASE_PAT`) verified working
+
+**Known bug not blocking the agent (worth a future task):** account `80000001` has balance `$545,524.28` — the old buggy contract-size math (treating BTC as 100k contract size) was applied to a close before the fix. Account `80000002` is correct at $10k. Lower-priority cleanup.
+
+**Next agent:** start with Phase 1.1 (server worker for SL/TP/stop-out).
+
+---
+
 ## 2026-05-05 — Git restored, agent unblocked
 
 **Action taken:** Initialized git repo at `/c/Claude/vanta`. `main` branch. User identity configured locally as `Vanta Dev <vanta-dev@local>` (change later if you want commits attributed to a real account).

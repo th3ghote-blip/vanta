@@ -6,15 +6,36 @@
 
 ## How to work this list
 
-1. Read **`/c/Claude/vanta/STATE.md`** first (if present) for any session-specific context the previous agent left.
+**Always cd to `/c/Claude/vanta` first.** Working directory drifts between Bash invocations otherwise.
+
+### Precheck (run on every session start, must all pass)
+
+```bash
+cd /c/Claude/vanta
+git status                          # must say "nothing to commit, working tree clean"
+git branch --show-current           # must say "main"
+npx --no-install tsc --noEmit       # client TypeScript — must be silent
+cd server && npx --no-install tsc --noEmit && cd ..   # server TypeScript — must be silent
+curl -sf https://vanta-server-production.up.railway.app/health | grep -q '"ok":true'
+curl -sf -o /dev/null -w "%{http_code}" https://vanta-jade.vercel.app/ | grep -q 200
+```
+
+If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start a task.
+
+### Then
+
+1. Read **`/c/Claude/vanta/STATE.md`** for context the previous agent left.
 2. Pick the topmost unchecked task whose dependencies are met.
 3. Implement it fully (code + verification per the acceptance criteria).
 4. Deploy:
    - Backend: `cd /c/Claude/vanta/server && railway up --detach`
    - Frontend: `cd /c/Claude/vanta && vercel --prod --yes`
 5. Verify acceptance criteria using `curl`, the live URL, or a preview screenshot.
-6. Mark `[x]` in this file. Update **`STATE.md`** with anything the next agent needs to know.
-7. Move to next.
+6. Re-run the precheck — must still pass after your changes.
+7. `git add <files you touched>` (never `git add -A`).
+8. `git commit -m "auto: <short item title>"`.
+9. Mark `[x]` in this file. Update **`STATE.md`** with anything notable.
+10. Move to next.
 
 **Migrations:** apply via `python scripts/apply-migration.py supabase/migrations/00X_name.sql` with `SUPABASE_PAT` env var set. PAT is in `server/.env` as `SUPABASE_PAT` (add it if missing — value already in conversation history; if not, ask the user).
 
