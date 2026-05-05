@@ -4,6 +4,36 @@
 
 ---
 
+## 2026-05-05T10:41Z — Skipped run: dirty working tree (CRLF drift)
+
+**Agent:** scheduled cowork auto-work pass
+**Action taken:** none — exited per the "dirty working tree" hard rule. Only modified this STATE.md entry.
+
+**What I saw:** `git status` on `main` shows two modified files I didn't touch:
+- `.gitignore` — last two lines (` ` and `.vercel`) re-saved with CRLF (`\r\n`) instead of LF
+- `server/.gitignore` — single line `.vercel` re-saved with CRLF
+
+The diffs are pure line-ending changes (verified with `git diff | cat -A` — `^M$` markers on the new sides). No content drift. This is almost certainly a Windows editor or sync process re-writing these files with CRLF line endings, not an in-flight user edit.
+
+**Why I still skipped:** the rule is "dirty tree = stop, leave a note, exit." Erring conservative. If this recurs every run it'll permanently block scheduled work.
+
+**Suggested fix for the user (one-time, then runs unblock):**
+```
+cd /c/Claude/vanta
+# Option A — accept the CRLF and move on:
+git add .gitignore server/.gitignore && git commit -m "chore: normalize .gitignore line endings"
+# Option B — restore LF and add a .gitattributes to keep them LF:
+git checkout -- .gitignore server/.gitignore
+printf "*.gitignore text eol=lf\n" >> .gitattributes
+git add .gitattributes && git commit -m "chore: pin .gitignore to LF endings"
+```
+
+Alternatively, set `git config core.autocrlf false` in this repo if you'd prefer no automatic conversion at all.
+
+**Next agent:** if the tree is clean, start with Phase 1.1 (server worker for SL/TP/stop-out) per the prior handoff.
+
+---
+
 ## 2026-05-05 — Precheck verified end-to-end
 
 Backed up the git restoration with full agent-precheck verification:

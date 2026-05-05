@@ -1,0 +1,31 @@
+# Normalize all text files to LF line endings on commit and checkout.
+# This prevents Windows core.autocrlf from re-marking files as modified
+# every time they're touched, which was breaking the cowork agent's
+# precheck. Once this file is committed, git stops doing CRLF conversion.
+* text=auto eol=lf
+
+# Explicit overrides for common code/config formats
+*.ts        text eol=lf
+*.tsx       text eol=lf
+*.js        text eol=lf
+*.json      text eol=lf
+*.md        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.sql       text eol=lf
+*.sh        text eol=lf
+.gitignore  text eol=lf
+.env*       text eol=lf
+
+# Binary file types — never touch
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.webp      binary
+*.ico       binary
+*.ttf       binary
+*.otf       binary
+*.woff      binary
+*.woff2     binary
+*.pdf       binary
