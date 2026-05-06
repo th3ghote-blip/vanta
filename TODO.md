@@ -81,7 +81,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Try to over-leverage in UI → see "Not enough margin (required: $X, available: $Y)".
 
 ## 1.4 Symbol-aware default volume in OrderEntry
-- [ ] **File:** `components/pro/OrderEntry.tsx`
+- [x] **File:** `components/pro/OrderEntry.tsx`
 - **What:** Default volume changes per asset class on symbol switch (only if user hasn't manually edited): forex=`0.10`, crypto=`0.01`, stocks=`1`, gold=`0.10`. Helper in `lib/contracts.ts`.
 - **Acceptance:** Switch from EURUSD to BTCUSD → volume defaults to 0.01. Switch to AAPL → 1.
 
@@ -91,7 +91,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Header visible on every tab. Numbers update as BTC moves.
 
 ## 1.6 Validate SL/TP make sense before placing order
-- [ ] **File:** `components/pro/OrderEntry.tsx`
+- [x] **File:** `components/pro/OrderEntry.tsx`
 - **What:** Buy: SL must be < current ask, TP must be > current ask. Sell: SL must be > current bid, TP must be < current bid. Show inline error.
 - **Acceptance:** Enter SL above buy price → "Stop loss must be below current price".
 

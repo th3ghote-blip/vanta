@@ -31,8 +31,8 @@ export function contractSize(symbol: string): number {
 
 /**
  * Realized or unrealized P&L in account currency (USD).
- *   buy:  (current - open) × volume × contractSize
- *   sell: (open - current) × volume × contractSize
+ *   buy:  (current - open) * volume * contractSize
+ *   sell: (open - current) * volume * contractSize
  */
 export function calculatePnL(
   side: 'buy' | 'sell',
@@ -50,4 +50,19 @@ export function calculatePnL(
  */
 export function notionalUSD(volume: number, price: number, symbol: string): number {
   return volume * price * contractSize(symbol);
+}
+
+/**
+ * Sensible default lot size when a symbol is first selected, before the user
+ * has typed anything. Follows typical retail-broker conventions:
+ * - Forex / Gold / Silver: 0.10 lots (micro-lot -- manageable notional)
+ * - Stocks: 1 lot (1 share)
+ * - Crypto and everything else: 0.01 lots (small BTC/ETH exposure)
+ */
+export function defaultVolumeFor(symbol: string): string {
+  if (FOREX_PAIRS.has(symbol)) return '0.10';
+  if (symbol === 'XAUUSD' || symbol === 'XAGUSD') return '0.10';
+  if (STOCK_SYMBOLS.has(symbol)) return '1';
+  // Crypto and anything unrecognised
+  return '0.01';
 }

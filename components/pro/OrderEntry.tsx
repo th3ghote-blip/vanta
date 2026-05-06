@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { View, Text, Pressable, TextInput, ActivityIndicator, Alert, Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
@@ -6,6 +6,7 @@ import { colors, radius, spacing, typography } from '@/lib/theme';
 import { usePriceStore } from '@/stores/prices';
 import { useAccountStore } from '@/stores/account';
 import { api, ApiError } from '@/lib/api';
+import { defaultVolumeFor } from '@/lib/contracts';
 
 interface Props {
   symbol: string;
@@ -24,12 +25,12 @@ function fmtUsd(v: unknown): string {
 /**
  * Map a thrown error from `api.openOrder` to a sentence the user can act on.
  * Server error codes (see `server/src/routes/orders.ts`):
- *   insufficient_margin → details.required, details.available
- *   no_quote            → details.symbol
- *   forbidden           → either the account isn't theirs, or auth lapsed
- *   invalid_input       → details.issues (zod), but we keep the surface short
- *   margin_reserve_failed / insert_failed / close_failed → server bug, generic copy
- *   http_<status>       → fallback when the body wasn't JSON
+ *   insufficient_margin => details.required, details.available
+ *   no_quote            => details.symbol
+ *   forbidden           => either the account isn't theirs, or auth lapsed
+ *   invalid_input       => details.issues (zod), but we keep the surface short
+ *   margin_reserve_failed / insert_failed / close_failed => server bug, generic copy
+ *   http_<status>       => fallback when the body wasn't JSON
  * Anything else (including a non-ApiError, e.g. network failure) gets a friendly fallback.
  */
 function describeOrderError(err: unknown, symbol: string): string {
@@ -64,11 +65,27 @@ function describeOrderError(err: unknown, symbol: string): string {
 }
 
 export function OrderEntry({ symbol }: Props) {
-  const [volume, setVolume] = useState('0.10');
+  const [volume, setVolume] = useState(() => defaultVolumeFor(symbol));
   const [stopLoss, setStopLoss] = useState('');
   const [takeProfit, setTakeProfit] = useState('');
   const [busy, setBusy] = useState<'buy' | 'sell' | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
+
+  // Track whether the user has manually typed a volume. If they haven't, we
+  // auto-update the volume field whenever the symbol changes so the default
+  // always matches the asset class (forex=0.10, crypto=0.01, stocks=1, gold=0.10).
+  const userEditedVolume = useRef(false);
+
+  useEffect(() => {
+    if (!userEditedVolume.current) {
+      setVolume(defaultVolumeFor(symbol));
+    }
+  }, [symbol]);
+
+  const handleVolumeChange = (s: string) => {
+    userEditedVolume.current = true;
+    setVolume(s);
+  };
 
   const quote = usePriceStore((s) => s.quotes[symbol]);
   const account = useAccountStore((s) => s.account);
@@ -130,7 +147,7 @@ export function OrderEntry({ symbol }: Props) {
         )}
       </View>
 
-      <Field label="Volume (lots)" value={volume} onChangeText={setVolume} />
+      <Field label="Volume (lots)" value={volume} onChangeText={handleVolumeChange} />
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>
         <View style={{ flex: 1 }}>
           <Field label="Stop Loss" value={stopLoss} onChangeText={setStopLoss} placeholder="—" />
