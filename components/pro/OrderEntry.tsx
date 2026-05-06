@@ -5,10 +5,62 @@ import * as Haptics from 'expo-haptics';
 import { colors, radius, spacing, typography } from '@/lib/theme';
 import { usePriceStore } from '@/stores/prices';
 import { useAccountStore } from '@/stores/account';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 
 interface Props {
   symbol: string;
+}
+
+/**
+ * Format a USD figure for in-line error copy. Falls back to the raw value if the
+ * server sent something non-numeric.
+ */
+function fmtUsd(v: unknown): string {
+  const n = typeof v === 'number' ? v : Number(v);
+  if (!Number.isFinite(n)) return String(v ?? '?');
+  return `$${n.toFixed(2)}`;
+}
+
+/**
+ * Map a thrown error from `api.openOrder` to a sentence the user can act on.
+ * Server error codes (see `server/src/routes/orders.ts`):
+ *   insufficient_margin → details.required, details.available
+ *   no_quote            → details.symbol
+ *   forbidden           → either the account isn't theirs, or auth lapsed
+ *   invalid_input       → details.issues (zod), but we keep the surface short
+ *   margin_reserve_failed / insert_failed / close_failed → server bug, generic copy
+ *   http_<status>       → fallback when the body wasn't JSON
+ * Anything else (including a non-ApiError, e.g. network failure) gets a friendly fallback.
+ */
+function describeOrderError(err: unknown, symbol: string): string {
+  if (err instanceof ApiError) {
+    switch (err.code) {
+      case 'insufficient_margin': {
+        const required = fmtUsd(err.details.required);
+        const available = fmtUsd(err.details.available);
+        return `Not enough margin (required: ${required}, available: ${available}).`;
+      }
+      case 'no_quote': {
+        const sym = err.details.symbol ?? symbol;
+        return `No live price for ${sym} right now. Wait a moment and try again.`;
+      }
+      case 'forbidden':
+        return `You can't trade on this account. Try signing out and back in.`;
+      case 'invalid_input':
+        return `Order details look off. Check the volume, stop loss, and take profit.`;
+      case 'unauthorized':
+        return `Session expired. Please sign in again.`;
+      case 'margin_reserve_failed':
+      case 'insert_failed':
+        return `Server couldn't open the trade. Try again in a moment.`;
+      default:
+        // Unknown code or http_<status> fallback — show the code so support can repro.
+        return `Order failed (${err.code}).`;
+    }
+  }
+  // Network errors (TypeError: Failed to fetch) or anything else.
+  const msg = err instanceof Error ? err.message : String(err);
+  return msg ? `Order failed: ${msg}` : 'Order failed.';
 }
 
 export function OrderEntry({ symbol }: Props) {
@@ -50,7 +102,7 @@ export function OrderEntry({ symbol }: Props) {
       // Refresh account so balance/margin reflects new position
       fetchAccount();
     } catch (err: any) {
-      setLastError(err?.message ?? 'Order failed');
+      setLastError(describeOrderError(err, symbol));
     } finally {
       setBusy(null);
     }

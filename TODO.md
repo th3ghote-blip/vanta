@@ -75,7 +75,8 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** 100 BTC buy on $10k demo → rejected. 0.1 BTC ($80 margin) → allowed; account.margin_used = 80.
 
 ## 1.3 Order entry feedback for margin / quote / generic errors
-- [ ] **File:** `components/pro/OrderEntry.tsx`
+- [x] **File:** `components/pro/OrderEntry.tsx` + `lib/api.ts` (added `ApiError` class)
+> 2026-05-06 — agent staged the diff over multiple skipped runs; landed in this commit. `lib/api.ts` now throws structured `ApiError(code, status, details)` for all non-2xx responses. `OrderEntry.tsx` has `describeOrderError()` mapping `insufficient_margin` (with required/available), `no_quote`, `forbidden`, `invalid_input`, `unauthorized`, etc. to user-facing copy. Network failures fall through to a generic message.
 - **What:** Map specific error codes (`insufficient_margin`, `no_quote`, `forbidden`, `invalid_input`) to human messages. Right now everything renders the raw `error` string.
 - **Acceptance:** Try to over-leverage in UI → see "Not enough margin (required: $X, available: $Y)".
 

@@ -6,6 +6,31 @@ import { supabase } from './supabase';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000';
 
+/**
+ * Thrown by `request()` for any non-2xx response.
+ *
+ * `code` is the server's `error` string (e.g. `'insufficient_margin'`, `'no_quote'`,
+ * `'forbidden'`, `'invalid_input'`) when the body parses as JSON; otherwise falls
+ * back to `'http_<status>'`. `details` carries the rest of the JSON body so callers
+ * can surface payload fields like `required` / `available` / `symbol` / `issues`.
+ *
+ * `message` is set to `code` so legacy `catch (err) { setError(err.message) }`
+ * sites keep working — they'll just see the raw code instead of a friendly string.
+ */
+export class ApiError extends Error {
+  readonly code: string;
+  readonly status: number;
+  readonly details: Record<string, any>;
+
+  constructor(code: string, status: number, details: Record<string, any> = {}) {
+    super(code);
+    this.name = 'ApiError';
+    this.code = code;
+    this.status = status;
+    this.details = details;
+  }
+}
+
 async function authHeaders(): Promise<Record<string, string>> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
@@ -20,12 +45,17 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   };
   const res = await fetch(`${API_URL}${path}`, { ...init, headers });
   if (!res.ok) {
-    let msg = `HTTP ${res.status}`;
+    let code = `http_${res.status}`;
+    let details: Record<string, any> = {};
     try {
       const body = await res.json();
-      msg = body.error ?? msg;
+      if (body && typeof body === 'object') {
+        const { error: errCode, ...rest } = body as Record<string, any>;
+        if (typeof errCode === 'string' && errCode.length > 0) code = errCode;
+        details = rest;
+      }
     } catch {}
-    throw new Error(msg);
+    throw new ApiError(code, res.status, details);
   }
   return (await res.json()) as T;
 }
