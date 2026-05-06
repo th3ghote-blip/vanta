@@ -10,6 +10,8 @@ import { api } from '@/lib/api';
 export interface Account {
   id: string;
   user_id: string;
+  /** MT4-style numeric login, e.g. 80000001 (from migration 003). */
+  login: number;
   type: 'demo' | 'live';
   status: 'pending_kyc' | 'active' | 'suspended' | 'closed';
   currency: string;
