@@ -86,7 +86,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Switch from EURUSD to BTCUSD → volume defaults to 0.01. Switch to AAPL → 1.
 
 ## 1.5 Account header strip with live balance / equity / free margin
-- [ ] **Files:** `components/shared/AccountHeader.tsx` (new), import in `app/(tabs)/_layout.tsx`
+- [x] **Files:** `components/shared/AccountHeader.tsx` (new), import in `app/(tabs)/_layout.tsx`
 - **What:** Strip above the tabs (or as a sticky element above content) showing: `Balance $X · Equity $Y · Free $Z`. Updates as quotes tick. Account # also visible.
 - **Acceptance:** Header visible on every tab. Numbers update as BTC moves.
 
