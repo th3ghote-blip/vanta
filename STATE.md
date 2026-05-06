@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-05-06 — 1.1, 1.2, 1.3 all live; agent's mid-task diffs committed
+
+The cowork agent had been productive but skipping consecutive runs because its in-flight Phase 1.3 diff (`lib/api.ts` + `components/pro/OrderEntry.tsx`) was never committed.
+
+**Just landed (deployed live):**
+- 1.1 SL/TP/stop-out worker — already committed by agent (`0ad7900`); deployed today; backend log confirms `Risk worker started (1s tick)`.
+- 1.2 Margin reservation/release — already committed by agent (`98f4fb4`); deployed today.
+- 1.3 Order error mapping — committed today as `c0af6d2`; frontend deployed to vanta-jade.vercel.app.
+
+**Tree state:** clean, on `main`.
+
+**Next agent:** start with **1.4 — symbol-aware default volume** (`components/pro/OrderEntry.tsx`). Helper `defaultVolumeFor(symbol)` belongs in `lib/contracts.ts` for symmetry with the existing `contractSize`. Then 1.5 (account header strip) and 1.6 (SL/TP validation) — all UI work, deployable via Vercel which the cowork sandbox CAN reach.
+
+**Recurring gotcha:** `.git/index.lock` and `.git/HEAD.lock` accumulating between runs. If precheck fails with `fatal: Unable to create '.git/index.lock'`, run `rm -f .git/index.lock .git/HEAD.lock` and retry.
+
+**Backend deploys still need a human (or me) to push:** the cowork sandbox doesn't have `railway` CLI / outbound. For purely-frontend tasks like 1.4–1.6 the agent should be able to ship end-to-end via `vercel --prod --yes`.
+
+---
+
 ## 2026-05-06T14:06Z — Skipped run: dirty working tree (same 1.3 diff as 12:40Z, plus prior skip's STATE.md edit)
 
 **Agent:** scheduled cowork auto-work pass
