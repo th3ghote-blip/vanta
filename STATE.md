@@ -4,6 +4,44 @@
 
 ---
 
+## 2026-05-06T14:06Z — Skipped run: dirty working tree (same 1.3 diff as 12:40Z, plus prior skip's STATE.md edit)
+
+**Agent:** scheduled cowork auto-work pass
+**Action taken:** none beyond this STATE.md note — exited per the "dirty working tree" hard rule.
+
+**Why again:** `git status` shows the same three modified files as the 12:40Z run: `STATE.md` (the prior skip note, never committed), `components/pro/OrderEntry.tsx`, and `lib/api.ts`. The OrderEntry/api.ts diffs are identical to what the 12:40Z entry described — no human progress in between, no new agent work. We're now stuck in a skip loop until a human either commits/discards those changes or the next agent gets explicit go-ahead.
+
+**Heads up — Edit-tool truncation bit me again.** My first attempt to add this entry via the `Edit` file tool truncated STATE.md mid-line at line 88 (HEAD-tail content lost). I rebuilt the file via bash heredoc — that's why this entry is here at all. Same gotcha #2 the 22:14Z entry warned about; it's still real.
+
+**Recommendation for the human:** if the OrderEntry.tsx + lib/api.ts diff is not your in-progress work, just `git add components/pro/OrderEntry.tsx lib/api.ts STATE.md && git commit` (or discard with `git checkout --`) so the auto-runs unblock. The 12:40Z entry (below) has the diff summary and a checklist for landing 1.3 cleanly if you want an agent to take it from here.
+
+---
+
+## 2026-05-06T12:40Z — Skipped run: dirty working tree (looks like in-flight 1.3 work)
+
+**Agent:** scheduled cowork auto-work pass
+**Action taken:** none beyond writing this note — exited per the "dirty working tree" hard rule.
+
+**What I observed:** `git status` shows two modified files vs HEAD:
+- `components/pro/OrderEntry.tsx` (+54/-2): adds `fmtUsd()` + `describeOrderError()` mapping `insufficient_margin`/`no_quote`/`forbidden`/`invalid_input`/`unauthorized`/`margin_reserve_failed`/`insert_failed` to friendly copy; replaces `setLastError(err?.message ?? 'Order failed')` with `setLastError(describeOrderError(err, symbol))`.
+- `lib/api.ts` (+31/-5): introduces and exports `ApiError` class (`code`, `status`, `details`); `request()` now parses the JSON body, pulls `error` as `code` and the rest as `details`, throws `ApiError` instead of plain `Error`.
+
+This is exactly what TODO 1.3 asks for, and the previous STATE entry suggested 1.3 as the next item — so it most likely is a prior agent run that crashed before commit. But it's uncommitted, so per the hard rule I'm treating it as possible user mid-edit and not touching it.
+
+**Suggested next step (for the human or next agent if tree is clean):**
+The diff looks correct on inspection. If the human can confirm it's not their in-progress work, the next agent should:
+1. Run the precheck (`tsc --noEmit` both root and `server/`).
+2. `git add components/pro/OrderEntry.tsx lib/api.ts && git commit -m "auto: order entry feedback for margin/quote/generic errors"`.
+3. Mark `1.3` `[x]` in `TODO.md`.
+4. Deploy frontend (`vercel --prod --yes`).
+5. Verify acceptance: try to over-leverage in UI → "Not enough margin (required: $X, available: $Y)".
+
+If the human IS mid-edit, leave it alone — they'll commit when ready.
+
+**No deploys this run. No commits this run.** TODO unchanged. Next run picks back up from 1.3 (or 1.4 if 1.3 lands in the meantime).
+
+---
+
 ## 2026-05-05T22:14Z — Phase 1.2 margin reserve/release landed (commit only — deploy still pending)
 
 **Agent:** scheduled cowork auto-work pass
