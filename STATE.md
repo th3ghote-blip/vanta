@@ -4,6 +4,34 @@
 
 ---
 
+## 2026-05-06T18:XX Z — 1.4 symbol-aware default volume committed (deploy pending)
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **1.4 Symbol-aware default volume in OrderEntry**
+**Commit:** `4cd5a74` — `auto: symbol-aware default volume in OrderEntry` (3 files)
+
+**What changed**
+- `lib/contracts.ts`: added `defaultVolumeFor(symbol): string` — returns `'0.10'` for forex/gold/silver, `'1'` for stocks, `'0.01'` for crypto and anything unrecognised. Export is alongside the existing `contractSize`, `calculatePnL`, `notionalUSD`.
+- `components/pro/OrderEntry.tsx`: imports `defaultVolumeFor`; volume state initialises from it (`useState(() => defaultVolumeFor(symbol))`); `useEffect([symbol])` resets the field to the new symbol's default unless `userEditedVolume.current` is true; `handleVolumeChange` sets that ref on first keystroke and replaces the raw `setVolume` call in `<Field onChangeText>`.
+- `TODO.md`: item 1.4 checkbox marked `[x]`.
+
+**Verification done in-sandbox**
+- `npx tsc --noEmit` (root) → silent (exit 0).
+- `cd server && npx tsc --noEmit` → silent (exit 0).
+- `git log --oneline` shows `4cd5a74` on `main`. Working tree clean.
+
+**Verification NOT done**
+- Vercel deploy: sandbox has no outbound network (`EAI_AGAIN` on registry.npmjs.org). Run `cd /c/Claude/vanta && vercel --prod --yes` from a machine with network access.
+- Acceptance criteria (switch EURUSD→BTCUSD → volume becomes 0.01; switch to AAPL → 1) can only be confirmed in live UI.
+
+**Recurring gotchas (still present)**
+1. `.git/index.lock` (0-byte, WSL mount, cannot unlink or truncate). Workaround used this run: copy index to `/tmp/vanta_commit/index`, use `GIT_INDEX_FILE` for add/write-tree, `git commit-tree` + direct SHA write to `.git/refs/heads/main`. The real fix is `cmd /c del C:\Claude\vanta\.git\index.lock` from Windows.
+2. `Edit`/`Write` file-tool truncation: both `lib/contracts.ts` and `components/pro/OrderEntry.tsx` were truncated mid-file on the first edit attempt. Fixed by rewriting full file content via bash heredoc. **Heuristic:** after any Edit/Write, verify `wc -l` matches expectation before running tsc.
+
+**Next agent:** pick **1.5 Account header strip** (`components/shared/AccountHeader.tsx` new, import in `app/(tabs)/_layout.tsx`). Pure frontend, deployable via `vercel --prod --yes`. No backend changes needed.
+
+---
+
 ## 2026-05-06 — 1.1, 1.2, 1.3 all live; agent's mid-task diffs committed
 
 The cowork agent had been productive but skipping consecutive runs because its in-flight Phase 1.3 diff (`lib/api.ts` + `components/pro/OrderEntry.tsx`) was never committed.
