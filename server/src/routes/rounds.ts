@@ -21,8 +21,46 @@ export async function roundsRoutes(app: FastifyInstance) {
     if (!parsed.success) return reply.code(400).send({ error: 'invalid_input' });
     const body = parsed.data;
 
+    // 1. Fetch account and verify ownership
+    const { data: account, error: accErr } = await supabaseAdmin
+      .from('accounts')
+      .select('id, user_id, balance')
+      .eq('id', body.accountId)
+      .single();
+
+    if (accErr || !account) return reply.code(400).send({ error: 'account_not_found' });
+    if (account.user_id !== userId) return reply.code(403).send({ error: 'forbidden' });
+
+    // 2. Balance check
+    const balance = Number(account.balance);
+    if (balance < body.stake) {
+      return reply.code(400).send({
+        error: 'insufficient_balance',
+        required: body.stake,
+        available: balance,
+      });
+    }
+
+    // 3. Deduct stake atomically before inserting the round
+    const { error: deductErr } = await supabaseAdmin.rpc('apply_trade_pnl', {
+      p_account_id: body.accountId,
+      p_amount: -body.stake,
+    });
+    if (deductErr) {
+      app.log.error({ err: deductErr, accountId: body.accountId }, 'rounds: stake deduct failed');
+      return reply.code(500).send({ error: 'deduct_failed' });
+    }
+
+    // 4. Insert the round (account_id already stored)
     const entry = getMid(body.symbol);
-    if (entry == null) return reply.code(400).send({ error: 'no_quote' });
+    if (entry == null) {
+      // Refund the stake — no quote available
+      await supabaseAdmin.rpc('apply_trade_pnl', {
+        p_account_id: body.accountId,
+        p_amount: body.stake,
+      });
+      return reply.code(400).send({ error: 'no_quote' });
+    }
 
     const multiplier = payoutFor(body.durationSeconds);
     const closesAt = new Date(Date.now() + body.durationSeconds * 1000).toISOString();
@@ -42,7 +80,16 @@ export async function roundsRoutes(app: FastifyInstance) {
       .select()
       .single();
 
-    if (error) return reply.code(500).send({ error: 'insert_failed' });
+    if (error) {
+      // Compensating transaction — refund stake on insert failure
+      app.log.error({ err: error, accountId: body.accountId }, 'rounds: insert failed, refunding stake');
+      await supabaseAdmin.rpc('apply_trade_pnl', {
+        p_account_id: body.accountId,
+        p_amount: body.stake,
+      });
+      return reply.code(500).send({ error: 'insert_failed' });
+    }
+
     return { round };
   });
 }

@@ -106,7 +106,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Open a 60s round on BTC up. Wait. Round closes with outcome=win/loss. Balance reflects.
 
 ## 2.2 Deduct stake on round open
-- [ ] **File:** `server/src/routes/rounds.ts`
+- [x] **File:** `server/src/routes/rounds.ts`
 - **What:** Before insert, check `account.balance >= stake`. Decrement balance by stake on insert (one transaction). Also store `account_id`.
 - **Acceptance:** Open $50 round on $10k account → balance $9950 immediately.
 
