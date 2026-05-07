@@ -100,7 +100,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 # Phase 2 — Quick Mode (binary rounds)
 
 ## 2.1 Server worker to settle binary rounds at expiry
-- [ ] **File:** `server/src/workers/rounds.ts` (new)
+- [x] **File:** `server/src/workers/rounds.ts` (new)
 - **What:** Every 1s: query `binary_rounds` where `outcome='pending' AND closes_at <= now()`. For each: pull `exit_price` from quote cache; determine outcome (win if `(direction='buy' AND exit > entry) OR (direction='sell' AND exit < entry)`; tie if exact). On win: payout = `stake * payout_multiplier`, balance += payout. On loss: balance unchanged (stake already deducted on open). Set `outcome`, `exit_price`, `payout`.
 - **Wire it up:** Import + start in `server/src/index.ts`.
 - **Acceptance:** Open a 60s round on BTC up. Wait. Round closes with outcome=win/loss. Balance reflects.
@@ -111,7 +111,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Open $50 round on $10k account → balance $9950 immediately.
 
 ## 2.3 Wire QuickTradeScreen Up/Down to /api/rounds/open
-- [ ] **File:** `components/fun/QuickTradeScreen.tsx`
+- [x] **File:** `components/fun/QuickTradeScreen.tsx`
 - **What:** Up/Down `onPress` → POST `/api/rounds/open` with selected asset, duration, stake, direction. Show busy state. Insert appears via Supabase realtime in active rounds list.
 - **Acceptance:** Tap Up on $10 BTC 60s → loading → round appears in active list with countdown.
 

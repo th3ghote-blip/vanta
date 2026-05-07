@@ -4,6 +4,37 @@
 
 ---
 
+## 2026-05-07T(auto) — 2.3 Wire QuickTradeScreen Up/Down to /api/rounds/open
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **2.3 Wire QuickTradeScreen Up/Down to /api/rounds/open**
+
+**What changed**
+- `components/fun/QuickTradeScreen.tsx` (323 lines, was 195): Up/Down buttons now call `api.openRound()`. Key changes:
+  - Imports `useAccountStore` (for `account.id`) and `usePriceStore` (for live mid prices on asset chips and BinaryCard).
+  - `ASSETS` array stripped of static prices — live mid from quote cache shown instead.
+  - `openRound(direction)` async callback: checks account loaded, sets `busy` state, calls `api.openRound({accountId, symbol, direction, stake, durationSeconds})`, then calls `refetchAccount()` so AccountHeader reflects the stake deduction. Error mapped via `describeRoundError()` covering `insufficient_balance` (with required/available amounts), `no_quote`, `account_not_found`, `forbidden`, `unauthorized`, `deduct_failed`, `insert_failed`.
+  - Buttons show `ActivityIndicator` while their direction is pending; opposite button dims to 40% opacity; both disabled while any request is in flight.
+  - Feedback banner (green/red) appears below stake picker with success confirmation or error message.
+- `TODO.md`: items 2.1 and 2.3 marked `[x]`. (2.1 was already fully implemented in commit `8312e29` but TODO checkbox was never updated — corrected this run.)
+
+**Verification done in-sandbox**
+- `npx tsc --noEmit` (root) → exit 0 (silent). No type errors.
+- Logic verified: `api.openRound` was already defined in `lib/api.ts`; `usePriceStore` exports `quotes: Record<string, Quote>`; `useAccountStore` exports `account` + `fetch` (aliased to `refetchAccount`).
+
+**Verification NOT done**
+- Vercel deploy: sandbox has no outbound network. Run `cd /c/Claude/vanta && vercel --prod --yes` to ship.
+- E2E: tap Up on BTCUSD $10 60s → loading spinner → success banner → AccountHeader balance drops $10 → round appears in DB.
+
+**Recurring gotchas (still present)**
+1. `.git/index.lock` (0-byte WSL lockfile, cannot unlink). Workaround: `GIT_INDEX_FILE=/tmp/git_idx git read-tree HEAD` then stage + commit via commit-tree. Real fix: `cmd /c del C:\Claude\vanta\.git\index.lock` on Windows.
+2. Index was stale this run (showed rounds.ts as deleted + staged). Fixed by `GIT_INDEX_FILE=/tmp/git_idx_vanta git read-tree HEAD` which showed clean tree.
+3. `Edit`/`Write` tool may truncate. Fix: bash heredoc + verify `wc -l`.
+
+**Next agent:** pick **2.4 Active Rounds list in Quick Mode** (`components/fun/ActiveRounds.tsx` new, import in `QuickTradeScreen.tsx`). Frontend-only; deploy with `vercel --prod --yes`.
+
+---
+
 ## 2026-05-07T(auto) — 2.2 Deduct stake on round open committed (deploy pending)
 
 **Agent:** scheduled cowork auto-work pass
@@ -62,37 +93,4 @@ The settler correctly credits payout on win, but stake is not yet deducted on op
 1. `.git/index.lock` (0-byte WSL lockfile). Workaround: copy index to `/tmp`, use `GIT_INDEX_FILE` + `git commit-tree`, write SHA to `.git/refs/heads/main`.
 2. `Edit`/`Write` tool truncation. Fix: bash heredoc + verify `wc -l` before staging.
 
-**Next agent:** pick **2.2 Deduct stake on round open** (`server/src/routes/rounds.ts`) — balance-deduction + account_id enforcement on insert. Backend-only; deploy with `railway up --detach`.
-
----
-
-## 2026-05-07T00:00Z — 1.5 Account header strip committed (deploy pending)
-
-**Agent:** scheduled cowork auto-work pass
-**TODO item picked:** **1.5 Account header strip with live balance / equity / free margin**
-**Commits:** `3f29fe6` (implementation) + `9471928` (TODO checkbox)
-
-**What changed**
-- `components/shared/AccountHeader.tsx` (new, 171 lines): horizontal strip showing `#<login>  |  Bal $X · Eq $Y · Free $Z`. Equity is recomputed on every quote tick: fetches open trades on mount, subscribes to Supabase realtime (`acct_hdr_<id>` channel) to refetch on any trade INSERT/UPDATE/DELETE, then `useMemo([account, openTrades, quotes])` to add unrealised P&L via `calculatePnL`. Equity text colour: green if above balance, red if below, muted if flat. Falls back to `account.id.slice(0,8)` if `account.login` is null (old rows before migration 003).
-- `stores/account.ts`: added `login: number` to `Account` interface (matches `bigint` column from migration `003_login_numbers.sql`; the existing `select('*')` already fetches it).
-- `app/(tabs)/_layout.tsx`: wrapped `<Tabs>` in `<View style={{flex:1}}>` and rendered `<AccountHeader />` above `<Tabs>` so the strip is persistent across all four tab screens.
-- `TODO.md`: item 1.5 checkbox marked `[x]`.
-
-**Verification done in-sandbox**
-- `npx tsc --noEmit` (root) → exit 0 (silent).
-- `cd server && npx tsc --noEmit` → exit 0 (silent).
-- `git log --oneline` shows `9471928` on `main`. Working tree clean.
-
-**Verification NOT done**
-- Vercel deploy: sandbox has no outbound network (`EAI_AGAIN`). Run `cd /c/Claude/vanta && vercel --prod --yes` from a machine with access.
-- Visual check: header renders above tabs, equity colour changes as BTC ticks, account number shows correctly (e.g. `#80000001`).
-
-**Recurring gotchas (still present)**
-1. `.git/index.lock` and `.git/HEAD.lock` are 0-byte stale WSL lockfiles; cannot `unlink`. Workaround: copy index to `/tmp`, use `GIT_INDEX_FILE` + `git commit-tree`, write SHA to `.git/refs/heads/main` directly. Real fix: `cmd /c del C:\Claude\vanta\.git\index.lock` from Windows.
-2. `Edit`/`Write` tool truncation still observed. All files written via bash heredoc and verified with `wc -l` + `tail` before staging.
-
-**Next agent:** pick **2.1 Server worker to settle binary rounds at expiry** (`server/src/workers/rounds.ts` new). Backend-only; needs `railway up --detach`. Alternatively skip to **8.2 Symbol categories in SymbolPicker** (pure frontend, Vercel-deployable) if human has already shipped 1.5 and wants frontend momentum.
-
----
-
-## 2026-05-06T18:XX Z — 1.4 symbol-aware
+**Next agent:** pick **2.2 Deduct stake on round open** (`server/src/routes/rounds.ts`) — balance-deduction + account_id 
