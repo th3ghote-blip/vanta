@@ -14,6 +14,7 @@ import { authRoutes } from './routes/auth.js';
 import { startPriceFeed } from './feed/pricefeed.js';
 import { startRobotEngine } from './ai/robotEngine.js';
 import { startRiskWorker } from './workers/risk.js';
+import { startRoundsWorker } from './workers/rounds.js';
 
 const PORT = Number(process.env.PORT ?? 4000);
 const HOST = process.env.HOST ?? '0.0.0.0';
@@ -59,6 +60,7 @@ await app.register(barsRoutes, { prefix: '/api/bars' });
 startPriceFeed(app);
 startRobotEngine(app);
 startRiskWorker(app);
+startRoundsWorker(app);
 
 app
   .listen({ port: PORT, host: HOST })
