@@ -116,7 +116,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Tap Up on $10 BTC 60s → loading → round appears in active list with countdown.
 
 ## 2.4 Active Rounds list in Quick Mode
-- [ ] **File:** `components/fun/ActiveRounds.tsx` (new), import in `QuickTradeScreen.tsx`
+- [x] **File:** `components/fun/ActiveRounds.tsx` (new), import in `QuickTradeScreen.tsx`
 - **What:** Below Up/Down buttons, list pending rounds with countdown rings + entry price + direction + stake. Subscribe to Supabase realtime on `binary_rounds` filtered by account_id. When `outcome != 'pending'`, animate out and trigger result modal.
 - **Acceptance:** 3 rounds active → all visible with countdowns. Round settles → disappears with win/loss flash.
 

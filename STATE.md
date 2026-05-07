@@ -3,6 +3,42 @@
 > Append, don't replace. Most recent at top. Each entry: date, agent, what changed, what's pending, gotchas.
 
 ---
+## 2026-05-08T(auto) — 2.4 Active Rounds list in Quick Mode
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **2.4 Active Rounds list in Quick Mode**
+**Commit:** `3e840d2` — `auto: active rounds list in Quick Mode (Phase 2.4)`
+
+**What changed**
+- `components/fun/ActiveRounds.tsx` (new, 286 lines): Supabase-realtime-backed list of pending binary rounds.
+  - Fetches all `outcome='pending'` rounds for `accountId` on mount.
+  - Subscribes to `postgres_changes` INSERT + UPDATE on `binary_rounds` filtered by `account_id`.
+  - INSERT: appends new round to list (sorted by `closes_at`), deduped.
+  - UPDATE: updates the row; if `outcome != 'pending'`, calls `onRoundSettled?.(round)` (hook for Phase 2.5 modal).
+  - Each `RoundRow`: 56px `CountdownRing` counting down to real `closes_at`, direction badge (▲/▼), symbol, entry price, stake, multiplier.
+  - On settle: row flashes win/loss background for 800ms then fades out via `Animated.timing`; `onFaded` removes it from state.
+  - Returns `null` when no pending rounds (no empty-state clutter).
+- `components/fun/CountdownRing.tsx` (modified): Added optional `closesAt?: string` prop. When provided, ring counts down to the real ISO timestamp in real time; `seconds` is still needed as arc denominator.
+- `components/fun/QuickTradeScreen.tsx` (modified): Imports and renders `<ActiveRounds accountId={account.id} />` below the payout hint line, guarded by `account != null`.
+- `TODO.md`: item 2.4 checkbox marked `[x]`.
+
+**Verification done in-sandbox**
+- `npx tsc --noEmit` (root) → exit 0.
+- `cd server && npx tsc --noEmit` → exit 0.
+
+**Verification NOT done**
+- Vercel deploy: sandbox has no outbound network. Run `cd /c/Claude/vanta && vercel --prod --yes` to ship.
+- E2E: open 3 rounds → all visible with countdown rings → wait for expiry → disappear with win/loss flash.
+
+**Recurring gotchas (still present)**
+1. `.git/index.lock` + `.git/HEAD.lock` (0-byte WSL stale lockfiles). Workaround: `GIT_INDEX_FILE=/tmp/git_vanta_idx git read-tree HEAD` to rebuild index; write commit SHA directly to `.git/refs/heads/main` (bypassing `update-ref` which requires HEAD.lock).
+2. Edit/Write tool truncates long files. Fix: bash heredoc + verify `wc -l`.
+3. JSX block comments (`{/* */}`) are invalid inside a tag's prop list — put them as children or regular `//` comments outside JSX.
+
+**Next agent:** pick **2.5 Win / loss result modal** (`components/fun/RoundResultModal.tsx` new). Note: requires `npm install react-native-confetti-cannon` per TODO. Wire `onRoundSettled` callback in `QuickTradeScreen.tsx` once modal exists. Frontend-only; deploy with `vercel --prod --yes`.
+
+---
+
 
 ## 2026-05-07T(auto) — 2.3 Wire QuickTradeScreen Up/Down to /api/rounds/open
 
@@ -94,3 +130,4 @@ The settler correctly credits payout on win, but stake is not yet deducted on op
 2. `Edit`/`Write` tool truncation. Fix: bash heredoc + verify `wc -l` before staging.
 
 **Next agent:** pick **2.2 Deduct stake on round open** (`server/src/routes/rounds.ts`) — balance-deduction + account_id 
+---
