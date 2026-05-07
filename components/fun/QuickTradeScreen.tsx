@@ -8,6 +8,7 @@ import { useAccountStore } from '@/stores/account';
 import { usePriceStore } from '@/stores/prices';
 import { BinaryCard } from './BinaryCard';
 import { CountdownRing } from './CountdownRing';
+import { ActiveRounds } from './ActiveRounds';
 
 const ASSETS = [
   { symbol: 'EURUSD', name: 'Euro / Dollar' },
@@ -60,7 +61,6 @@ export function QuickTradeScreen() {
 
   const selected = ASSETS.find((a) => a.symbol === selectedSymbol) ?? ASSETS[0];
   const quote = quotes[selected.symbol];
-  // Mid price for display; fall back to 0 if not yet loaded
   const livePrice = quote ? (quote.bid + quote.ask) / 2 : 0;
 
   const openRound = useCallback(
@@ -75,7 +75,7 @@ export function QuickTradeScreen() {
       setFeedback(null);
 
       try {
-        const { round } = await api.openRound({
+        await api.openRound({
           accountId: account.id,
           symbol: selected.symbol,
           direction,
@@ -83,7 +83,6 @@ export function QuickTradeScreen() {
           durationSeconds: duration.seconds,
         });
 
-        // Refresh balance so AccountHeader reflects deduction
         refetchAccount();
 
         setFeedback({
@@ -99,12 +98,11 @@ export function QuickTradeScreen() {
     [busy, account, selected.symbol, stake, duration, refetchAccount],
   );
 
-  // Build asset card data merging live prices in
   const selectedAsset = {
     symbol: selected.symbol,
     name: selected.name,
     price: livePrice,
-    change: 0, // live % change not tracked — cosmetic placeholder
+    change: 0,
   };
 
   return (
@@ -316,8 +314,16 @@ export function QuickTradeScreen() {
       </View>
 
       <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 11, textAlign: 'center' }}>
-        Win pays ${(stake * duration.multiplier).toFixed(2)} · Loss costs ${stake.toFixed(2)}
+        Win pays ×{duration.multiplier} · Loss costs ${stake.toFixed(2)}
       </Text>
+
+      {/* Active rounds — appears once at least one round is open (Phase 2.4) */}
+      {account && (
+        <ActiveRounds
+          accountId={account.id}
+
+        />
+      )}
     </View>
   );
 }
