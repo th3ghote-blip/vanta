@@ -4,6 +4,37 @@
 
 ---
 
+## 2026-05-07T(auto) — 2.1 Rounds settler worker committed (deploy pending)
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **2.1 Server worker to settle binary rounds at expiry**
+**Commit:** `8312e29` — `auto: server worker to settle binary rounds at expiry` (3 files)
+
+**What changed**
+- `server/src/workers/rounds.ts` (new, 159 lines): 1s-tick settler. Queries `binary_rounds` where `outcome='pending' AND closes_at <= now()`. For each: reads `exit_price` from in-memory quote cache (mid), determines win/loss/tie by comparing exit vs entry and direction. On win: computes `payout = stake * payout_multiplier`, calls `apply_trade_pnl` to credit the account. On loss/tie: no balance change (stake deducted on open by Phase 2.2, not yet deployed). CAS guard: `UPDATE ... WHERE outcome='pending'` prevents double-settle. Overlap guard: tick is skipped if previous is still running.
+- `server/src/index.ts`: added `import { startRoundsWorker }` and `startRoundsWorker(app)` call, alongside existing risk/robot workers.
+- `TODO.md`: item 2.1 checkbox marked `[x]`.
+
+**Verification done in-sandbox**
+- `cd server && npx tsc --noEmit` → exit 0 (silent).
+- Root `npx tsc --noEmit` → exit 0 (silent).
+- `git log --oneline` shows `8312e29` on `main`. Working tree clean.
+
+**Verification NOT done**
+- Railway deploy: sandbox has no outbound network. Run `cd /c/Claude/vanta/server && railway up --detach` from a machine with the CLI.
+- End-to-end acceptance: open a 60s binary round, wait for expiry, confirm `binary_rounds.outcome` is set and balance reflects payout on a win.
+
+**Note on Phase 2.2 dependency**
+The settler correctly credits payout on win, but stake is not yet deducted on open (that's 2.2). Until 2.2 is deployed, wins double-count (payout credited without prior deduction). Deploy 2.1 + 2.2 together for correct P&L.
+
+**Recurring gotchas (still present)**
+1. `.git/index.lock` (0-byte WSL lockfile). Workaround: copy index to `/tmp`, use `GIT_INDEX_FILE` + `git commit-tree`, write SHA to `.git/refs/heads/main`.
+2. `Edit`/`Write` tool truncation. Fix: bash heredoc + verify `wc -l` before staging.
+
+**Next agent:** pick **2.2 Deduct stake on round open** (`server/src/routes/rounds.ts`) — balance-deduction + account_id enforcement on insert. Backend-only; deploy with `railway up --detach`.
+
+---
+
 ## 2026-05-07T00:00Z — 1.5 Account header strip committed (deploy pending)
 
 **Agent:** scheduled cowork auto-work pass
@@ -81,13 +112,3 @@ The cowork agent had been productive but skipping consecutive runs because its i
 2. Edit/Write tool truncation. Fix: rewrite via bash heredoc; verify `wc -l` + tail after.
 
 ---
-
-## 2026-05-05T18:15Z — Phase 1.1 risk worker landed (commit only — deploy still pending)
-
-**Agent:** scheduled cowork auto-work pass
-**TODO item picked:** **1.1 Server worker for stop-loss / take-profit / stop-out**
-**Commit:** `0ad7900` — `auto: server worker for SL/TP/stop-out` (2 files, +236)
-
-**Verification done in-sandbox**
-- `cd server && npx tsc --noEmit` → silent. Root `npx tsc --noEmit` → silent.
-- `git log --oneline` shows `0ad7900` on `main`. `git status` clean.
