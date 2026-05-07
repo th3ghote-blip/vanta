@@ -4,6 +4,37 @@
 
 ---
 
+## 2026-05-07T(auto) — 2.2 Deduct stake on round open committed (deploy pending)
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **2.2 Deduct stake on round open**
+**Commit:** `8578488` — `auto: deduct stake on round open` (2 files)
+
+**What changed**
+- `server/src/routes/rounds.ts` (102 lines, was 52): POST `/api/rounds/open` now (1) fetches the account and enforces ownership (`user_id == authed user`); (2) checks `account.balance >= stake`, returns 400 `insufficient_balance` with `required`/`available` if not; (3) deducts stake via `apply_trade_pnl(account_id, -stake)` before the insert; (4) issues a compensating refund if insert fails or no quote is available, so balance is never permanently lost on a failed open.
+- `TODO.md`: item 2.2 checkbox marked `[x]`.
+
+**Also fixed this run**
+Commit `dee729b` (fixup): the prior STATE.md commit (`33356cf`) had accidentally excluded `server/src/workers/rounds.ts` from the tree and reverted `startRoundsWorker` wiring in `index.ts`. Fixed by rebuilding the tree with both files and making an explicit fixup commit before starting 2.2 work. All tsc checks pass.
+
+**Verification done in-sandbox**
+- `cd server && npx tsc --noEmit` → exit 0.
+- Root `npx tsc --noEmit` → exit 0.
+- Logic: `apply_trade_pnl` is the same RPC used by the risk worker; passing `-stake` correctly decrements balance/equity/free_margin atomically in Postgres.
+
+**Verification NOT done**
+- Railway deploy: sandbox has no outbound network. Run `cd /c/Claude/vanta/server && railway up --detach` from a machine with the CLI. This ships both 2.1 (rounds settler) and 2.2 (stake deduction) together — they were designed to be deployed as a pair.
+- End-to-end: open a $50 round on a $10k account → confirm balance drops to $9950 immediately; after expiry confirm settler credits payout on win or leaves balance on loss.
+
+**Recurring gotchas (still present)**
+1. `.git/index.lock` (0-byte WSL lockfile, cannot unlink). Workaround: `cp .git/index /tmp/idx && GIT_INDEX_FILE=/tmp/idx git read-tree HEAD && GIT_INDEX_FILE=/tmp/idx git add <files> && GIT_INDEX_FILE=/tmp/idx git write-tree` → `git commit-tree` → write SHA to `.git/refs/heads/main`.
+2. `Edit`/`Write` tool may truncate long files. Fix: bash heredoc + verify `wc -l` before staging.
+3. `git status` shows stale index diffs (index lags HEAD) — this is cosmetic; HEAD is always the source of truth.
+
+**Next agent:** pick **2.3 Wire QuickTradeScreen Up/Down to /api/rounds/open** (`components/fun/QuickTradeScreen.tsx`) — frontend-only; deploy with `vercel --prod --yes`.
+
+---
+
 ## 2026-05-07T(auto) — 2.1 Rounds settler worker committed (deploy pending)
 
 **Agent:** scheduled cowork auto-work pass
@@ -64,51 +95,4 @@ The settler correctly credits payout on win, but stake is not yet deducted on op
 
 ---
 
-## 2026-05-06T18:XX Z — 1.4 symbol-aware default volume committed (deploy pending)
-
-**Agent:** scheduled cowork auto-work pass
-**TODO item picked:** **1.4 Symbol-aware default volume in OrderEntry**
-**Commit:** `4cd5a74` — `auto: symbol-aware default volume in OrderEntry` (3 files)
-
-**What changed**
-- `lib/contracts.ts`: added `defaultVolumeFor(symbol): string` — returns `'0.10'` for forex/gold/silver, `'1'` for stocks, `'0.01'` for crypto and anything unrecognised.
-- `components/pro/OrderEntry.tsx`: imports `defaultVolumeFor`; volume state initialises from it; `useEffect([symbol])` resets the field to the new symbol's default unless `userEditedVolume.current` is true.
-- `TODO.md`: item 1.4 checkbox marked `[x]`.
-
-**Verification done in-sandbox**
-- `npx tsc --noEmit` (root) → silent. `cd server && npx tsc --noEmit` → silent.
-- `git log --oneline` shows `4cd5a74` on `main`. Working tree clean.
-
-**Verification NOT done**
-- Vercel deploy: sandbox has no outbound network. Run `cd /c/Claude/vanta && vercel --prod --yes` from a machine with access.
-
-**Recurring gotchas (still present)**
-1. `.git/index.lock` (0-byte, WSL mount, cannot unlink). Workaround: copy index to `/tmp`, use `GIT_INDEX_FILE` for add/write-tree, `git commit-tree` + direct SHA write to `.git/refs/heads/main`.
-2. `Edit`/`Write` file-tool truncation. Fix: rewrite full file content via bash heredoc. After any Edit/Write, verify `wc -l` before running tsc.
-
----
-
-## 2026-05-06 — 1.1, 1.2, 1.3 all live; agent's mid-task diffs committed
-
-The cowork agent had been productive but skipping consecutive runs because its in-flight Phase 1.3 diff was never committed.
-
-**Just landed (deployed live):**
-- 1.1 SL/TP/stop-out worker — committed `0ad7900`; backend log confirms `Risk worker started (1s tick)`.
-- 1.2 Margin reservation/release — committed `98f4fb4`; deployed.
-- 1.3 Order error mapping — committed `c0af6d2`; frontend deployed to vanta-jade.vercel.app.
-
-**Tree state:** clean, on `main`.
-
----
-
-## 2026-05-05T22:14Z — Phase 1.2 margin reserve/release landed (commit only — deploy still pending)
-
-**Agent:** scheduled cowork auto-work pass
-**TODO item picked:** **1.2 Margin requirement on order open**
-**Commit:** `98f4fb4` — `auto: margin requirement on order open` (4 files: +209 −5 net)
-
-**Gotchas the next agent will hit**
-1. `.git/index.lock` AND `.git/HEAD.lock` — both 0-byte stale lockfiles. Workaround: copy index to `/tmp`, use `GIT_INDEX_FILE` + `git commit-tree`, write SHA directly to `.git/refs/heads/main`.
-2. Edit/Write tool truncation. Fix: rewrite via bash heredoc; verify `wc -l` + tail after.
-
----
+## 2026-05-06T18:XX Z — 1.4 symbol-aware
