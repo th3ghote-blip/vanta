@@ -9,6 +9,8 @@ import { usePriceStore } from '@/stores/prices';
 import { BinaryCard } from './BinaryCard';
 import { CountdownRing } from './CountdownRing';
 import { ActiveRounds } from './ActiveRounds';
+import type { BinaryRound } from './ActiveRounds';
+import { RoundResultModal } from './RoundResultModal';
 
 const ASSETS = [
   { symbol: 'EURUSD', name: 'Euro / Dollar' },
@@ -55,6 +57,7 @@ export function QuickTradeScreen() {
   const [stake, setStake] = useState(10);
   const [busy, setBusy] = useState<'buy' | 'sell' | null>(null);
   const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [settledRound, setSettledRound] = useState<BinaryRound | null>(null);
 
   const { account, fetch: refetchAccount } = useAccountStore();
   const quotes = usePriceStore((s) => s.quotes);
@@ -321,9 +324,15 @@ export function QuickTradeScreen() {
       {account && (
         <ActiveRounds
           accountId={account.id}
-
+          onRoundSettled={setSettledRound}
         />
       )}
+
+      {/* Win / loss result modal (Phase 2.5) */}
+      <RoundResultModal
+        round={settledRound}
+        onDismiss={() => setSettledRound(null)}
+      />
     </View>
   );
 }
