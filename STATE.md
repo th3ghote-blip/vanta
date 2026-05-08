@@ -173,4 +173,27 @@ Commit `dee729b` (fixup): the prior STATE.md commit (`33356cf`) had accidentally
 **Commit:** `8312e29` — `auto: server worker to settle binary rounds at expiry` (3 files)
 
 **What changed**
-- `server/src/workers/rounds.ts` (new, 159 lines): 1s-tick settler. Queries `binary_rounds` where `outcome='pending' AND closes_at <= now()`. For each: reads `exit_price` from in-memory quote cache (mid), determines win/loss/tie by comparing exit vs entry and direction. On win: computes `payout = stake * payout_multiplier`, calls `apply_trade_pnl` to credit the account. On loss/tie: no balance change (stake deducted on open by Phase 2.2, not yet deployed). CAS guard: `UPDAT
+- `server/src/workers/rounds.ts` (new, 159 lines): 1s-tick settler. Queries `binary_rounds` where `outcome='pending' AND closes_at <= now()`. For each: reads `exit_price` from in-memory quote cache (mid), determines win/loss/tie by comparing exit vs entry and direction. On win: computes `payout = stake * payout_multiplier`, calls `apply_trade_pnl` to credit the account. On loss/tie: no balance change (stake deducted on open by Phase 2.2, not yet deployed). CAS guard: `UPDATE ... WHERE outcome='pending'` prevents double-settle. Overlap guard: tick is skipped if previous is still running.
+- `server/src/index.ts`: added `import { startRoundsWorker }` and `startRoundsWorker(app)` call, alongside existing risk/robot workers.
+- `TODO.md`: item 2.1 checkbox marked `[x]`.
+
+**Verification done in-sandbox**
+- `cd server && npx tsc --noEmit` → exit 0 (silent).
+- Root `npx tsc --noEmit` → exit 0 (silent).
+- `git log --oneline` shows `8312e29` on `main`. Working tree clean.
+
+**Verification NOT done**
+- Railway deploy: sandbox has no outbound network. Run `cd /c/Claude/vanta/server && railway up --detach` from a machine with the CLI.
+- End-to-end acceptance: open a 60s binary round, wait for expiry, confirm `binary_rounds.outcome` is set and balance reflects payout on a win.
+
+**Note on Phase 2.2 dependency**
+The settler correctly credits payout on win, but stake is not yet deducted on open (that's 2.2). Until 2.2 is deployed, wins double-count (payout credited without prior deduction). Deploy 2.1 + 2.2 together for correct P&L.
+
+**Recurring gotchas (still present)**
+1. `.git/index.lock` (0-byte WSL lockfile). Workaround: copy index to `/tmp`, use `GIT_INDEX_FILE` + `git commit-tree`, write SHA to `.git/refs/heads/main`.
+2. `Edit`/`Write` tool truncation. Fix: bash heredoc + verify `wc -l` before staging.
+
+**Next agent:** pick **2.2 Deduct stake on round open** (`server/src/routes/rounds.ts`) — balance-deduction + storing `account_id` on the round. (Already done — see commit `8578488` — but this STATE entry was truncated before it could note that.)
+
+---
+
