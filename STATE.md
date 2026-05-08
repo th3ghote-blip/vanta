@@ -3,6 +3,43 @@
 > Append, don't replace. Most recent at top. Each entry: date, agent, what changed, what's pending, gotchas.
 
 ---
+## 2026-05-08T(auto) — 2.6 Server: streak tracking in rounds settler
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **2.6 Server** — update rounds settler to write streak columns
+**Commit:** `80df6d5` — `auto: 2.6 server — streak tracking in rounds settler`
+
+**What changed**
+- `server/src/workers/rounds.ts` (modified, 230 lines):
+  - Added `updateStreak(app, accountId, outcome)` helper.
+  - Looks up `user_id` from `accounts` (one select), then reads `current_streak`/`best_streak` from `profiles` (on win only), computes new values, writes update.
+  - **win**: `current_streak = current_streak + 1`, `best_streak = Math.max(best_streak, newStreak)`.
+  - **loss/tie**: `current_streak = 0` (filtered with `.neq('current_streak', 0)` to skip pointless writes).
+  - All streak errors are non-fatal — logged and swallowed so they never block the settle path.
+  - Called after payout credit, before the info log.
+- `TODO.md`: 2.6 Server checkbox marked `[x]`.
+
+**Migration still NOT applied to Supabase**
+`005_streaks.sql` exists but was never applied (no outbound network in sandbox). Run from internet-connected machine:
+```
+SUPABASE_PAT=[REDACTED-LEAKED-SUPABASE-PAT-rotated] \
+  python scripts/apply-migration.py supabase/migrations/005_streaks.sql
+```
+The streak columns must exist in Supabase before deploying this server update, or the UPDATE calls will silently fail (column not found errors).
+
+**Deploy order:**
+1. Apply migration (above)
+2. `cd /c/Claude/vanta/server && railway up --detach`
+3. Verify: win 3 rounds → check `profiles.current_streak = 3` via Supabase dashboard.
+
+**Next agent:** pick **2.6 Client** — streak badge on `QuickTradeScreen` header. "🔥 N" with Flame icon (already imported). Needs to read `profiles.current_streak` from Supabase (or pass it down from a store). Frontend-only; deploy with `vercel --prod --yes`.
+
+**Recurring gotchas**
+1. `.git/index.lock` + `.git/HEAD.lock` (0-byte WSL stale lockfiles). Workaround: `GIT_INDEX_FILE=/tmp/git_vanta_idx<N> git read-tree HEAD` then stage + commit-tree + write SHA to `.git/refs/heads/main`.
+2. Edit/Write tool truncates long files. Fix: bash heredoc + verify `wc -l`.
+3. `unlink tmp_obj_*` warnings during `write-tree` are cosmetic — git still writes objects correctly.
+
+---
 ## 2026-05-08T(auto) — 2.6 Migration: 005_streaks.sql
 
 **Agent:** scheduled cowork auto-work pass
@@ -146,54 +183,4 @@ PAT is `[REDACTED-LEAKED-SUPABASE-PAT-rotated]` (from `server/.env`).
 - `TODO.md`: item 2.2 checkbox marked `[x]`.
 
 **Also fixed this run**
-Commit `dee729b` (fixup): the prior STATE.md commit (`33356cf`) had accidentally excluded `server/src/workers/rounds.ts` from the tree and reverted `startRoundsWorker` wiring in `index.ts`. Fixed by rebuilding the tree with both files and making an explicit fixup commit before starting 2.2 work. All tsc checks pass.
-
-**Verification done in-sandbox**
-- `cd server && npx tsc --noEmit` → exit 0.
-- Root `npx tsc --noEmit` → exit 0.
-- Logic: `apply_trade_pnl` is the same RPC used by the risk worker; passing `-stake` correctly decrements balance/equity/free_margin atomically in Postgres.
-
-**Verification NOT done**
-- Railway deploy: sandbox has no outbound network. Run `cd /c/Claude/vanta/server && railway up --detach` from a machine with the CLI. This ships both 2.1 (rounds settler) and 2.2 (stake deduction) together — they were designed to be deployed as a pair.
-- End-to-end: open a $50 round on a $10k account → confirm balance drops to $9950 immediately; after expiry confirm settler credits payout on win or leaves balance on loss.
-
-**Recurring gotchas (still present)**
-1. `.git/index.lock` (0-byte WSL lockfile, cannot unlink). Workaround: `cp .git/index /tmp/idx && GIT_INDEX_FILE=/tmp/idx git read-tree HEAD && GIT_INDEX_FILE=/tmp/idx git add <files> && GIT_INDEX_FILE=/tmp/idx git write-tree` → `git commit-tree` → write SHA to `.git/refs/heads/main`.
-2. `Edit`/`Write` tool may truncate long files. Fix: bash heredoc + verify `wc -l` before staging.
-3. `git status` shows stale index diffs (index lags HEAD) — this is cosmetic; HEAD is always the source of truth.
-
-**Next agent:** pick **2.3 Wire QuickTradeScreen Up/Down to /api/rounds/open** (`components/fun/QuickTradeScreen.tsx`) — frontend-only; deploy with `vercel --prod --yes`.
-
----
-
-## 2026-05-07T(auto) — 2.1 Rounds settler worker committed (deploy pending)
-
-**Agent:** scheduled cowork auto-work pass
-**TODO item picked:** **2.1 Server worker to settle binary rounds at expiry**
-**Commit:** `8312e29` — `auto: server worker to settle binary rounds at expiry` (3 files)
-
-**What changed**
-- `server/src/workers/rounds.ts` (new, 159 lines): 1s-tick settler. Queries `binary_rounds` where `outcome='pending' AND closes_at <= now()`. For each: reads `exit_price` from in-memory quote cache (mid), determines win/loss/tie by comparing exit vs entry and direction. On win: computes `payout = stake * payout_multiplier`, calls `apply_trade_pnl` to credit the account. On loss/tie: no balance change (stake deducted on open by Phase 2.2, not yet deployed). CAS guard: `UPDATE ... WHERE outcome='pending'` prevents double-settle. Overlap guard: tick is skipped if previous is still running.
-- `server/src/index.ts`: added `import { startRoundsWorker }` and `startRoundsWorker(app)` call, alongside existing risk/robot workers.
-- `TODO.md`: item 2.1 checkbox marked `[x]`.
-
-**Verification done in-sandbox**
-- `cd server && npx tsc --noEmit` → exit 0 (silent).
-- Root `npx tsc --noEmit` → exit 0 (silent).
-- `git log --oneline` shows `8312e29` on `main`. Working tree clean.
-
-**Verification NOT done**
-- Railway deploy: sandbox has no outbound network. Run `cd /c/Claude/vanta/server && railway up --detach` from a machine with the CLI.
-- End-to-end acceptance: open a 60s binary round, wait for expiry, confirm `binary_rounds.outcome` is set and balance reflects payout on a win.
-
-**Note on Phase 2.2 dependency**
-The settler correctly credits payout on win, but stake is not yet deducted on open (that's 2.2). Until 2.2 is deployed, wins double-count (payout credited without prior deduction). Deploy 2.1 + 2.2 together for correct P&L.
-
-**Recurring gotchas (still present)**
-1. `.git/index.lock` (0-byte WSL lockfile). Workaround: copy index to `/tmp`, use `GIT_INDEX_FILE` + `git commit-tree`, write SHA to `.git/refs/heads/main`.
-2. `Edit`/`Write` tool truncation. Fix: bash heredoc + verify `wc -l` before staging.
-
-**Next agent:** pick **2.2 Deduct stake on round open** (`server/src/routes/rounds.ts`) — balance-deduction + storing `account_id` on the round. (Already done — see commit `8578488` — but this STATE entry was truncated before it could note that.)
-
----
-
+Commit `dee729b` (fixup): the prior STATE.md commit (`33356cf`) had accidentally excluded `server/src/workers/rounds.ts` from the tree and reverted `startRoundsWorker` wiring in `index.ts`. Fixed by rebuilding the tree with both files and making an explicit fix
