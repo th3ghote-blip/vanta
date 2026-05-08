@@ -3,6 +3,44 @@
 > Append, don't replace. Most recent at top. Each entry: date, agent, what changed, what's pending, gotchas.
 
 ---
+## 2026-05-08T(auto) — 2.5 Win / loss result modal
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **2.5 Win / loss result modal**
+**Commit:** `137a505` — `auto: win/loss result modal (Phase 2.5)`
+
+**What changed**
+- `components/fun/RoundResultModal.tsx` (new, 262 lines):
+  - Modal component receives `round: BinaryRound | null` + `onDismiss` callback.
+  - Entrance: scale (0.7→1 spring) + fade-in (180ms) via `Animated.parallel`.
+  - **Win**: `ConfettiCannon` fires 120 particles (branded palette) from center-top; green `CheckCircle` icon; shows `+$net` (payout − stake).
+  - **Loss**: red `XCircle` icon; 7-step `Animated.sequence` shake on `translateX`.
+  - **Tie**: green `CheckCircle`; `±$0.00`.
+  - Auto-dismisses after 3 s; tapping the overlay also dismisses.
+  - Uses `useWindowDimensions` for confetti origin so it centers correctly on any screen width.
+- `components/fun/QuickTradeScreen.tsx` (modified):
+  - Added `settledRound: BinaryRound | null` state.
+  - Passes `onRoundSettled={setSettledRound}` to `<ActiveRounds>` (hook was already wired in Phase 2.4).
+  - Renders `<RoundResultModal round={settledRound} onDismiss={() => setSettledRound(null)} />`.
+- `package.json` / `package-lock.json`: `react-native-confetti-cannon@1.5.2` added.
+- `TODO.md`: item 2.5 checkbox marked `[x]`.
+
+**Verification done in-sandbox**
+- `npx tsc --noEmit` (root) → exit 0 (silent). No type errors.
+
+**Verification NOT done**
+- Vercel deploy: sandbox has no outbound network. Run `cd /c/Claude/vanta && vercel --prod --yes` to ship.
+- E2E: open round → wait for settle → modal pops with win/loss animation → auto-dismisses after 3 s.
+
+**Recurring gotchas (still present)**
+1. `.git/index.lock` + `.git/HEAD.lock` (0-byte WSL stale lockfiles). Workaround: `GIT_INDEX_FILE=/tmp/git_vanta_idx git read-tree HEAD` to rebuild index; write commit SHA to `.git/refs/heads/main`.
+2. `Edit`/`Write` tool truncates long files. Fix: bash heredoc + verify `wc -l`.
+3. `unlink tmp_obj_*` warnings during `write-tree` are cosmetic — git still writes objects correctly.
+
+**Next agent:** pick **2.6 Streak tracking** — migration `005_streaks.sql`, server settler update, streak badge on `QuickTradeScreen` header. Has three sub-items (migration → server → client); pick the migration sub-item first.
+
+---
+
 ## 2026-05-08T(auto) — 2.4 Active Rounds list in Quick Mode
 
 **Agent:** scheduled cowork auto-work pass

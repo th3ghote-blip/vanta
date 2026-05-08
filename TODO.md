@@ -121,7 +121,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** 3 rounds active → all visible with countdowns. Round settles → disappears with win/loss flash.
 
 ## 2.5 Win / loss result modal
-- [ ] **File:** `components/fun/RoundResultModal.tsx` (new)
+- [x] **File:** `components/fun/RoundResultModal.tsx` (new)
 - **What:** Modal that shows when a pending round becomes win/loss. Wins: confetti + green check + "+$X.XX". Losses: red shake + "-$X.XX". Auto-dismiss after 3s. Use `react-native-confetti-cannon` (install).
 - **Acceptance:** Round settles → modal pops.
 
