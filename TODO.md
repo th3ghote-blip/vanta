@@ -127,7 +127,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 
 ## 2.6 Streak tracking
 - [x] **Migration:** `005_streaks.sql` — add `current_streak`, `best_streak` to `profiles`.
-- [ ] **Server:** in rounds settle worker, update `profiles.current_streak` (win=+1, loss=reset to 0). Update `best_streak` if exceeded.
+- [x] **Server:** in rounds settle worker, update `profiles.current_streak` (win=+1, loss=reset to 0). Update `best_streak` if exceeded.
 - [ ] **Client:** show streak badge on QuickTradeScreen header. "🔥 N-day streak" with a flame icon.
 - **Acceptance:** Win 3 in a row → "🔥 3" shows in header.
 

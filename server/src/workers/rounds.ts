@@ -4,7 +4,7 @@ import { supabaseAdmin } from '../lib/supabase.js';
 import { getMid } from '../lib/quoteCache.js';
 
 /**
- * Rounds settler — Phase 2.1
+ * Rounds settler — Phase 2.1 + 2.6
  *
  * Every 1s: query binary_rounds where outcome='pending' AND closes_at <= now().
  * For each:
@@ -16,8 +16,10 @@ import { getMid } from '../lib/quoteCache.js';
  *   3. On win:  payout = stake * payout_multiplier. Credit via apply_trade_pnl.
  *      On loss/tie: balance unchanged — stake already deducted on open (Phase 2.2).
  *   4. CAS guard: update only where outcome='pending' to prevent double-settle.
+ *   5. Update profiles.current_streak / best_streak (Phase 2.6):
+ *      win -> streak++, update best if exceeded; loss/tie -> streak = 0.
  *
- * A single tick runs at a time (overlap guard); if a tick takes >1s it's just
+ * A single tick runs at a time (overlap guard); if a tick takes >1s it is just
  * delayed, never doubled.
  */
 
@@ -31,6 +33,72 @@ interface PendingRound {
   stake: number;
   payout_multiplier: number;
   entry_price: number;
+}
+
+/**
+ * Update current_streak and best_streak on the user's profile after a round settles.
+ * win  -> current_streak + 1; update best_streak if exceeded.
+ * loss / tie -> current_streak = 0.
+ *
+ * Errors here are non-fatal -- we log and move on rather than blocking settle.
+ */
+async function updateStreak(
+  app: FastifyInstance,
+  accountId: string,
+  outcome: 'win' | 'loss' | 'tie',
+): Promise<void> {
+  // 1. Look up user_id from the account row.
+  const { data: account, error: acctErr } = await supabaseAdmin
+    .from('accounts')
+    .select('user_id')
+    .eq('id', accountId)
+    .maybeSingle();
+
+  if (acctErr || !account) {
+    app.log.warn({ err: acctErr, accountId }, 'rounds: streak -- could not fetch account');
+    return;
+  }
+
+  const userId: string = (account as any).user_id;
+
+  if (outcome === 'win') {
+    // Fetch current values so we can compute new best_streak.
+    const { data: profile, error: profErr } = await supabaseAdmin
+      .from('profiles')
+      .select('current_streak, best_streak')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (profErr || !profile) {
+      app.log.warn({ err: profErr, userId }, 'rounds: streak -- could not fetch profile');
+      return;
+    }
+
+    const newStreak = ((profile as any).current_streak as number) + 1;
+    const newBest   = Math.max(((profile as any).best_streak as number), newStreak);
+
+    const { error: upErr } = await supabaseAdmin
+      .from('profiles')
+      .update({ current_streak: newStreak, best_streak: newBest })
+      .eq('id', userId);
+
+    if (upErr) {
+      app.log.warn({ err: upErr, userId, newStreak, newBest }, 'rounds: streak -- update failed (win)');
+    } else {
+      app.log.info({ userId, newStreak, newBest }, 'rounds: streak updated (win)');
+    }
+  } else {
+    // loss or tie -- reset streak only if it is not already 0 (avoids pointless writes).
+    const { error: upErr } = await supabaseAdmin
+      .from('profiles')
+      .update({ current_streak: 0 })
+      .eq('id', userId)
+      .neq('current_streak', 0);
+
+    if (upErr) {
+      app.log.warn({ err: upErr, userId }, 'rounds: streak -- reset failed (loss/tie)');
+    }
+  }
 }
 
 async function tick(app: FastifyInstance): Promise<void> {
@@ -61,7 +129,7 @@ async function tick(app: FastifyInstance): Promise<void> {
 
     const exit = getMid(round.symbol);
     if (exit == null) {
-      // No live quote — defer until next tick (shouldn't happen in practice
+      // No live quote -- defer until next tick (shouldn't happen in practice
       // because pricefeed only allows symbols it already has quotes for, but
       // be safe rather than leaving rounds in limbo forever).
       app.log.warn(
@@ -89,7 +157,7 @@ async function tick(app: FastifyInstance): Promise<void> {
       : 0;
 
     // CAS guard: only settle if still pending (prevents double-credit if
-    // another process — future UI cancel, DB cleanup job — touches the row).
+    // another process -- future UI cancel, DB cleanup job -- touches the row).
     const { data: settled, error: settleErr } = await supabaseAdmin
       .from('binary_rounds')
       .update({
@@ -107,7 +175,7 @@ async function tick(app: FastifyInstance): Promise<void> {
       continue;
     }
     if (!settled) {
-      // Already settled by something else — skip.
+      // Already settled by something else -- skip.
       continue;
     }
 
@@ -122,6 +190,9 @@ async function tick(app: FastifyInstance): Promise<void> {
         app.log.error({ err, roundId: round.id }, 'rounds: apply_trade_pnl failed');
       }
     }
+
+    // Update streak (Phase 2.6). Non-fatal -- errors are logged inside.
+    await updateStreak(app, round.account_id, outcome);
 
     app.log.info(
       {
