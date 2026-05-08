@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { TrendingUp, TrendingDown, Flame } from 'lucide-react-native';
 
@@ -6,6 +6,7 @@ import { colors, radius, spacing, typography } from '@/lib/theme';
 import { api, ApiError } from '@/lib/api';
 import { useAccountStore } from '@/stores/account';
 import { usePriceStore } from '@/stores/prices';
+import { useProfileStore } from '@/stores/profile';
 import { BinaryCard } from './BinaryCard';
 import { CountdownRing } from './CountdownRing';
 import { ActiveRounds } from './ActiveRounds';
@@ -61,6 +62,18 @@ export function QuickTradeScreen() {
 
   const { account, fetch: refetchAccount } = useAccountStore();
   const quotes = usePriceStore((s) => s.quotes);
+  const { profile, fetch: fetchProfile, subscribe: subscribeProfile } = useProfileStore();
+
+  // Fetch streak on mount; subscribe to realtime updates so badge refreshes
+  // immediately after each round settles (server writes profiles.current_streak).
+  useEffect(() => {
+    fetchProfile();
+    let cleanup: (() => void) | undefined;
+    subscribeProfile().then((fn) => { cleanup = fn; });
+    return () => { cleanup?.(); };
+  }, [fetchProfile, subscribeProfile]);
+
+  const streak = profile?.current_streak ?? 0;
 
   const selected = ASSETS.find((a) => a.symbol === selectedSymbol) ?? ASSETS[0];
   const quote = quotes[selected.symbol];
@@ -110,25 +123,29 @@ export function QuickTradeScreen() {
 
   return (
     <View style={{ paddingHorizontal: spacing.md, gap: spacing.md }}>
-      {/* Streak banner */}
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: spacing.sm,
-          backgroundColor: colors.bgElevated,
-          padding: spacing.md,
-          borderRadius: radius.lg,
-          borderWidth: 1,
-          borderColor: colors.border,
-        }}
-      >
-        <Flame color={colors.warning} size={20} />
-        <Text style={{ ...typography.bodyBold, color: colors.textPrimary, fontSize: 14 }}>3-day streak</Text>
-        <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 12, marginLeft: 'auto' }}>
-          Win 5 in a row → 2× payout
-        </Text>
-      </View>
+      {/* Streak badge — only rendered when the user has an active streak */}
+      {streak > 0 && (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.sm,
+            backgroundColor: colors.bgElevated,
+            padding: spacing.md,
+            borderRadius: radius.lg,
+            borderWidth: 1,
+            borderColor: colors.warning,
+          }}
+        >
+          <Flame color={colors.warning} size={20} />
+          <Text style={{ ...typography.bodyBold, color: colors.textPrimary, fontSize: 14 }}>
+            🔥 {streak} win streak
+          </Text>
+          <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 12, marginLeft: 'auto' }}>
+            Best: {profile?.best_streak ?? streak}
+          </Text>
+        </View>
+      )}
 
       {/* Asset chips */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
@@ -336,3 +353,4 @@ export function QuickTradeScreen() {
     </View>
   );
 }
+           

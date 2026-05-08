@@ -3,6 +3,44 @@
 > Append, don't replace. Most recent at top. Each entry: date, agent, what changed, what's pending, gotchas.
 
 ---
+## 2026-05-09T(auto) — 2.6 Client: streak badge on QuickTradeScreen
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **2.6 Client** — streak badge on QuickTradeScreen header
+**Commit:** see below (staged, not yet pushed)
+
+**What changed**
+- `stores/profile.ts` (new, 74 lines):
+  - Zustand store with `profile: { user_id, current_streak, best_streak } | null`.
+  - `fetch()`: queries `profiles` table for the authed user; sets store.
+  - `subscribe()`: opens a Supabase realtime `postgres_changes` channel for `UPDATE` on `profiles` filtered by `user_id=eq.<userId>`. Returns async cleanup fn.
+- `components/fun/QuickTradeScreen.tsx` (modified):
+  - Added `useEffect` + `useProfileStore` imports.
+  - On mount: calls `fetchProfile()` and `subscribeProfile()` so badge shows immediately and updates live after each round settles.
+  - Streak banner now conditional on `streak > 0` (hidden when no streak).
+  - Shows `🔥 {streak} win streak` with current streak and `Best: {best_streak}` on the right.
+  - Border color changed to `colors.warning` (amber) when badge is visible.
+  - Fixed a truncation bug: file was cut off mid-JSX from a prior run; tail was reconstructed and appended.
+- `TODO.md`: 2.6 Client checkbox marked `[x]`.
+
+**Deploy pending**
+Sandbox has no outbound network. Run:
+```
+cd /c/Claude/vanta && vercel --prod --yes
+```
+Also note: `005_streaks.sql` migration still needs to be applied to Supabase (see prior STATE entries). Without the migration, `profiles` table won't have `current_streak`/`best_streak` columns and the badge will silently stay hidden (select returns nothing).
+
+**Index cleanup this run**
+The git index had stale staged content from a prior run (reverting 2.6 server + TODO). Fixed by `GIT_INDEX_FILE=/tmp/git_vanta_idx_clean git read-tree HEAD && cp /tmp/git_vanta_idx_clean .git/index`.
+
+**Next agent:** Phase **3.1** — Wire RobotPromptBuilder to `/api/robots/compile` + save. Replace `setTimeout(1200)` mock with real `api.compileRobot(prompt)`. Show generated config. "Save" → POST `/api/robots/save`. Frontend + backend.
+
+**Recurring gotchas**
+1. `.git/index.lock` stale lockfile: remove with `rm .git/index.lock` or use `GIT_INDEX_FILE` workaround.
+2. Edit/Write tools truncate long files — always verify with `wc -l` and `tail`. Fix with bash heredoc append.
+3. Supabase migration `005_streaks.sql` not yet applied — streak badge will be invisible until columns exist.
+
+---
 ## 2026-05-08T(auto) — 2.6 Server: streak tracking in rounds settler
 
 **Agent:** scheduled cowork auto-work pass
@@ -153,34 +191,4 @@ PAT is `[REDACTED-LEAKED-SUPABASE-PAT-rotated]` (from `server/.env`).
   - `openRound(direction)` async callback: checks account loaded, sets `busy` state, calls `api.openRound({accountId, symbol, direction, stake, durationSeconds})`, then calls `refetchAccount()` so AccountHeader reflects the stake deduction. Error mapped via `describeRoundError()` covering `insufficient_balance` (with required/available amounts), `no_quote`, `account_not_found`, `forbidden`, `unauthorized`, `deduct_failed`, `insert_failed`.
   - Buttons show `ActivityIndicator` while their direction is pending; opposite button dims to 40% opacity; both disabled while any request is in flight.
   - Feedback banner (green/red) appears below stake picker with success confirmation or error message.
-- `TODO.md`: items 2.1 and 2.3 marked `[x]`. (2.1 was already fully implemented in commit `8312e29` but TODO checkbox was never updated — corrected this run.)
-
-**Verification done in-sandbox**
-- `npx tsc --noEmit` (root) → exit 0 (silent). No type errors.
-- Logic verified: `api.openRound` was already defined in `lib/api.ts`; `usePriceStore` exports `quotes: Record<string, Quote>`; `useAccountStore` exports `account` + `fetch` (aliased to `refetchAccount`).
-
-**Verification NOT done**
-- Vercel deploy: sandbox has no outbound network. Run `cd /c/Claude/vanta && vercel --prod --yes` to ship.
-- E2E: tap Up on BTCUSD $10 60s → loading spinner → success banner → AccountHeader balance drops $10 → round appears in DB.
-
-**Recurring gotchas (still present)**
-1. `.git/index.lock` (0-byte WSL lockfile, cannot unlink). Workaround: `GIT_INDEX_FILE=/tmp/git_idx git read-tree HEAD` then stage + commit via commit-tree. Real fix: `cmd /c del C:\Claude\vanta\.git\index.lock` on Windows.
-2. Index was stale this run (showed rounds.ts as deleted + staged). Fixed by `GIT_INDEX_FILE=/tmp/git_idx_vanta git read-tree HEAD` which showed clean tree.
-3. `Edit`/`Write` tool may truncate. Fix: bash heredoc + verify `wc -l`.
-
-**Next agent:** pick **2.4 Active Rounds list in Quick Mode** (`components/fun/ActiveRounds.tsx` new, import in `QuickTradeScreen.tsx`). Frontend-only; deploy with `vercel --prod --yes`.
-
----
-
-## 2026-05-07T(auto) — 2.2 Deduct stake on round open committed (deploy pending)
-
-**Agent:** scheduled cowork auto-work pass
-**TODO item picked:** **2.2 Deduct stake on round open**
-**Commit:** `8578488` — `auto: deduct stake on round open` (2 files)
-
-**What changed**
-- `server/src/routes/rounds.ts` (102 lines, was 52): POST `/api/rounds/open` now (1) fetches the account and enforces ownership (`user_id == authed user`); (2) checks `account.balance >= stake`, returns 400 `insufficient_balance` with `required`/`available` if not; (3) deducts stake via `apply_trade_pnl(account_id, -stake)` before the insert; (4) issues a compensating refund if insert fails or no quote is available, so balance is never permanently lost on a failed open.
-- `TODO.md`: item 2.2 checkbox marked `[x]`.
-
-**Also fixed this run**
-Commit `dee729b` (fixup): the prior STATE.md commit (`33356cf`) had accidentally excluded `server/src/workers/rounds.ts` from the tree and reverted `startRoundsWorker` wiring in `index.ts`. Fixed by rebuilding the tree with both files and making an explicit fix
+- `TODO.md`: items 2.1 and 2.3 marked `[x]`. (2.
