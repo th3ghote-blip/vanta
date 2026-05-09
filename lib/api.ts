@@ -99,4 +99,19 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
+
+  getRobot: (id: string) =>
+    request<{ robot: any }>(`/api/robots/${id}`),
+
+  getRobotRuns: (id: string) =>
+    request<{ runs: any[] }>(`/api/robots/${id}/runs`),
+
+  updateRobotStatus: (id: string, status: 'active' | 'paused' | 'stopped') =>
+    request<{ robot: any }>(`/api/robots/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
+
+  deleteRobot: (id: string) =>
+    request<{ ok: boolean }>(`/api/robots/${id}`, { method: 'DELETE' }),
 };

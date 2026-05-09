@@ -1,4 +1,5 @@
 import { View, Text, Pressable } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Bot, Pause, Play } from 'lucide-react-native';
 
 import { colors, radius, spacing, typography } from '@/lib/theme';
@@ -14,19 +15,22 @@ interface Robot {
 }
 
 export function RobotCard({ robot }: { robot: Robot }) {
+  const router = useRouter();
   const winRate = robot.totalTrades > 0 ? Math.round((robot.winningTrades / robot.totalTrades) * 100) : 0;
   const positive = robot.totalProfit >= 0;
   const isActive = robot.status === 'active';
 
   return (
-    <View
-      style={{
+    <Pressable
+      onPress={() => router.push(`/robot/${robot.id}`)}
+      style={({ pressed }) => ({
         backgroundColor: colors.bgElevated,
         borderRadius: radius.lg,
         borderWidth: 1,
         borderColor: colors.border,
         padding: spacing.md,
-      }}
+        opacity: pressed ? 0.85 : 1,
+      })}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
         <View
@@ -88,7 +92,7 @@ export function RobotCard({ robot }: { robot: Robot }) {
           <StatusBadge status={robot.status} />
         </View>
       )}
-    </View>
+    </Pressable>
   );
 }
 

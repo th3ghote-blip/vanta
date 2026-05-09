@@ -28,6 +28,10 @@ interface RobotsState {
   fetch: (accountId: string) => Promise<void>;
   /** Prepend a newly-created robot to the list without a network round-trip. */
   add: (robot: Robot) => void;
+  /** Update a robot in the list (e.g. after status change). */
+  update: (id: string, patch: Partial<Robot>) => void;
+  /** Remove a robot from the list by id. */
+  remove: (id: string) => void;
   clear: () => void;
 }
 
@@ -69,6 +73,14 @@ export const useRobotsStore = create<RobotsState>((set, get) => ({
 
   add: (robot: Robot) => {
     set((state) => ({ robots: [robot, ...state.robots] }));
+  },
+
+  update: (id: string, patch: Partial<Robot>) => {
+    set((state) => ({ robots: state.robots.map((r) => r.id === id ? { ...r, ...patch } : r) }));
+  },
+
+  remove: (id: string) => {
+    set((state) => ({ robots: state.robots.filter((r) => r.id !== id) }));
   },
 
   clear: () => set({ robots: [], loading: false, accountId: null }),

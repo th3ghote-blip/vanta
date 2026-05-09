@@ -92,4 +92,102 @@ export async function robotsRoutes(app: FastifyInstance) {
     if (error) return reply.code(500).send({ error: error.message });
     return { robot: data };
   });
+
+
+  // GET /api/robots/:id — fetch a single robot (must belong to authed user)
+  app.get<{ Params: { id: string } }>('/:id', async (req, reply) => {
+    const userId = await authUser(req.headers.authorization);
+    if (!userId) return reply.code(401).send({ error: 'unauthorized' });
+
+    const { id } = req.params;
+    const { data, error } = await supabaseAdmin
+      .from('robots')
+      .select('*, accounts!inner(user_id)')
+      .eq('id', id)
+      .single();
+
+    if (error || !data) return reply.code(404).send({ error: 'not_found' });
+    if ((data as any).accounts.user_id !== userId) return reply.code(403).send({ error: 'forbidden' });
+
+    const { accounts: _acc, ...robot } = data as any;
+    return { robot };
+  });
+
+  // GET /api/robots/:id/runs — last 20 run records
+  app.get<{ Params: { id: string } }>('/:id/runs', async (req, reply) => {
+    const userId = await authUser(req.headers.authorization);
+    if (!userId) return reply.code(401).send({ error: 'unauthorized' });
+
+    const { id } = req.params;
+    // Verify ownership
+    const { data: robot } = await supabaseAdmin
+      .from('robots')
+      .select('id, accounts!inner(user_id)')
+      .eq('id', id)
+      .single();
+
+    if (!robot) return reply.code(404).send({ error: 'not_found' });
+    if ((robot as any).accounts.user_id !== userId) return reply.code(403).send({ error: 'forbidden' });
+
+    const { data: runs, error } = await supabaseAdmin
+      .from('robot_runs')
+      .select('*')
+      .eq('robot_id', id)
+      .order('triggered_at', { ascending: false })
+      .limit(20);
+
+    if (error) return reply.code(500).send({ error: error.message });
+    return { runs: runs ?? [] };
+  });
+
+  // PATCH /api/robots/:id/status — pause or resume
+  app.patch<{ Params: { id: string } }>('/:id/status', async (req, reply) => {
+    const userId = await authUser(req.headers.authorization);
+    if (!userId) return reply.code(401).send({ error: 'unauthorized' });
+
+    const { id } = req.params;
+    const body = req.body as { status: string };
+    const allowed = ['active', 'paused', 'stopped'];
+    if (!allowed.includes(body.status)) return reply.code(400).send({ error: 'invalid_status' });
+
+    // Verify ownership
+    const { data: existing } = await supabaseAdmin
+      .from('robots')
+      .select('id, accounts!inner(user_id)')
+      .eq('id', id)
+      .single();
+
+    if (!existing) return reply.code(404).send({ error: 'not_found' });
+    if ((existing as any).accounts.user_id !== userId) return reply.code(403).send({ error: 'forbidden' });
+
+    const { data, error } = await supabaseAdmin
+      .from('robots')
+      .update({ status: body.status })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) return reply.code(500).send({ error: error.message });
+    return { robot: data };
+  });
+
+  // DELETE /api/robots/:id
+  app.delete<{ Params: { id: string } }>('/:id', async (req, reply) => {
+    const userId = await authUser(req.headers.authorization);
+    if (!userId) return reply.code(401).send({ error: 'unauthorized' });
+
+    const { id } = req.params;
+    const { data: existing } = await supabaseAdmin
+      .from('robots')
+      .select('id, accounts!inner(user_id)')
+      .eq('id', id)
+      .single();
+
+    if (!existing) return reply.code(404).send({ error: 'not_found' });
+    if ((existing as any).accounts.user_id !== userId) return reply.code(403).send({ error: 'forbidden' });
+
+    const { error } = await supabaseAdmin.from('robots').delete().eq('id', id);
+    if (error) return reply.code(500).send({ error: error.message });
+    return { ok: true };
+  });
 }
