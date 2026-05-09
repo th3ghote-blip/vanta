@@ -136,7 +136,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 # Phase 3 — AI Robots (real)
 
 ## 3.1 Wire RobotPromptBuilder to /api/robots/compile + save
-- [ ] **File:** `components/robots/RobotPromptBuilder.tsx`
+- [x] **File:** `components/robots/RobotPromptBuilder.tsx`
 - **What:** Replace mock `setTimeout(1200)` with `api.compileRobot(prompt)`. Show generated config in a styled preview. "Save" button → POST `/api/robots/save` with `{accountId, prompt, config}`. After save, push to Robots list.
 - **Acceptance:** Type "buy AMZN at NYSE open every weekday" → see generated JSON → Save → robot appears in list.
 
