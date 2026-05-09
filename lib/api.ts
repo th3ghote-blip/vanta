@@ -93,4 +93,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ prompt }),
     }),
+
+  saveRobot: (input: { accountId: string; prompt: string; config: any }) =>
+    request<{ robot: any }>('/api/robots/save', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
 };
