@@ -146,8 +146,8 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Tap a robot → detail page → can pause it (status='paused') and resume.
 
 ## 3.3 Robot execution engine (real, not stub)
-- [ ] **File:** `server/src/ai/robotEngine.ts`
-- [ ] **Install:** `cron-parser` (or `croner`)
+- [x] **File:** `server/src/ai/robotEngine.ts`
+- [x] **Install:** `cron-parser` (or `croner`)
 - **What:** Replace stub. For each `status='active'` robot:
   - `schedule.type='interval'`: run every N ms
   - `schedule.type='cron'`: parse cron expression, fire at next match
