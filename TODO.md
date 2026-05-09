@@ -141,7 +141,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Type "buy AMZN at NYSE open every weekday" → see generated JSON → Save → robot appears in list.
 
 ## 3.2 Robot detail screen
-- [ ] **File:** `app/robot/[id].tsx` (new dynamic route)
+- [x] **File:** `app/robot/[id].tsx` (new dynamic route)
 - **What:** Tap robot card → detail screen. Sections: Prompt (editable text), Config (formatted JSON), Recent runs (last 20 from `robot_runs`), Stats (trades / win rate / P&L), Controls (pause/resume/delete).
 - **Acceptance:** Tap a robot → detail page → can pause it (status='paused') and resume.
 
