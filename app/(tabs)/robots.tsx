@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { Sparkles, Plus, Trophy } from 'lucide-react-native';
 
@@ -7,6 +7,7 @@ import { EnvBanner } from '@/components/shared/EnvBanner';
 import { RobotCard } from '@/components/robots/RobotCard';
 import { RobotPromptBuilder } from '@/components/robots/RobotPromptBuilder';
 import { RobotLeaderboard } from '@/components/robots/RobotLeaderboard';
+import { RobotTemplates } from '@/components/robots/RobotTemplates';
 import { useAccountStore } from '@/stores/account';
 import { useRobotsStore } from '@/stores/robots';
 
@@ -16,6 +17,9 @@ export default function Robots() {
   const { account } = useAccountStore();
   const { robots, loading, fetch: fetchRobots } = useRobotsStore();
   const [activeTab, setActiveTab] = useState<Tab>('my_robots');
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [suggestedPrompt, setSuggestedPrompt] = useState('');
+  const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     if (account?.id) {
@@ -23,9 +27,22 @@ export default function Robots() {
     }
   }, [account?.id]);
 
+  const handleTemplateSelect = (prompt: string) => {
+    setSuggestedPrompt(prompt);
+    setActiveTab('my_robots');
+    // Scroll back to top so the prompt builder is visible.
+    setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 100);
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.bgDeep }}>
       <EnvBanner />
+
+      <RobotTemplates
+        visible={showTemplates}
+        onClose={() => setShowTemplates(false)}
+        onSelect={handleTemplateSelect}
+      />
 
       {/* Header */}
       <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.md, gap: spacing.xs }}>
@@ -64,8 +81,11 @@ export default function Robots() {
 
       {/* Content */}
       {activeTab === 'my_robots' ? (
-        <ScrollView contentContainerStyle={{ padding: spacing.md, gap: spacing.md }}>
-          <RobotPromptBuilder />
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={{ padding: spacing.md, gap: spacing.md }}
+        >
+          <RobotPromptBuilder suggestedPrompt={suggestedPrompt} />
 
           <Text
             style={{
@@ -105,21 +125,22 @@ export default function Robots() {
           )}
 
           <Pressable
-            style={{
-              backgroundColor: colors.bgElevated,
+            onPress={() => setShowTemplates(true)}
+            style={({ pressed }) => ({
+              backgroundColor: pressed ? colors.bgSurface : colors.bgElevated,
               borderRadius: radius.lg,
               borderWidth: 1,
-              borderColor: colors.border,
+              borderColor: colors.primary + '55',
               borderStyle: 'dashed',
               padding: spacing.lg,
               alignItems: 'center',
               flexDirection: 'row',
               justifyContent: 'center',
               gap: spacing.sm,
-            }}
+            })}
           >
-            <Plus color={colors.textSecondary} size={18} />
-            <Text style={{ ...typography.bodyBold, color: colors.textSecondary, fontSize: 14 }}>
+            <Plus color={colors.primary} size={18} />
+            <Text style={{ ...typography.bodyBold, color: colors.primary, fontSize: 14 }}>
               Browse robot templates
             </Text>
           </Pressable>

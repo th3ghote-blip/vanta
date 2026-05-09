@@ -7,7 +7,7 @@
  *  3. "Save Robot" -> POST /api/robots/save -> prepend to robots store -> reset.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, TextInput, Pressable, ActivityIndicator, ScrollView } from 'react-native';
 import { Sparkles, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react-native';
 
@@ -145,7 +145,12 @@ function ConfigPreview({ config }: { config: any }) {
   );
 }
 
-export function RobotPromptBuilder() {
+interface RobotPromptBuilderProps {
+  /** When provided (or changed to a non-empty value), pre-fills the prompt and resets to idle. */
+  suggestedPrompt?: string;
+}
+
+export function RobotPromptBuilder({ suggestedPrompt }: RobotPromptBuilderProps = {}) {
   const { account } = useAccountStore();
   const { add: addRobot } = useRobotsStore();
 
@@ -153,6 +158,16 @@ export function RobotPromptBuilder() {
   const [stage, setStage] = useState<Stage>('idle');
   const [config, setConfig] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // When a template is selected from RobotTemplates, pre-fill and reset.
+  useEffect(() => {
+    if (suggestedPrompt) {
+      setPrompt(suggestedPrompt);
+      setStage('idle');
+      setConfig(null);
+      setError(null);
+    }
+  }, [suggestedPrompt]);
 
   const compile = async () => {
     if (!prompt.trim()) return;
@@ -362,3 +377,4 @@ export function RobotPromptBuilder() {
     </View>
   );
 }
+ 
