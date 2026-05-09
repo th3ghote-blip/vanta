@@ -4,6 +4,40 @@
 
 ---
 
+## 2026-05-09T(auto) — 3.5 Robot leaderboard
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **3.5 Robot leaderboard**
+**Commit:** `f7fd776` — `auto: robot leaderboard (Phase 3.5)`
+
+**What changed**
+- `supabase/migrations/006_public_robots.sql` (new): adds `is_public boolean default false` to `robots`, partial index `robots_leaderboard_idx` on `(is_public, total_profit desc) WHERE is_public=true`, RLS policy "Anyone can view public robots".
+- `server/src/routes/robots.ts`: added `GET /api/robots/leaderboard?period=7d|30d|all` (top 20 public robots by P&L, anonymized owners, period filters via `last_run_at` cutoff); added `PATCH /:id/visibility` (owner-only `is_public` toggle). Leaderboard route registered *before* `/:id` to avoid parametric collision.
+- `lib/api.ts`: added `api.getRobotLeaderboard(period)` and `api.setRobotVisibility(id, flag)`; exported `LeaderboardEntry` interface.
+- `components/robots/RobotLeaderboard.tsx` (new, 227 lines): period selector (7d/30d/all), ranked rows with gold/silver/bronze Trophy icons for top 3, P&L with TrendingUp/Down, win rate, pull-to-refresh.
+- `app/(tabs)/robots.tsx`: added "My Robots / Leaderboard" pill tab switcher; leaderboard tab renders `<RobotLeaderboard />`.
+- `TODO.md`: all three 3.5 sub-items marked `[x]`.
+
+**Verification done in-sandbox**
+- `npx tsc --noEmit` (root) → exit 0 (silent).
+- `cd server && npx tsc --noEmit` → exit 0 (silent).
+
+**Verification NOT done**
+- Migration apply: sandbox has no outbound network. Run:
+  `SUPABASE_PAT=<pat> python scripts/apply-migration.py supabase/migrations/006_public_robots.sql`
+- Railway deploy: `cd server && railway up --detach`
+- Vercel deploy: `cd /c/Claude/vanta && vercel --prod --yes`
+- E2E: set `robots.is_public=true` via SQL or PATCH /api/robots/:id/visibility → robot appears in leaderboard tab ranked by P&L.
+
+**Recurring gotchas (still present)**
+1. `.git/index.lock` + `.git/HEAD.lock` (0-byte WSL stale lockfiles, cannot unlink). Workaround: `GIT_INDEX_FILE=/sessions/eager-adoring-shannon/git_vanta_idx git read-tree HEAD` rebuilds clean index; stage + commit via commit-tree; write SHA to `refs/heads/main`.
+2. `unlink tmp_obj_*` warnings during write-tree are cosmetic — objects written correctly.
+3. Write/Edit tool truncates long files. Fix: bash heredoc + verify `wc -l`.
+
+**Next agent:** pick **3.4 Tip-only robots** (depends on 6.2 `lib/push.ts` — still not built) OR **3.6 Robot templates gallery** (`components/robots/RobotTemplates.tsx` new; no dependency) OR jump to **6.1 Expo push token registration** to unblock 3.4. Recommended: **3.6** (no deps, quick win) or **6.1** (unblocks 3.4).
+
+---
+
 ## 2026-05-09T(auto) — 3.3 Robot execution engine (real, not stub)
 
 **Agent:** scheduled cowork auto-work pass
@@ -136,38 +170,4 @@
 
 **Verification NOT done**
 - Vercel deploy: sandbox has no outbound network. Run `cd /c/Claude/vanta && vercel --prod --yes` to ship.
-- E2E: tap Up on BTCUSD $10 60s → loading spinner → success banner → AccountHeader balance drops $10 → round appears in DB.
-
-**Recurring gotchas (still present)**
-1. `.git/index.lock` (0-byte WSL lockfile, cannot unlink). Workaround: `GIT_INDEX_FILE=/tmp/git_idx git read-tree HEAD` then stage + commit via commit-tree. Real fix: `cmd /c del C:\Claude\vanta\.git\index.lock` on Windows.
-2. Index was stale this run (showed rounds.ts as deleted + staged). Fixed by `GIT_INDEX_FILE=/tmp/git_idx_vanta git read-tree HEAD` which showed clean tree.
-3. `Edit`/`Write` tool may truncate. Fix: bash heredoc + verify `wc -l`.
-
-**Next agent:** pick **2.4 Active Rounds list in Quick Mode** (`components/fun/ActiveRounds.tsx` new, import in `QuickTradeScreen.tsx`). Frontend-only; deploy with `vercel --prod --yes`.
-
----
-
-## 2026-05-07T(auto) — 2.2 Deduct stake on round open committed (deploy pending)
-
-**Agent:** scheduled cowork auto-work pass
-**TODO item picked:** **2.2 Deduct stake on round open**
-**Commit:** `8578488` — `auto: deduct stake on round open` (2 files)
-
-**What changed**
-- `server/src/routes/rounds.ts` (102 lines, was 52): POST `/api/rounds/open` now (1) fetches the account and enforces ownership (`user_id == authed user`); (2) checks `account.balance >= stake`, returns 400 `insufficient_balance` with `required`/`available` if not; (3) deducts stake via `apply_trade_pnl(account_id, -stake)` before the insert; (4) issues a compensating refund if insert fails or no quote is available, so balance is never permanently lost on a failed open.
-- `TODO.md`: item 2.2 checkbox marked `[x]`.
-
-**Also fixed this run**
-Commit `dee729b` (fixup): the prior STATE.md commit (`33356cf`) had accidentally excluded `server/src/workers/rounds.ts` from the tree and reverted `startRoundsWorker` wiring in `index.ts`. Fixed by rebuilding the tree with both files and making an explicit fixup commit before starting 2.2 work. All tsc checks pass.
-
-**Verification done in-sandbox**
-- `cd server && npx tsc --noEmit` → exit 0.
-- Root `npx tsc --noEmit` → exit 0.
-- Logic: `apply_trade_pnl` is the same RPC used by the risk worker; passing `-stake` correctly decrements balance/equity/free_margin atomically in Postgres.
-
-**Verification NOT done**
-- Railway deploy: sandbox has no outbound network. Run `cd /c/Claude/vanta/server && railway up --detach` from a machine with the CLI. This ships both 2.1 (rounds settler) and 2.2 (stake deduction) together — they were designed to be deployed as a pair.
-- End-to-end: open a $50 round on a $10k account → confirm balance drops to $9950 immediately; after expiry confirm settler credits payout on win or leaves balance on loss.
-
-**Recurring gotchas (still present)**
-1. `
+- E2E: tap Up on BTCUSD $10 60s → loading spinner → succ
