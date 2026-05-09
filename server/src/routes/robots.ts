@@ -93,8 +93,52 @@ export async function robotsRoutes(app: FastifyInstance) {
     return { robot: data };
   });
 
+  // GET /api/robots/leaderboard?period=7d|30d|all
+  // Registered BEFORE /:id so the static segment wins over the parametric one.
+  app.get('/leaderboard', async (req, reply) => {
+    const userId = await authUser(req.headers.authorization);
+    if (!userId) return reply.code(401).send({ error: 'unauthorized' });
 
-  // GET /api/robots/:id — fetch a single robot (must belong to authed user)
+    const query = req.query as { period?: string };
+    const period = query.period ?? '7d';
+
+    let cutoff: string | null = null;
+    if (period === '7d') {
+      cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    } else if (period === '30d') {
+      cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    }
+
+    let q = supabaseAdmin
+      .from('robots')
+      .select('id, name, description, total_trades, winning_trades, total_profit, last_run_at, created_at')
+      .eq('is_public', true)
+      .order('total_profit', { ascending: false })
+      .limit(20);
+
+    if (cutoff) {
+      q = q.gte('last_run_at', cutoff);
+    }
+
+    const { data, error } = await q;
+    if (error) return reply.code(500).send({ error: error.message });
+
+    const entries = (data ?? []).map((r: any, idx: number) => ({
+      rank: idx + 1,
+      id: r.id,
+      name: r.name,
+      description: r.description,
+      total_trades: r.total_trades,
+      winning_trades: r.winning_trades,
+      win_rate: r.total_trades > 0 ? Math.round((r.winning_trades / r.total_trades) * 100) : null,
+      total_profit: r.total_profit,
+      last_run_at: r.last_run_at,
+    }));
+
+    return { leaderboard: entries, period };
+  });
+
+  // GET /api/robots/:id
   app.get<{ Params: { id: string } }>('/:id', async (req, reply) => {
     const userId = await authUser(req.headers.authorization);
     if (!userId) return reply.code(401).send({ error: 'unauthorized' });
@@ -113,13 +157,12 @@ export async function robotsRoutes(app: FastifyInstance) {
     return { robot };
   });
 
-  // GET /api/robots/:id/runs — last 20 run records
+  // GET /api/robots/:id/runs
   app.get<{ Params: { id: string } }>('/:id/runs', async (req, reply) => {
     const userId = await authUser(req.headers.authorization);
     if (!userId) return reply.code(401).send({ error: 'unauthorized' });
 
     const { id } = req.params;
-    // Verify ownership
     const { data: robot } = await supabaseAdmin
       .from('robots')
       .select('id, accounts!inner(user_id)')
@@ -140,7 +183,7 @@ export async function robotsRoutes(app: FastifyInstance) {
     return { runs: runs ?? [] };
   });
 
-  // PATCH /api/robots/:id/status — pause or resume
+  // PATCH /api/robots/:id/status
   app.patch<{ Params: { id: string } }>('/:id/status', async (req, reply) => {
     const userId = await authUser(req.headers.authorization);
     if (!userId) return reply.code(401).send({ error: 'unauthorized' });
@@ -150,7 +193,6 @@ export async function robotsRoutes(app: FastifyInstance) {
     const allowed = ['active', 'paused', 'stopped'];
     if (!allowed.includes(body.status)) return reply.code(400).send({ error: 'invalid_status' });
 
-    // Verify ownership
     const { data: existing } = await supabaseAdmin
       .from('robots')
       .select('id, accounts!inner(user_id)')
@@ -163,6 +205,37 @@ export async function robotsRoutes(app: FastifyInstance) {
     const { data, error } = await supabaseAdmin
       .from('robots')
       .update({ status: body.status })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) return reply.code(500).send({ error: error.message });
+    return { robot: data };
+  });
+
+  // PATCH /api/robots/:id/visibility
+  app.patch<{ Params: { id: string } }>('/:id/visibility', async (req, reply) => {
+    const userId = await authUser(req.headers.authorization);
+    if (!userId) return reply.code(401).send({ error: 'unauthorized' });
+
+    const { id } = req.params;
+    const body = req.body as { is_public: boolean };
+    if (typeof body.is_public !== 'boolean') {
+      return reply.code(400).send({ error: 'is_public must be boolean' });
+    }
+
+    const { data: existing } = await supabaseAdmin
+      .from('robots')
+      .select('id, accounts!inner(user_id)')
+      .eq('id', id)
+      .single();
+
+    if (!existing) return reply.code(404).send({ error: 'not_found' });
+    if ((existing as any).accounts.user_id !== userId) return reply.code(403).send({ error: 'forbidden' });
+
+    const { data, error } = await supabaseAdmin
+      .from('robots')
+      .update({ is_public: body.is_public })
       .eq('id', id)
       .select()
       .single();

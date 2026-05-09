@@ -15,7 +15,7 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000';
  * can surface payload fields like `required` / `available` / `symbol` / `issues`.
  *
  * `message` is set to `code` so legacy `catch (err) { setError(err.message) }`
- * sites keep working — they'll just see the raw code instead of a friendly string.
+ * sites keep working -- they'll just see the raw code instead of a friendly string.
  */
 export class ApiError extends Error {
   readonly code: string;
@@ -114,4 +114,27 @@ export const api = {
 
   deleteRobot: (id: string) =>
     request<{ ok: boolean }>(`/api/robots/${id}`, { method: 'DELETE' }),
+
+  setRobotVisibility: (id: string, is_public: boolean) =>
+    request<{ robot: any }>(`/api/robots/${id}/visibility`, {
+      method: 'PATCH',
+      body: JSON.stringify({ is_public }),
+    }),
+
+  getRobotLeaderboard: (period: '7d' | '30d' | 'all' = '7d') =>
+    request<{ leaderboard: LeaderboardEntry[]; period: string }>(
+      `/api/robots/leaderboard?period=${period}`,
+    ),
 };
+
+export interface LeaderboardEntry {
+  rank: number;
+  id: string;
+  name: string;
+  description: string | null;
+  total_trades: number;
+  winning_trades: number;
+  win_rate: number | null;
+  total_profit: number;
+  last_run_at: string | null;
+}

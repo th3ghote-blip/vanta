@@ -164,9 +164,9 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Tip robot fires → push received on user's device.
 
 ## 3.5 Robot leaderboard
-- [ ] **Migration:** `006_public_robots.sql` — add `is_public boolean default false` to robots.
-- [ ] **Endpoint:** `GET /api/robots/leaderboard?period=7d` returns top 20 by P&L (anonymized owners).
-- [ ] **UI:** Tab on Robots screen "Leaderboard". List with rank, robot name, win rate, P&L.
+- [x] **Migration:** `006_public_robots.sql` — add `is_public boolean default false` to robots.
+- [x] **Endpoint:** `GET /api/robots/leaderboard?period=7d` returns top 20 by P&L (anonymized owners).
+- [x] **UI:** Tab on Robots screen "Leaderboard". List with rank, robot name, win rate, P&L.
 - **Acceptance:** Mark a robot public, gets ranked.
 
 ## 3.6 Robot templates / "Try this prompt" gallery
