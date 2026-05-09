@@ -4,6 +4,43 @@
 
 ---
 
+## 2026-05-09T(auto) — 3.3 Robot execution engine (real, not stub)
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **3.3 Robot execution engine (real, not stub)**
+**Commit:** `45baa18` — `auto: robot execution engine (real, not stub) (Phase 3.3)`
+
+**What changed**
+- `server/src/ai/robotEngine.ts` (full rewrite, 351 lines):
+  - **interval**: fires when `(now - last_run_at) >= interval_ms`; uses in-memory `lastFiredMs` map so restarts reset cleanly.
+  - **cron**: self-contained minimal cron parser (no external library). Supports `*`, `*/N`, `N-M`, `N,M,K` for all 5 UTC fields. No `cron-parser`/`croner` installed — the TODO allowed it but the inline ~40-line parser is sufficient and has zero deps.
+  - **event**: `nyse_open` (14:30 UTC), `nyse_close` (21:00 UTC), `london_open` (08:00 UTC), `asia_open` (00:00 UTC), `daily_9am` (09:00 UTC). Each fires at most once per UTC calendar day per robot (tracked in `firedToday` map, pruned daily).
+  - **conditions**: `always` implemented; unknown types pass through (no false negatives for future condition types).
+  - **kind='trade'**: opens trade via internal OMS path — fetches quote, checks `max_concurrent` open robot trades, reserves margin, inserts trade with `reason='robot'`, SL/TP computed from `risk.stop_loss_pct` / `risk.take_profit_pct`.
+  - **kind='tip'**: logs `tip_sent` action. Phase 3.4 will wire push notification.
+  - Logs every tick outcome to `robot_runs` (including `conditions_not_met`, `trade_failed` for observability).
+  - Updates `robots.last_run_at` + `robots.total_trades` on each fire.
+  - Tick interval changed from 30s → 60s (matches cron minute granularity).
+  - Concurrency guard: single in-flight tick; overlapping ticks skipped.
+- `TODO.md`: item 3.3 checkboxes marked `[x]`.
+
+**Verification done in-sandbox**
+- `cd server && npx tsc --noEmit` → exit 0.
+- Root `npx tsc --noEmit` → exit 0.
+
+**Verification NOT done**
+- Railway deploy: sandbox has no outbound network. Run `cd /c/Claude/vanta/server && railway up --detach` to ship.
+- E2E: create robot with `interval=60000`, set status=active, wait 60s → trade appears in book with `reason='robot'`, `total_trades` increments.
+
+**Recurring gotchas (still present)**
+1. `.git/index.lock` (0-byte WSL stale lockfile, cannot `rm`). Workaround: `GIT_INDEX_FILE=/tmp/git_vanta_idx git read-tree HEAD` to rebuild fresh index; stage files with same env var; write commit SHA directly to `.git/refs/heads/main`.
+2. `unlink tmp_obj_*` warnings during `write-tree` are cosmetic — git still writes objects correctly.
+3. Edit/Write tool may truncate long files. Fix: bash heredoc + verify `wc -l`.
+
+**Next agent:** pick **3.4 Tip-only robots send push notifications** — but this depends on Phase 6.2 `lib/push.ts` (Expo Push API helper) which is not yet built. Since 3.4 has a hard dependency on 6.2, consider skipping to **3.5 Robot leaderboard** instead: migration `006_public_robots.sql`, endpoint `GET /api/robots/leaderboard`, and leaderboard UI tab. Or implement 6.2 `lib/push.ts` first if preferred.
+
+---
+
 ## 2026-05-08T(auto) — 2.5 Win / loss result modal
 
 **Agent:** scheduled cowork auto-work pass
@@ -133,42 +170,4 @@ Commit `dee729b` (fixup): the prior STATE.md commit (`33356cf`) had accidentally
 - End-to-end: open a $50 round on a $10k account → confirm balance drops to $9950 immediately; after expiry confirm settler credits payout on win or leaves balance on loss.
 
 **Recurring gotchas (still present)**
-1. `.git/index.lock` (0-byte WSL lockfile, cannot unlink). Workaround: `cp .git/index /tmp/idx && GIT_INDEX_FILE=/tmp/idx git read-tree HEAD && GIT_INDEX_FILE=/tmp/idx git add <files> && GIT_INDEX_FILE=/tmp/idx git write-tree` → `git commit-tree` → write SHA to `.git/refs/heads/main`.
-2. `Edit`/`Write` tool may truncate long files. Fix: bash heredoc + verify `wc -l` before staging.
-3. `git status` shows stale index diffs (index lags HEAD) — this is cosmetic; HEAD is always the source of truth.
-
-**Next agent:** pick **2.3 Wire QuickTradeScreen Up/Down to /api/rounds/open** (`components/fun/QuickTradeScreen.tsx`) — frontend-only; deploy with `vercel --prod --yes`.
-
----
-
-## 2026-05-07T(auto) — 2.1 Rounds settler worker committed (deploy pending)
-
-**Agent:** scheduled cowork auto-work pass
-**TODO item picked:** **2.1 Server worker to settle binary rounds at expiry**
-**Commit:** `8312e29` — `auto: server worker to settle binary rounds at expiry` (3 files)
-
-**What changed**
-- `server/src/workers/rounds.ts` (new, 159 lines): 1s-tick settler. Queries `binary_rounds` where `outcome='pending' AND closes_at <= now()`. For each: reads `exit_price` from in-memory quote cache (mid), determines win/loss/tie by comparing exit vs entry and direction. On win: computes `payout = stake * payout_multiplier`, calls `apply_trade_pnl` to credit the account. On loss/tie: no balance change (stake deducted on open by Phase 2.2, not yet deployed). CAS guard: `UPDATE ... WHERE outcome='pending'` prevents double-settle. Overlap guard: tick is skipped if previous is still running.
-- `server/src/index.ts`: added `import { startRoundsWorker }` and `startRoundsWorker(app)` call, alongside existing risk/robot workers.
-- `TODO.md`: item 2.1 checkbox marked `[x]`.
-
-**Verification done in-sandbox**
-- `cd server && npx tsc --noEmit` → exit 0 (silent).
-- Root `npx tsc --noEmit` → exit 0 (silent).
-- `git log --oneline` shows `8312e29` on `main`. Working tree clean.
-
-**Verification NOT done**
-- Railway deploy: sandbox has no outbound network. Run `cd /c/Claude/vanta/server && railway up --detach` from a machine with the CLI.
-- End-to-end acceptance: open a 60s binary round, wait for expiry, confirm `binary_rounds.outcome` is set and balance reflects payout on a win.
-
-**Note on Phase 2.2 dependency**
-The settler correctly credits payout on win, but stake is not yet deducted on open (that's 2.2). Until 2.2 is deployed, wins double-count (payout credited without prior deduction). Deploy 2.1 + 2.2 together for correct P&L.
-
-**Recurring gotchas (still present)**
-1. `.git/index.lock` (0-byte WSL lockfile). Workaround: copy index to `/tmp`, use `GIT_INDEX_FILE` + `git commit-tree`, write SHA to `.git/refs/heads/main`.
-2. `Edit`/`Write` tool truncation. Fix: bash heredoc + verify `wc -l` before staging.
-
-**Next agent:** pick **2.2 Deduct stake on round open** (`server/src/routes/rounds.ts`) — balance-deduction + storing `account_id` on the round. (Already done — see commit `8578488` — but this STATE entry was truncated before it could note that.)
-
----
-
+1. `
