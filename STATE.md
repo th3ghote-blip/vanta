@@ -4,6 +4,46 @@
 
 ---
 
+## 2026-05-10T(auto) — 4.3 Admin role + approval queue
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **4.3 Admin role + approval queue**
+**Commit:** `9e6045c` — `auto: admin role + approval queue (Phase 4.3)`
+
+**What changed**
+- `supabase/migrations/007_admin.sql` (new): `ALTER TABLE profiles ADD COLUMN is_admin boolean NOT NULL DEFAULT false` + partial index on `(is_admin) WHERE is_admin=true`.
+- `server/src/routes/admin.ts` (new, 122 lines): `authAdmin()` helper (verifies JWT + checks `profiles.is_admin`). Three endpoints:
+  - `GET /api/admin/transactions?status=pending|completed|rejected|all` — returns up to 100 rows with nested account info.
+  - `POST /api/admin/transactions/:id/approve` — credits balance for deposit/bonus/adjustment, debits for withdrawal (with balance check), sets `status='completed'`.
+  - `POST /api/admin/transactions/:id/reject` — sets `status='rejected'`, stores optional reason in notes.
+- `server/src/routes/account.ts`: Added `GET /api/account/profile` — returns full profile row including `is_admin`.
+- `server/src/index.ts`: Imports + registers `adminRoutes` at `/api/admin`.
+- `lib/api.ts`: Added `getProfile()`, `adminGetTransactions()`, `adminApproveTransaction()`, `adminRejectTransaction()`.
+- `app/admin/transactions.tsx` (new, 408 lines): Admin screen with status-filter tabs (Pending/Completed/Rejected/All), transaction cards showing type/amount/account/method/destination, Approve + Reject buttons for pending rows, reject-reason modal, pull-to-refresh. Access-denied screen for non-admins.
+- `app/(tabs)/profile.tsx`: Loads profile on mount; shows "Admin — Transactions" menu item (with `ShieldCheck` icon) only when `is_admin=true`.
+- `TODO.md`: All four 4.3 sub-items marked `[x]`.
+
+**Verification done in-sandbox**
+- `cd server && npx tsc --noEmit` → exit 0.
+- `npx tsc --noEmit` (root) → exit 0.
+
+**Verification NOT done**
+- Migration apply: `SUPABASE_PAT=<pat> python scripts/apply-migration.py supabase/migrations/007_admin.sql`
+- Railway deploy: `cd /c/Claude/vanta/server && railway up --detach`
+- Vercel deploy: `cd /c/Claude/vanta && vercel --prod --yes`
+- E2E: `UPDATE profiles SET is_admin=true WHERE id='<your-user-id>';` in Supabase SQL editor → Profile tab shows Admin menu item → approve a pending deposit → account balance updates.
+
+**Recurring gotchas (CRITICAL)**
+1. `.git/index.lock` + `.git/HEAD.lock` + `.git/refs/heads/main.lock` are 0-byte stale WSL lockfiles that **cannot be deleted or overwritten via rm**. Workaround:
+   - Use `GIT_INDEX_FILE=/sessions/*/git_vanta_idx` for all index ops.
+   - Commit via `git commit-tree` + write SHA directly to `.git/refs/heads/main` **and** `.git/refs/heads/main.lock`.
+2. `unlink tmp_obj_*` warnings during `write-tree`/`git add` are cosmetic.
+3. **Edit tool truncates long files.** Files affected this run: `lib/api.ts`, `server/src/index.ts`. Fix: bash heredoc to rewrite the tail; verify with `wc -l` and `tail`.
+
+**Next agent:** pick **4.4 Transaction history detailed view** (`app/transactions.tsx`, filters + CSV export, wired from Portfolio). No hard dependencies.
+
+---
+
 ## 2026-05-10T(auto) — 4.2 Withdrawals screen
 
 **Agent:** scheduled cowork auto-work pass
@@ -178,48 +218,4 @@ The git index was corrupted on entry (staged revert of all prior work). Fixed by
 - E2E: create robot with `interval=60000`, set status=active, wait 60s → trade appears in book with `reason='robot'`, `total_trades` increments.
 
 **Recurring gotchas (still present)**
-1. `.git/index.lock` (0-byte WSL stale lockfile, cannot `rm`). Workaround: `GIT_INDEX_FILE=/tmp/git_vanta_idx git read-tree HEAD` to rebuild fresh index; stage files with same env var; write commit SHA directly to `.git/refs/heads/main`.
-2. `unlink tmp_obj_*` warnings during `write-tree` are cosmetic — git still writes objects correctly.
-3. Edit/Write tool may truncate long files. Fix: bash heredoc + verify `wc -l`.
-
-**Next agent:** pick **3.4 Tip-only robots send push notifications** — but this depends on Phase 6.2 `lib/push.ts` (Expo Push API helper) which is not yet built. Since 3.4 has a hard dependency on 6.2, consider skipping to **3.5 Robot leaderboard** instead: migration `006_public_robots.sql`, endpoint `GET /api/robots/leaderboard`, and leaderboard UI tab. Or implement 6.2 `lib/push.ts` first if preferred.
-
----
-
-## 2026-05-08T(auto) — 2.5 Win / loss result modal
-
-**Agent:** scheduled cowork auto-work pass
-**TODO item picked:** **2.5 Win / loss result modal**
-**Commit:** `137a505` — `auto: win/loss result modal (Phase 2.5)`
-
-**What changed**
-- `components/fun/RoundResultModal.tsx` (new, 262 lines):
-  - Modal component receives `round: BinaryRound | null` + `onDismiss` callback.
-  - Entrance: scale (0.7→1 spring) + fade-in (180ms) via `Animated.parallel`.
-  - **Win**: `ConfettiCannon` fires 120 particles (branded palette) from center-top; green `CheckCircle` icon; shows `+$net` (payout − stake).
-  - **Loss**: red `XCircle` icon; 7-step `Animated.sequence` shake on `translateX`.
-  - **Tie**: green `CheckCircle`; `±$0.00`.
-  - Auto-dismisses after 3 s; tapping the overlay also dismisses.
-  - Uses `useWindowDimensions` for confetti origin so it centers correctly on any screen width.
-- `components/fun/QuickTradeScreen.tsx` (modified):
-  - Added `settledRound: BinaryRound | null` state.
-  - Passes `onRoundSettled={setSettledRound}` to `<ActiveRounds>` (hook was already wired in Phase 2.4).
-  - Renders `<RoundResultModal round={settledRound} onDismiss={() => setSettledRound(null)} />`.
-- `package.json` / `package-lock.json`: `react-native-confetti-cannon@1.5.2` added.
-- `TODO.md`: item 2.5 checkbox marked `[x]`.
-
-**Verification done in-sandbox**
-- `npx tsc --noEmit` (root) → exit 0 (silent). No type errors.
-
-**Verification NOT done**
-- Vercel deploy: sandbox has no outbound network. Run `cd /c/Claude/vanta && vercel --prod --yes` to ship.
-- E2E: open round → wait for settle → modal pops with win/loss animation → auto-dismisses after 3 s.
-
-**Recurring gotchas (still present)**
-1. `.git/index.lock` + `.git/HEAD.lock` (0-byte WSL stale lockfiles). Workaround: `GIT_INDEX_FILE=/tmp/git_vanta_idx git read-tree HEAD` to rebuild index; write commit SHA to `.git/refs/heads/main`.
-2. `Edit`/`Write` tool truncates long files. Fix: bash heredoc + verify `wc -l`.
-3. `unlink tmp_obj_*` warnings during `write-tree` are cosmetic — git still writes objects correctly.
-
-**Next agent:** pick **2.6 Streak tracking** — migration `005_streaks.sql`, server settler update, streak badge on `QuickTradeScreen` header. Has three sub-items (migration → server → client); pick the migration sub-item first.
-
----
+1. `.git/index.lock` (0-byt

@@ -189,10 +189,10 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Try to withdraw without KYC → blocked with "Verify identity first". With KYC → pending withdrawal created.
 
 ## 4.3 Admin role + approval queue
-- [ ] **Migration:** `007_admin.sql` — `is_admin boolean default false` on profiles.
-- [ ] **Endpoint:** `GET /api/admin/transactions?status=pending` — admin only.
-- [ ] **Endpoint:** `POST /api/admin/transactions/:id/approve` and `/reject` — credit/debit balance accordingly, set `status='completed'` or `'rejected'`.
-- [ ] **UI:** `app/admin/transactions.tsx` (gated by `profile.is_admin`).
+- [x] **Migration:** `007_admin.sql` — `is_admin boolean default false` on profiles.
+- [x] **Endpoint:** `GET /api/admin/transactions?status=pending` — admin only.
+- [x] **Endpoint:** `POST /api/admin/transactions/:id/approve` and `/reject` — credit/debit balance accordingly, set `status='completed'` or `'rejected'`.
+- [x] **UI:** `app/admin/transactions.tsx` (gated by `profile.is_admin`).
 - **Acceptance:** Set your profile.is_admin=true via SQL → admin tab visible → approve transactions; balance updates.
 
 ## 4.4 Transaction history detailed view
