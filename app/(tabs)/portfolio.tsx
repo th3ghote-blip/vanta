@@ -154,7 +154,7 @@ export default function Portfolio() {
 
           <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg }}>
             <ActionPill icon={<ArrowDownToLine color="#fff" size={16} />} label="Deposit" primary onPress={() => router.push('/deposit')} />
-            <ActionPill icon={<ArrowUpFromLine color={colors.textPrimary} size={16} />} label="Withdraw" />
+            <ActionPill icon={<ArrowUpFromLine color={colors.textPrimary} size={16} />} label="Withdraw" onPress={() => router.push('/withdraw')} />
           </View>
         </View>
 

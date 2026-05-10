@@ -136,6 +136,17 @@ export const api = {
       body: JSON.stringify(input),
     }),
 
+  createWithdrawal: (input: {
+    accountId: string;
+    amount: number;
+    method: 'crypto' | 'wire';
+    destination: string;
+  }) =>
+    request<{ transaction: any }>('/api/transactions/withdraw', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
 };
 
 export interface LeaderboardEntry {
