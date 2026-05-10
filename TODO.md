@@ -184,7 +184,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Tap Deposit → screen with options → select crypto → see address → button creates pending transaction.
 
 ## 4.2 Withdrawals screen
-- [ ] **File:** `app/withdraw.tsx` (new)
+- [x] **File:** `app/withdraw.tsx` (new)
 - **What:** Form: amount + method (crypto address / bank). Validate `amount <= account.balance`. Block if `kyc_submission.status != 'approved'`. Insert `transactions` row pending.
 - **Acceptance:** Try to withdraw without KYC → blocked with "Verify identity first". With KYC → pending withdrawal created.
 

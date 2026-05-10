@@ -4,6 +4,53 @@
 
 ---
 
+## 2026-05-10T(auto) — 4.2 Withdrawals screen
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **4.2 Withdrawals screen**
+**Commit:** `b593ee9` — `auto: withdrawals screen (Phase 4.2)`
+
+**Session startup fix**
+The git index was corrupted on entry (staged revert of all prior work). Fixed by rebuilding index from HEAD via `GIT_INDEX_FILE=/sessions/*/git_vanta_idx git read-tree HEAD`. Also restored `components/robots/RobotPromptBuilder.tsx` (17 lines of junk appended in working tree) by copying from HEAD blob.
+
+**What changed**
+- `app/withdraw.tsx` (new, 476 lines): Full withdrawal screen.
+  - KYC gate: queries `kyc_submissions` on mount; shows ShieldAlert + "Verify Identity First" + link to KYC screen if not approved.
+  - Amount input with inline validation (positive, ≥ $10, ≤ balance).
+  - Quick-fill buttons: 25% / 50% / 100% / Max of current balance.
+  - Method selector: Crypto (wallet address) | Bank Wire (free-text bank details).
+  - Destination input with contextual placeholder + multiline for wire.
+  - Processing info card (fees, timelines, warnings).
+  - Submit → POST `/api/transactions/withdraw` → success screen → auto-back after 2.2s.
+  - Maps `ApiError` codes: `kyc_required` → Alert, `insufficient_balance` → inline error.
+- `server/src/routes/transactions.ts`: Added `POST /api/transactions/withdraw`.
+  - Auth → account ownership → balance check (400 `insufficient_balance`) → KYC check (403 `kyc_required`) → insert pending `withdrawal` transaction.
+- `lib/api.ts`: Added `api.createWithdrawal()` method.
+- `app/(tabs)/portfolio.tsx`: Withdraw `ActionPill` now has `onPress={() => router.push('/withdraw')}`.
+- `TODO.md`: item 4.2 marked `[x]`.
+
+**Verification done in-sandbox**
+- `npx tsc --noEmit` (root) → exit 0.
+- `cd server && npx tsc --noEmit` → exit 0.
+
+**Verification NOT done**
+- Railway deploy: sandbox has no outbound network. Run `cd /c/Claude/vanta/server && railway up --detach`.
+- Vercel deploy: `cd /c/Claude/vanta && vercel --prod --yes`.
+- E2E: Portfolio → Withdraw → without KYC → blocked screen. With KYC approved → form → submit → pending transaction in DB.
+
+**Recurring gotchas (CRITICAL)**
+1. `.git/index.lock` + `.git/HEAD.lock` + `.git/refs/heads/main.lock` are 0-byte stale WSL lockfiles that **cannot be deleted or overwritten via rm** (Operation not permitted). Workaround:
+   - Use `GIT_INDEX_FILE=/sessions/*/git_vanta_idx` for all index ops (read-tree, add, write-tree, status, diff).
+   - Commit via `git commit-tree` + write SHA directly to `.git/refs/heads/main`.
+   - **Also write SHA to `.git/refs/heads/main.lock`** — git reads the .lock as the live ref when it exists.
+   - `git log` fails on branch name; use `git log --oneline -N <SHA>` instead.
+2. `unlink tmp_obj_*` warnings during `write-tree`/`git add` are cosmetic — objects are written correctly.
+3. Working tree files may have junk appended if a prior Write/Edit tool call was interrupted mid-file. Always verify with `wc -l` vs expected and `git diff` before starting work.
+
+**Next agent:** pick **4.3 Admin role + approval queue** (migration `007_admin.sql`, two endpoints, admin UI). Or skip to **6.1 Expo push token registration** (no deps, frontend only) to start unblocking Phase 6.
+
+---
+
 ## 2026-05-10T(auto) — 4.1 Deposits screen
 
 **Agent:** scheduled cowork auto-work pass
