@@ -157,3 +157,23 @@ function Row({
   return (
     <Pressable
       onPress={onPress}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
+        padding: spacing.md,
+        borderBottomWidth: last ? 0 : 1,
+        borderBottomColor: colors.border,
+      }}
+    >
+      {icon}
+      <View style={{ flex: 1 }}>
+        <Text style={{ ...typography.body, color: colors.textPrimary, fontSize: 15 }}>{label}</Text>
+        {sublabel && (
+          <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 12, marginTop: 2 }}>{sublabel}</Text>
+        )}
+      </View>
+      <ChevronRight color={colors.textMuted} size={18} />
+    </Pressable>
+  );
+}

@@ -212,7 +212,7 @@ export default function AdminTransactions() {
             onPress={() => setFilter(tab.value)}
             style={{
               flex: 1, paddingVertical: 6, borderRadius: radius.sm, alignItems: 'center',
-              backgroundColor: filter === tab.value ? colors.primary : colors.bg,
+              backgroundColor: filter === tab.value ? colors.primary : colors.bgSurface,
               borderWidth: 1, borderColor: filter === tab.value ? colors.primary : colors.border,
             }}
           >
@@ -378,7 +378,7 @@ export default function AdminTransactions() {
               placeholder="e.g. Incomplete bank details"
               placeholderTextColor={colors.textSecondary}
               style={{
-                backgroundColor: colors.bg, borderRadius: radius.md, padding: spacing.sm,
+                backgroundColor: colors.bgSurface, borderRadius: radius.md, padding: spacing.sm,
                 color: colors.textPrimary, borderWidth: 1, borderColor: colors.border,
                 ...typography.body,
               }}
@@ -388,7 +388,7 @@ export default function AdminTransactions() {
               <Pressable
                 onPress={() => setRejectModal(null)}
                 style={{ flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: radius.md,
-                  backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border }}
+                  backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: colors.border }}
               >
                 <Text style={{ ...typography.body, color: colors.textSecondary }}>Cancel</Text>
               </Pressable>

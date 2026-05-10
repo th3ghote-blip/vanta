@@ -170,17 +170,24 @@ export default function Portfolio() {
         </View>
 
         {/* Recent activity — combined trades + transactions */}
-        <Text
-          style={{
-            ...typography.bodyBold,
-            color: colors.textSecondary,
-            fontSize: 12,
-            letterSpacing: 1,
-            marginTop: spacing.sm,
-          }}
-        >
-          RECENT ACTIVITY
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: spacing.sm }}>
+          <Text
+            style={{
+              ...typography.bodyBold,
+              color: colors.textSecondary,
+              fontSize: 12,
+              letterSpacing: 1,
+              flex: 1,
+            }}
+          >
+            RECENT ACTIVITY
+          </Text>
+          <Pressable onPress={() => router.push('/transactions')}>
+            <Text style={{ ...typography.body, color: colors.primary, fontSize: 12 }}>
+              View all →
+            </Text>
+          </Pressable>
+        </View>
 
         {(trades.length === 0 && txs.length === 0) ? (
           <View
@@ -333,6 +340,7 @@ function StatTile({ label, value, color }: { label: string; value: string; color
     </View>
   );
 }
+
 
 function timeAgo(iso: string): string {
   const then = new Date(iso).getTime();
