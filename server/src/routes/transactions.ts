@@ -1,0 +1,56 @@
+import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
+
+import { authUser, supabaseAdmin } from '../lib/supabase.js';
+
+const CreateDepositSchema = z.object({
+  accountId: z.string().uuid(),
+  amount: z.number().positive(),
+  method: z.enum(['crypto_btc', 'crypto_eth', 'crypto_usdt', 'wire', 'card']),
+  reference: z.string().optional(),
+});
+
+export async function transactionsRoutes(app: FastifyInstance) {
+  /** POST /api/transactions/deposit — create a pending deposit transaction */
+  app.post('/deposit', async (req, reply) => {
+    const userId = await authUser(req.headers.authorization);
+    if (!userId) return reply.code(401).send({ error: 'unauthorized' });
+
+    const parsed = CreateDepositSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid_input', details: parsed.error.flatten() });
+    const body = parsed.data;
+
+    // Verify account belongs to this user
+    const { data: account, error: accErr } = await supabaseAdmin
+      .from('accounts')
+      .select('id, user_id')
+      .eq('id', body.accountId)
+      .single();
+
+    if (accErr || !account) return reply.code(400).send({ error: 'account_not_found' });
+    if (account.user_id !== userId) return reply.code(403).send({ error: 'forbidden' });
+
+    // Insert pending deposit
+    const { data: tx, error: txErr } = await supabaseAdmin
+      .from('transactions')
+      .insert({
+        account_id: body.accountId,
+        type: 'deposit',
+        amount: body.amount,
+        currency: 'USD',
+        status: 'pending',
+        method: body.method,
+        reference: body.reference ?? null,
+        notes: `User-initiated deposit via ${body.method}`,
+      })
+      .select()
+      .single();
+
+    if (txErr) {
+      app.log.error({ err: txErr }, 'transactions: deposit insert failed');
+      return reply.code(500).send({ error: 'insert_failed' });
+    }
+
+    return reply.code(201).send({ transaction: tx });
+  });
+}

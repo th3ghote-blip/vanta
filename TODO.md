@@ -179,7 +179,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 # Phase 4 — Money flow (deposit / withdraw / admin)
 
 ## 4.1 Deposits screen
-- [ ] **File:** `app/deposit.tsx` (new), wired from Portfolio "Deposit" button
+- [x] **File:** `app/deposit.tsx` (new), wired from Portfolio "Deposit" button
 - **What:** Three tabs: Crypto (BTC/ETH/USDT), Bank Wire, Card. For now mock — show generated deposit address (random per-user) for crypto, show wire instructions, "coming soon" for card. "I sent $X" button creates `transactions` row with `status='pending'`.
 - **Acceptance:** Tap Deposit → screen with options → select crypto → see address → button creates pending transaction.
 

@@ -11,6 +11,7 @@ import { quotesRoutes } from './routes/quotes.js';
 import { accountRoutes } from './routes/account.js';
 import { barsRoutes } from './routes/bars.js';
 import { authRoutes } from './routes/auth.js';
+import { transactionsRoutes } from './routes/transactions.js';
 import { startPriceFeed } from './feed/pricefeed.js';
 import { startRobotEngine } from './ai/robotEngine.js';
 import { startRiskWorker } from './workers/risk.js';
@@ -56,6 +57,7 @@ await app.register(roundsRoutes, { prefix: '/api/rounds' });
 await app.register(robotsRoutes, { prefix: '/api/robots' });
 await app.register(quotesRoutes, { prefix: '/api/quotes' });
 await app.register(barsRoutes, { prefix: '/api/bars' });
+await app.register(transactionsRoutes, { prefix: '/api/transactions' });
 
 startPriceFeed(app);
 startRobotEngine(app);

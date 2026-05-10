@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'expo-router';
 import { View, Text, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { ArrowDownToLine, ArrowUpFromLine, RefreshCw } from 'lucide-react-native';
 
@@ -32,6 +33,7 @@ interface Tx {
 }
 
 export default function Portfolio() {
+  const router = useRouter();
   const account = useAccountStore((s) => s.account);
   const fetchAccount = useAccountStore((s) => s.fetch);
   const accountLoading = useAccountStore((s) => s.loading);
@@ -151,7 +153,7 @@ export default function Portfolio() {
           </View>
 
           <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg }}>
-            <ActionPill icon={<ArrowDownToLine color="#fff" size={16} />} label="Deposit" primary />
+            <ActionPill icon={<ArrowDownToLine color="#fff" size={16} />} label="Deposit" primary onPress={() => router.push('/deposit')} />
             <ActionPill icon={<ArrowUpFromLine color={colors.textPrimary} size={16} />} label="Withdraw" />
           </View>
         </View>
@@ -279,13 +281,16 @@ function ActionPill({
   icon,
   label,
   primary,
+  onPress,
 }: {
   icon: React.ReactNode;
   label: string;
   primary?: boolean;
+  onPress?: () => void;
 }) {
   return (
-    <View
+    <Pressable
+      onPress={onPress}
       style={{
         flex: 1,
         flexDirection: 'row',
@@ -303,7 +308,7 @@ function ActionPill({
       <Text style={{ ...typography.bodyBold, color: primary ? '#fff' : colors.textPrimary, fontSize: 14 }}>
         {label}
       </Text>
-    </View>
+    </Pressable>
   );
 }
 

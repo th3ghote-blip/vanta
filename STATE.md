@@ -4,6 +4,41 @@
 
 ---
 
+## 2026-05-10T(auto) — 4.1 Deposits screen
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **4.1 Deposits screen**
+
+**What changed**
+- `app/deposit.tsx` (new, 440 lines): three-tab deposit screen (Crypto / Bank Wire / Card).
+  - Crypto tab: coin selector (BTC/ETH/USDT), network warning, demo deposit address with selectable text, amount input, "I've sent $X" submit button.
+  - Wire tab: bank wire instructions table (Silvergate Bank demo details), amount input, submit button.
+  - Card tab: "Coming soon" placeholder.
+  - On submit: calls `api.createDeposit()` → POST `/api/transactions/deposit` → creates pending transaction → success screen → auto-navigates back after 2.2s.
+- `server/src/routes/transactions.ts` (new, 56 lines): `POST /api/transactions/deposit` — authenticates user, validates accountId ownership, inserts pending `transactions` row with method + amount.
+- `server/src/index.ts`: imports + registers `transactionsRoutes` at `/api/transactions`.
+- `lib/api.ts`: added `api.createDeposit()` method.
+- `app/(tabs)/portfolio.tsx`: added `useRouter` import + hook; `ActionPill` now accepts `onPress` prop (View → Pressable); Deposit button navigates to `/deposit`.
+- `TODO.md`: item 4.1 marked `[x]`.
+
+**Verification done in-sandbox**
+- `npx tsc --noEmit` (root) → exit 0.
+- `cd server && npx tsc --noEmit` → exit 0.
+
+**Verification NOT done**
+- Railway deploy: sandbox has no outbound network. Run `cd /c/Claude/vanta/server && railway up --detach`.
+- Vercel deploy: `cd /c/Claude/vanta && vercel --prod --yes`.
+- E2E: Portfolio → Deposit → Crypto tab → select ETH → enter amount → "I've sent $50" → pending transaction appears in DB.
+
+**Recurring gotchas (still present)**
+1. `.git/index.lock` + `.git/HEAD.lock` + `.git/refs/heads/main.lock` (0-byte WSL stale lockfiles, cannot unlink). Workaround: `GIT_INDEX_FILE=/sessions/*/git_vanta_idx git read-tree HEAD` rebuilds clean index; commit via commit-tree; write SHA to `.git/refs/heads/main`.
+2. `unlink tmp_obj_*` warnings during `write-tree` are cosmetic.
+3. Write/Edit tool truncates long files. Fix: bash heredoc + verify `wc -l`.
+
+**Next agent:** pick **4.2 Withdrawals screen** (no hard deps — check KYC status from `kyc_submissions` table; block withdrawal if not approved). Or pick **6.1 Expo push token registration** to start unblocking Phase 6.
+
+---
+
 ## 2026-05-10T(auto) — 3.6 Robot templates gallery
 
 **Agent:** scheduled cowork auto-work pass
@@ -141,35 +176,3 @@
 **Next agent:** pick **2.6 Streak tracking** — migration `005_streaks.sql`, server settler update, streak badge on `QuickTradeScreen` header. Has three sub-items (migration → server → client); pick the migration sub-item first.
 
 ---
-
-## 2026-05-08T(auto) — 2.4 Active Rounds list in Quick Mode
-
-**Agent:** scheduled cowork auto-work pass
-**TODO item picked:** **2.4 Active Rounds list in Quick Mode**
-**Commit:** `3e840d2` — `auto: active rounds list in Quick Mode (Phase 2.4)`
-
-**What changed**
-- `components/fun/ActiveRounds.tsx` (new, 286 lines): Supabase-realtime-backed list of pending binary rounds.
-  - Fetches all `outcome='pending'` rounds for `accountId` on mount.
-  - Subscribes to `postgres_changes` INSERT + UPDATE on `binary_rounds` filtered by `account_id`.
-  - INSERT: appends new round to list (sorted by `closes_at`), deduped.
-  - UPDATE: updates the row; if `outcome != 'pending'`, calls `onRoundSettled?.(round)` (hook for Phase 2.5 modal).
-  - Each `RoundRow`: 56px `CountdownRing` counting down to real `closes_at`, direction badge (▲/▼), symbol, entry price, stake, multiplier.
-  - On settle: row flashes win/loss background for 800ms then fades out via `Animated.timing`; `onFaded` removes it from state.
-  - Returns `null` when no pending rounds (no empty-state clutter).
-- `components/fun/CountdownRing.tsx` (modified): Added optional `closesAt?: string` prop. When provided, ring counts down to the real ISO timestamp in real time; `seconds` is still needed as arc denominator.
-- `components/fun/QuickTradeScreen.tsx` (modified): Imports and renders `<ActiveRounds accountId={account.id} />` below the payout hint line, guarded by `account != null`.
-- `TODO.md`: item 2.4 checkbox marked `[x]`.
-
-**Verification done in-sandbox**
-- `npx tsc --noEmit` (root) → exit 0.
-- `cd server && npx tsc --noEmit` → exit 0.
-
-**Verification NOT done**
-- Vercel deploy: sandbox has no outbound network. Run `cd /c/Claude/vanta && vercel --prod --yes` to ship.
-- E2E: open 3 rounds → all visible with countdown rings → wait for expiry → disappear with win/loss flash.
-
-**Recurring gotchas (still present)**
-1. `.git/index.lock` + `.git/HEAD.lock` (0-byte WSL stale lockfiles). Workaround: `GIT_INDEX_FILE=/tmp/git_vanta_idx git read-tree HEAD` to rebuild index; write commit SHA directly to `.git/refs/heads/main` (bypassing `update-ref` which requires HEAD.lock).
-2. Edit/Write tool truncates long files. Fix: bash heredoc + verify `wc -l`.
-3. JSX block comments (`{/* */}`) are invalid inside a tag

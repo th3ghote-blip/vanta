@@ -125,6 +125,17 @@ export const api = {
     request<{ leaderboard: LeaderboardEntry[]; period: string }>(
       `/api/robots/leaderboard?period=${period}`,
     ),
+  createDeposit: (input: {
+    accountId: string;
+    amount: number;
+    method: 'crypto_btc' | 'crypto_eth' | 'crypto_usdt' | 'wire' | 'card';
+    reference?: string;
+  }) =>
+    request<{ transaction: any }>('/api/transactions/deposit', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
 };
 
 export interface LeaderboardEntry {
