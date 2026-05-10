@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -11,6 +11,10 @@ import { useAuthStore } from '@/stores/auth';
 import { useModeStore } from '@/stores/mode';
 import { useAccountStore } from '@/stores/account';
 import { connectLiveQuotes, disconnectLiveQuotes } from '@/lib/liveQuotes';
+import {
+  registerForPushNotificationsAsync,
+  unregisterPushToken,
+} from '@/lib/notifications';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,6 +29,9 @@ export default function RootLayout() {
   const fetchAccount = useAccountStore((s) => s.fetch);
   const clearAccount = useAccountStore((s) => s.clear);
 
+  // Track the previous user id so we know when a sign-out occurs.
+  const prevUserIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     const unsubscribe = initAuth();
     hydrateMode();
@@ -35,10 +42,26 @@ export default function RootLayout() {
     };
   }, [initAuth, hydrateMode]);
 
-  // Refetch account whenever auth state changes
+  // Refetch account + manage push token whenever auth state changes.
   useEffect(() => {
-    if (session) fetchAccount();
-    else clearAccount();
+    if (session) {
+      fetchAccount();
+      const userId = session.user?.id;
+      if (userId && userId !== prevUserIdRef.current) {
+        prevUserIdRef.current = userId;
+        // Register (or re-register) push token for this user.
+        // Fire-and-forget - failures are logged internally and must not crash the app.
+        registerForPushNotificationsAsync(userId).catch(() => {});
+      }
+    } else {
+      // User signed out - clear push token so this device stops receiving pushes.
+      const prevId = prevUserIdRef.current;
+      if (prevId) {
+        unregisterPushToken(prevId).catch(() => {});
+        prevUserIdRef.current = null;
+      }
+      clearAccount();
+    }
   }, [session, fetchAccount, clearAccount]);
 
   return (
