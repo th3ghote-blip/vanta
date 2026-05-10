@@ -4,6 +4,40 @@
 
 ---
 
+## 2026-05-11T(auto) — 6.1 Expo push token registration
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **6.1 Expo push token registration on login**
+**Commit:** `c5eab8c` — `auto: Expo push token registration (Phase 6.1)`
+
+**Session startup fix**
+Prior run's cleanup commit (6184f37) was an empty commit — STATE.md and TODO.md updates never landed. Fixed by committing them in `d91c2b0` before starting this run's work.
+
+**What changed**
+- `lib/notifications.ts` (new, 112 lines):
+  - `registerForPushNotificationsAsync(userId)`: requests permission via `Notifications.requestPermissionsAsync()`, fetches Expo push token via `getExpoPushTokenAsync()`, saves to `profiles.push_token` via Supabase client. Handles: web (skip), permission denied (warn + return null), TBD/missing projectId (passes no options — works in Expo Go; warns + returns null if token fetch fails), Supabase write error (warn + return null).
+  - `unregisterPushToken(userId)`: sets `profiles.push_token = null` on sign-out.
+  - Sets `Notifications.setNotificationHandler` for foreground alert/sound.
+- `app/_layout.tsx`: imports both helpers; adds `prevUserIdRef` to track current user; in the session `useEffect`, calls `registerForPushNotificationsAsync` when a new `userId` appears (guards against duplicate calls on re-renders); calls `unregisterPushToken` when session becomes null.
+
+**Verification done in-sandbox**
+- `./node_modules/.bin/tsc --noEmit` (root) → exit 0.
+- `cd server && ./node_modules/.bin/tsc --noEmit` → exit 0.
+
+**Verification NOT done**
+- Vercel deploy: `cd /c/Claude/vanta && vercel --prod --yes`
+- E2E: Sign in on a physical device → `SELECT push_token FROM profiles WHERE id='<id>'` in Supabase → token present.
+
+**Recurring gotchas (CRITICAL)**
+1. `.git/index.lock` + `.git/HEAD.lock` + `.git/refs/heads/main.lock` are stale WSL lockfiles that cannot be deleted. Workaround: use `GIT_INDEX_FILE=/sessions/*/git_vanta_idx` for all index ops; commit via `git commit-tree`; write SHA to both `.git/refs/heads/main` AND `.git/refs/heads/main.lock`.
+2. `unlink tmp_obj_*` warnings during `write-tree`/`git add` are cosmetic.
+3. **File truncation bug**: Write/Edit tool truncates long files. Fix with bash heredoc and verify with `wc -l` + `tail`. The empty-commit bug on cleanup runs (6184f37) is a symptom — the cleanup commit itself was staged with an empty tree.
+4. `npx --no-install tsc --noEmit` may swallow errors — use `./node_modules/.bin/tsc --noEmit`.
+5. The cleanup commit pattern (separate "mark done + STATE.md" commit) has failed twice now. Better approach: commit STATE.md + TODO.md in the SAME commit as the work, or verify the tree is non-empty before committing.
+
+**Next agent:** pick **6.2 Server-side push helper** (`server/src/lib/push.ts`) — no hard deps, unblocks 3.4 (tip robots). Or pick **5.1 Camera-based document upload** (needs `expo-image-picker` + `expo-camera` installs, explicitly listed in TODO item).
+
+
 ## 2026-05-10T(auto) — 4.4 Transaction history detailed view
 
 **Agent:** scheduled cowork auto-work pass

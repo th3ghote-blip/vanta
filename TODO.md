@@ -226,7 +226,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 # Phase 6 — Push notifications
 
 ## 6.1 Expo push token registration on login
-- [ ] **Files:** `lib/notifications.ts` (new), `app/_layout.tsx`
+- [x] **Files:** `lib/notifications.ts` (new), `app/_layout.tsx`
 - **What:** After session is set, request notification permission, fetch token via `Notifications.getExpoPushTokenAsync()`, save to `profiles.push_token`. Handle revoke gracefully.
 - **Acceptance:** Sign in → `profiles.push_token` is set in DB.
 
