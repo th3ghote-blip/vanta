@@ -196,7 +196,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Set your profile.is_admin=true via SQL → admin tab visible → approve transactions; balance updates.
 
 ## 4.4 Transaction history detailed view
-- [ ] **File:** `app/transactions.tsx` (new), accessible from Portfolio
+- [x] **File:** `app/transactions.tsx` (new), accessible from Portfolio
 - **What:** Full transaction table with filters (deposits / withdrawals / bonuses / adjustments). Download CSV.
 - **Acceptance:** Full history with CSV export.
 

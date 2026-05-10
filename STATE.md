@@ -4,6 +4,45 @@
 
 ---
 
+## 2026-05-10T(auto) — 4.4 Transaction history detailed view
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **4.4 Transaction history detailed view**
+**Commit:** `7e16ba8` — `auto: transaction history detailed view (Phase 4.4)`
+
+**What changed**
+- `app/transactions.tsx` (new, 450 lines): Full transaction history screen.
+  - Filter tabs: All / Deposits / Withdrawals / Bonuses / Adjustments (server-side via Supabase query).
+  - Paginated at 50/page with infinite scroll (onScroll nearBottom triggers loadMore).
+  - Status badges: Pending / Completed / Rejected with colour-coded backgrounds.
+  - Type icons: ArrowDownToLine (deposit), ArrowUpFromLine (withdrawal), Gift (bonus), SlidersHorizontal (adjustment).
+  - CSV export via `Share.share()` — fetches up to 1000 rows respecting filter, fields: id, type, amount, status, method, destination, notes, created_at, completed_at.
+  - Pull-to-refresh, empty state with History icon.
+- `app/(tabs)/portfolio.tsx`: Added "View all →" Pressable in RECENT ACTIVITY header linking to `/transactions`. Also restored truncated `timeAgo` function body (prior agent truncation bug fixed).
+- `app/(tabs)/profile.tsx`: Restored truncated `Row` component body (prior agent truncation bug fixed).
+- `app/admin/transactions.tsx`: Fixed pre-existing TS errors — `colors.bg` → `colors.bgSurface` (3 occurrences).
+- `TODO.md`: item 4.4 marked `[x]`.
+
+**Verification done in-sandbox**
+- `./node_modules/.bin/tsc --noEmit` (root) → exit 0.
+- `cd server && ./node_modules/.bin/tsc --noEmit` → exit 0.
+
+**Verification NOT done**
+- Railway deploy: `cd /c/Claude/vanta/server && railway up --detach`
+- Vercel deploy: `cd /c/Claude/vanta && vercel --prod --yes`
+- E2E: Portfolio → "View all →" → transactions screen → filter tabs work → CSV export opens share sheet.
+
+**Recurring gotchas (CRITICAL)**
+1. `.git/index.lock` + `.git/HEAD.lock` + `.git/refs/heads/main.lock` are stale WSL lockfiles that cannot be deleted. Workaround: use `GIT_INDEX_FILE=/sessions/*/git_vanta_idx` for all index ops; commit via `git commit-tree`; write SHA to both `.git/refs/heads/main` AND `.git/refs/heads/main.lock`.
+2. `unlink tmp_obj_*` warnings during `write-tree`/`git add` are cosmetic.
+3. **File truncation bug**: Write/Edit tool can truncate long files. Always verify with `tail -5 <file> | cat -A` and check for `^@` null bytes or abrupt endings. Fix: `tr -d '\000'` and/or append missing tail from git history.
+4. `npx --no-install tsc --noEmit` may swallow errors with exit 1 and no output — fall back to `./node_modules/.bin/tsc --noEmit` to see actual errors.
+5. `profile.tsx` and `portfolio.tsx` were truncated by prior agents; this run restored them fully. Both are now complete in HEAD.
+
+**Next agent:** pick **5.1 Camera-based document upload** (KYC real upload replacing scaffold) — needs `expo-image-picker` install. Or skip to **6.1 Expo push token registration** (no deps, frontend only, unblocks 3.4 + 6.2). Recommended: **6.1** (quick, no installs needed beyond Expo SDK already present).
+
+---
+
 ## 2026-05-10T(auto) — 4.3 Admin role + approval queue
 
 **Agent:** scheduled cowork auto-work pass
@@ -178,44 +217,4 @@ The git index was corrupted on entry (staged revert of all prior work). Fixed by
   `SUPABASE_PAT=<pat> python scripts/apply-migration.py supabase/migrations/006_public_robots.sql`
 - Railway deploy: `cd server && railway up --detach`
 - Vercel deploy: `cd /c/Claude/vanta && vercel --prod --yes`
-- E2E: set `robots.is_public=true` via SQL or PATCH /api/robots/:id/visibility → robot appears in leaderboard tab ranked by P&L.
-
-**Recurring gotchas (still present)**
-1. `.git/index.lock` + `.git/HEAD.lock` (0-byte WSL stale lockfiles, cannot unlink). Workaround: `GIT_INDEX_FILE=/sessions/eager-adoring-shannon/git_vanta_idx git read-tree HEAD` rebuilds clean index; stage + commit via commit-tree; write SHA to `refs/heads/main`.
-2. `unlink tmp_obj_*` warnings during write-tree are cosmetic — objects written correctly.
-3. Write/Edit tool truncates long files. Fix: bash heredoc + verify `wc -l`.
-
-**Next agent:** pick **3.4 Tip-only robots** (depends on 6.2 `lib/push.ts` — still not built) OR **3.6 Robot templates gallery** (`components/robots/RobotTemplates.tsx` new; no dependency) OR jump to **6.1 Expo push token registration** to unblock 3.4. Recommended: **3.6** (no deps, quick win) or **6.1** (unblocks 3.4).
-
----
-
-## 2026-05-09T(auto) — 3.3 Robot execution engine (real, not stub)
-
-**Agent:** scheduled cowork auto-work pass
-**TODO item picked:** **3.3 Robot execution engine (real, not stub)**
-**Commit:** `45baa18` — `auto: robot execution engine (real, not stub) (Phase 3.3)`
-
-**What changed**
-- `server/src/ai/robotEngine.ts` (full rewrite, 351 lines):
-  - **interval**: fires when `(now - last_run_at) >= interval_ms`; uses in-memory `lastFiredMs` map so restarts reset cleanly.
-  - **cron**: self-contained minimal cron parser (no external library). Supports `*`, `*/N`, `N-M`, `N,M,K` for all 5 UTC fields. No `cron-parser`/`croner` installed — the TODO allowed it but the inline ~40-line parser is sufficient and has zero deps.
-  - **event**: `nyse_open` (14:30 UTC), `nyse_close` (21:00 UTC), `london_open` (08:00 UTC), `asia_open` (00:00 UTC), `daily_9am` (09:00 UTC). Each fires at most once per UTC calendar day per robot (tracked in `firedToday` map, pruned daily).
-  - **conditions**: `always` implemented; unknown types pass through (no false negatives for future condition types).
-  - **kind='trade'**: opens trade via internal OMS path — fetches quote, checks `max_concurrent` open robot trades, reserves margin, inserts trade with `reason='robot'`, SL/TP computed from `risk.stop_loss_pct` / `risk.take_profit_pct`.
-  - **kind='tip'**: logs `tip_sent` action. Phase 3.4 will wire push notification.
-  - Logs every tick outcome to `robot_runs` (including `conditions_not_met`, `trade_failed` for observability).
-  - Updates `robots.last_run_at` + `robots.total_trades` on each fire.
-  - Tick interval changed from 30s → 60s (matches cron minute granularity).
-  - Concurrency guard: single in-flight tick; overlapping ticks skipped.
-- `TODO.md`: item 3.3 checkboxes marked `[x]`.
-
-**Verification done in-sandbox**
-- `cd server && npx tsc --noEmit` → exit 0.
-- Root `npx tsc --noEmit` → exit 0.
-
-**Verification NOT done**
-- Railway deploy: sandbox has no outbound network. Run `cd /c/Claude/vanta/server && railway up --detach` to ship.
-- E2E: create robot with `interval=60000`, set status=active, wait 60s → trade appears in book with `reason='robot'`, `total_trades` increments.
-
-**Recurring gotchas (still present)**
-1. `.git/index.lock` (0-byt
+- E2E: set `robots.is_public=true` via SQL or PATCH /api/robots/:id/visibility → robot appears in leaderboard tab ranked by
