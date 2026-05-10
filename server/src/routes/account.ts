@@ -59,4 +59,19 @@ export async function accountRoutes(app: FastifyInstance) {
 
     return { account: newAccount, created: true };
   });
+
+  /** GET /api/account/profile -- return the caller's profile row (includes is_admin). */
+  app.get('/profile', async (req, reply) => {
+    const userId = await authUser(req.headers.authorization);
+    if (!userId) return reply.code(401).send({ error: 'unauthorized' });
+
+    const { data: profile, error } = await supabaseAdmin
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (error || !profile) return reply.code(404).send({ error: 'profile_not_found' });
+    return reply.send({ profile });
+  });
 }

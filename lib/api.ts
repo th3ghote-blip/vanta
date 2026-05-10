@@ -147,6 +147,26 @@ export const api = {
       body: JSON.stringify(input),
     }),
 
+
+  // Profile
+  getProfile: () =>
+    request<{ profile: any }>('/api/account/profile'),
+
+  // Admin
+  adminGetTransactions: (status: 'pending' | 'completed' | 'rejected' | 'all' = 'pending') =>
+    request<{ transactions: any[] }>(`/api/admin/transactions?status=${status}`),
+
+  adminApproveTransaction: (id: string) =>
+    request<{ transaction: any; balance_delta: number }>(`/api/admin/transactions/${id}/approve`, {
+      method: 'POST',
+    }),
+
+  adminRejectTransaction: (id: string, reason?: string) =>
+    request<{ transaction: any }>(`/api/admin/transactions/${id}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+
 };
 
 export interface LeaderboardEntry {

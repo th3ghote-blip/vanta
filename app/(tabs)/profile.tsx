@@ -1,14 +1,23 @@
+import { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { router } from 'expo-router';
-import { Shield, Bell, MessageSquare, Phone, HelpCircle, LogOut, ChevronRight, BadgeCheck } from 'lucide-react-native';
+import { Shield, Bell, MessageSquare, Phone, HelpCircle, LogOut, ChevronRight, BadgeCheck, ShieldCheck } from 'lucide-react-native';
 
 import { colors, radius, spacing, typography } from '@/lib/theme';
 import { useAuthStore } from '@/stores/auth';
+import { api } from '@/lib/api';
 import { ModeSwitcher } from '@/components/shared/ModeSwitcher';
 import { EnvBanner } from '@/components/shared/EnvBanner';
 
 export default function Profile() {
   const { user, signOut } = useAuthStore();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    api.getProfile()
+      .then(({ profile }) => setIsAdmin(Boolean(profile.is_admin)))
+      .catch(() => {});
+  }, []);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bgDeep }}>
@@ -88,7 +97,16 @@ export default function Profile() {
           <Row icon={<MessageSquare color={colors.textSecondary} size={20} />} label="Support Chat" />
           <Row icon={<Phone color={colors.textSecondary} size={20} />} label="Voice Support" sublabel="Available 9am–9pm" />
           <Row icon={<Shield color={colors.textSecondary} size={20} />} label="Security & Password" />
-          <Row icon={<HelpCircle color={colors.textSecondary} size={20} />} label="Help Center" onPress={() => router.push('/help')} last />
+          <Row icon={<HelpCircle color={colors.textSecondary} size={20} />} label="Help Center" onPress={() => router.push('/help')} last={!isAdmin} />
+          {isAdmin && (
+            <Row
+              icon={<ShieldCheck color={colors.primary} size={20} />}
+              label="Admin — Transactions"
+              sublabel="Approve / reject pending requests"
+              onPress={() => router.push('/admin/transactions')}
+              last
+            />
+          )}
         </View>
 
         <Pressable
@@ -139,23 +157,3 @@ function Row({
   return (
     <Pressable
       onPress={onPress}
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.md,
-        padding: spacing.md,
-        borderBottomWidth: last ? 0 : 1,
-        borderBottomColor: colors.border,
-      }}
-    >
-      {icon}
-      <View style={{ flex: 1 }}>
-        <Text style={{ ...typography.body, color: colors.textPrimary, fontSize: 15 }}>{label}</Text>
-        {sublabel && (
-          <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 12, marginTop: 2 }}>{sublabel}</Text>
-        )}
-      </View>
-      <ChevronRight color={colors.textMuted} size={18} />
-    </Pressable>
-  );
-}
