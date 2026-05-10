@@ -4,6 +4,35 @@
 
 ---
 
+## 2026-05-10T(auto) — 3.6 Robot templates gallery
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **3.6 Robot templates / "Try this prompt" gallery**
+**Commit:** `88608c2` — `auto: robot templates gallery (Phase 3.6)`
+
+**What changed**
+- `components/robots/RobotTemplates.tsx` (new, 292 lines): `Modal` (pageSheet) with 15 curated strategy prompts across 4 categories: Auto Trading, Tip & Alert, Event Driven, Advanced. Each card shows name, description, and italic prompt preview. Tap calls `onSelect(prompt)` + closes modal.
+- `components/robots/RobotPromptBuilder.tsx`: added `suggestedPrompt?: string` prop + `useEffect` — when prop changes to a non-empty value, sets internal `prompt` state and resets to `idle` stage.
+- `app/(tabs)/robots.tsx`: added `showTemplates` + `suggestedPrompt` state + `scrollRef`; "Browse robot templates" dashed button now opens the modal (styled with primary color border); `handleTemplateSelect` sets `suggestedPrompt`, switches to `my_robots` tab, and scrolls to top.
+- `TODO.md`: item 3.6 marked `[x]`.
+
+**Verification done in-sandbox**
+- `npx tsc --noEmit` (root) → exit 0 (silent).
+- `cd server && npx tsc --noEmit` → exit 0 (silent).
+
+**Verification NOT done**
+- Vercel deploy: sandbox has no outbound network. Run `cd /c/Claude/vanta && vercel --prod --yes`.
+- E2E: Robots tab → "Browse robot templates" → modal opens → tap a template → modal closes → prompt builder filled with template text.
+
+**Recurring gotchas (still present)**
+1. `.git/index.lock` + `.git/HEAD.lock` + `.git/refs/heads/main.lock` (0-byte WSL stale lockfiles, cannot unlink). Workaround: use `GIT_INDEX_FILE=/sessions/exciting-admiring-thompson/git_vanta_idx` for all index ops; write commit SHA directly to `.git/refs/heads/main` (bypass `update-ref`).
+2. `unlink tmp_obj_*` warnings during `write-tree` are cosmetic.
+3. Write/Edit tool truncates long files mid-JSX. Fix: bash heredoc + verify `wc -l`.
+
+**Next agent:** pick **3.4 Tip-only robots send push notifications** — depends on **6.2 `lib/push.ts`** (not yet built). Recommended path: implement **6.1 Expo push token registration** first (no deps), then **6.2 server push helper**, then **3.4**. Alternatively skip to **4.1 Deposits screen** (no deps, frontend only).
+
+---
+
 ## 2026-05-09T(auto) — 3.5 Robot leaderboard
 
 **Agent:** scheduled cowork auto-work pass
@@ -143,31 +172,4 @@
 **Recurring gotchas (still present)**
 1. `.git/index.lock` + `.git/HEAD.lock` (0-byte WSL stale lockfiles). Workaround: `GIT_INDEX_FILE=/tmp/git_vanta_idx git read-tree HEAD` to rebuild index; write commit SHA directly to `.git/refs/heads/main` (bypassing `update-ref` which requires HEAD.lock).
 2. Edit/Write tool truncates long files. Fix: bash heredoc + verify `wc -l`.
-3. JSX block comments (`{/* */}`) are invalid inside a tag's prop list — put them as children or regular `//` comments outside JSX.
-
-**Next agent:** pick **2.5 Win / loss result modal** (`components/fun/RoundResultModal.tsx` new). Note: requires `npm install react-native-confetti-cannon` per TODO. Wire `onRoundSettled` callback in `QuickTradeScreen.tsx` once modal exists. Frontend-only; deploy with `vercel --prod --yes`.
-
----
-
-
-## 2026-05-07T(auto) — 2.3 Wire QuickTradeScreen Up/Down to /api/rounds/open
-
-**Agent:** scheduled cowork auto-work pass
-**TODO item picked:** **2.3 Wire QuickTradeScreen Up/Down to /api/rounds/open**
-
-**What changed**
-- `components/fun/QuickTradeScreen.tsx` (323 lines, was 195): Up/Down buttons now call `api.openRound()`. Key changes:
-  - Imports `useAccountStore` (for `account.id`) and `usePriceStore` (for live mid prices on asset chips and BinaryCard).
-  - `ASSETS` array stripped of static prices — live mid from quote cache shown instead.
-  - `openRound(direction)` async callback: checks account loaded, sets `busy` state, calls `api.openRound({accountId, symbol, direction, stake, durationSeconds})`, then calls `refetchAccount()` so AccountHeader reflects the stake deduction. Error mapped via `describeRoundError()` covering `insufficient_balance` (with required/available amounts), `no_quote`, `account_not_found`, `forbidden`, `unauthorized`, `deduct_failed`, `insert_failed`.
-  - Buttons show `ActivityIndicator` while their direction is pending; opposite button dims to 40% opacity; both disabled while any request is in flight.
-  - Feedback banner (green/red) appears below stake picker with success confirmation or error message.
-- `TODO.md`: items 2.1 and 2.3 marked `[x]`. (2.1 was already fully implemented in commit `8312e29` but TODO checkbox was never updated — corrected this run.)
-
-**Verification done in-sandbox**
-- `npx tsc --noEmit` (root) → exit 0 (silent). No type errors.
-- Logic verified: `api.openRound` was already defined in `lib/api.ts`; `usePriceStore` exports `quotes: Record<string, Quote>`; `useAccountStore` exports `account` + `fetch` (aliased to `refetchAccount`).
-
-**Verification NOT done**
-- Vercel deploy: sandbox has no outbound network. Run `cd /c/Claude/vanta && vercel --prod --yes` to ship.
-- E2E: tap Up on BTCUSD $10 60s → loading spinner → succ
+3. JSX block comments (`{/* */}`) are invalid inside a tag

@@ -170,7 +170,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Mark a robot public, gets ranked.
 
 ## 3.6 Robot templates / "Try this prompt" gallery
-- [ ] **File:** `components/robots/RobotTemplates.tsx` (new)
+- [x] **File:** `components/robots/RobotTemplates.tsx` (new)
 - **What:** Curated list of example prompts: "Buy AMZN at NYSE open", "Daily 3 stock tips", "RSI reversal on EURUSD", etc. Tap → fills prompt builder.
 - **Acceptance:** Templates visible, tap fills the input.
 
