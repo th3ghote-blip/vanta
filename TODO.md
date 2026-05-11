@@ -231,7 +231,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Sign in → `profiles.push_token` is set in DB.
 
 ## 6.2 Server-side push helper
-- [ ] **File:** `server/src/lib/push.ts`
+- [x] **File:** `server/src/lib/push.ts`
 - **What:** `sendPush(userId, { title, body, data })` — looks up token, calls Expo Push API. Batch for multiple users.
 - **Acceptance:** Call from anywhere → notification received.
 
