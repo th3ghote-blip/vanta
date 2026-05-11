@@ -4,6 +4,42 @@
 
 ---
 
+## 2026-05-12T(auto) — 5.2 Admin KYC review
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **5.2 Admin KYC review**
+**Commit:** `83deb29`
+
+**What changed**
+- `server/src/routes/admin.ts`: Added 3 KYC admin endpoints under `/api/admin/kyc`:
+  - `GET /kyc?status=` — lists submissions + docs with 1-hour signed Storage URLs
+  - `POST /kyc/:id/approve` — sets status='approved', reviewed_at=now()
+  - `POST /kyc/:id/reject` — sets status='rejected', rejection_reason, reviewed_at
+- `lib/api.ts`: Added `adminGetKycSubmissions()`, `adminApproveKyc()`, `adminRejectKyc()` client methods
+- `app/admin/kyc.tsx` (new, 535 lines):
+  - Admin-gated screen (redirects with Access Denied for non-admins)
+  - Status filter tabs: Pending / Approved / Rejected / All
+  - Expandable submission cards with user_id, submitted_at, status badge, doc count
+  - 2×2 doc thumbnail grid (id_front, id_back, selfie, proof_of_address) with signed URL images; tap opens in browser via Linking
+  - Approve / Reject action buttons (pending only); reject modal with multiline reason textarea
+- `TODO.md`: 5.2 marked `[x]`
+
+**Verification**
+- Both `tsc --noEmit` passes (client exit=0, server exit=0)
+- Deploy NOT done (sandbox has no Railway/Vercel access — same as previous runs)
+- Acceptance criteria (approve → status='approved', user can withdraw) verified via code logic only; needs live test after deploy
+
+**Recurring gotchas (still active)**
+1. File truncation bug: Write/Edit tool silently truncates long files. ALWAYS use `wc -l` + `tail` to verify after writes. Use `cat >>` via bash to append missing content instead of re-editing.
+2. `.git/index` is corrupt (stale WSL lock). Use `GIT_INDEX_FILE=/tmp/vanta_commit_idx` for all git staging; commit via `git commit-tree`; write SHA to `.git/refs/heads/main`.
+3. `git_vanta_idx.lock` cannot be deleted — use `/tmp/` for fresh index files.
+4. Sandbox network is isolated — no Railway/Vercel/Supabase live access.
+
+**Next agent:** pick **5.3 Sumsub** (requires Sumsub account — likely blocked), **6.4 Price alerts** (migration 008 + worker + UI), or **7.1 Change password screen** (frontend only, simplest).
+
+---
+
+
 ## 2026-05-11T(auto) — 5.1 Camera-based document upload
 
 **Agent:** scheduled cowork auto-work pass
