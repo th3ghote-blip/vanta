@@ -195,22 +195,49 @@ function startCoinbase(app: FastifyInstance) {
 }
 
 // ─── Twelve Data ────────────────────────────────────────────────────────
+// Free-tier limit is 8 credits per rolling 60s window. One /price call with
+// 9 symbols costs 9 credits, so every batched poll fails. Split into chunks
+// of <=5 with a 65s gap so each chunk lands in a fresh window. Total cycle
+// takes ~65s but the poll only fires every 20 min anyway.
+const TD_CHUNK_SIZE = 5;
+const TD_CHUNK_DELAY_MS = 65_000;
+
 async function pollTwelveData(app: FastifyInstance) {
   if (!TD_KEY) {
     app.log.warn('TWELVE_DATA_API_KEY not set — non-crypto prices will stay at seed.');
     return;
   }
-  const tdSymbols = NON_CRYPTO_SYMBOLS.map((s) => TD_SYMBOL[s]).join(',');
+  const chunks: string[][] = [];
+  for (let i = 0; i < NON_CRYPTO_SYMBOLS.length; i += TD_CHUNK_SIZE) {
+    chunks.push(NON_CRYPTO_SYMBOLS.slice(i, i + TD_CHUNK_SIZE));
+  }
+  let total = 0;
+  for (let i = 0; i < chunks.length; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, TD_CHUNK_DELAY_MS));
+    total += await fetchTdChunk(chunks[i], app);
+  }
+  if (total > 0) app.log.info(`twelvedata: refreshed ${total}/${NON_CRYPTO_SYMBOLS.length} symbols.`);
+}
+
+async function fetchTdChunk(symbols: string[], app: FastifyInstance): Promise<number> {
+  const tdSymbols = symbols.map((s) => TD_SYMBOL[s]).join(',');
   const url = `https://api.twelvedata.com/price?symbol=${encodeURIComponent(tdSymbols)}&apikey=${TD_KEY}`;
   try {
     const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      app.log.warn(`twelvedata HTTP ${res.status} for chunk ${symbols.join(',')}`);
+      return 0;
+    }
     const raw: any = await res.json();
     if (raw.code && Number(raw.code) >= 400) {
-      throw new Error(`twelvedata: ${raw.message ?? raw.code}`);
+      app.log.warn(`twelvedata error: ${raw.message ?? raw.code}`);
+      return 0;
     }
+    // Single-symbol responses are unkeyed { price: "..." }; multi are keyed.
+    const data: Record<string, { price?: string }> =
+      'price' in raw && symbols.length === 1 ? { [TD_SYMBOL[symbols[0]]]: raw } : raw;
     let updated = 0;
-    for (const [tdSym, payload] of Object.entries(raw as Record<string, any>)) {
+    for (const [tdSym, payload] of Object.entries(data)) {
       const ourSym = invertTd(tdSym);
       if (!ourSym || !payload?.price) continue;
       const px = Number(payload.price);
@@ -224,9 +251,10 @@ async function pollTwelveData(app: FastifyInstance) {
       });
       updated++;
     }
-    if (updated > 0) app.log.info(`twelvedata: refreshed ${updated} symbols.`);
+    return updated;
   } catch (err) {
-    app.log.warn({ err: (err as Error).message }, 'twelvedata poll error');
+    app.log.warn({ err: (err as Error).message }, 'twelvedata chunk error');
+    return 0;
   }
 }
 
