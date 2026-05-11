@@ -5,6 +5,7 @@ import { authUser, supabaseAdmin } from '../lib/supabase.js';
 import { getQuote } from '../lib/quoteCache.js';
 import { calculatePnL } from '../lib/contracts.js';
 import { requiredMargin, reserveMargin, releaseMargin } from '../lib/margin.js';
+import { sendPush } from '../lib/push.js';
 
 const OpenOrderSchema = z.object({
   accountId: z.string().uuid(),
@@ -169,6 +170,14 @@ export async function ordersRoutes(app: FastifyInstance) {
     } catch (e) {
       app.log.error({ err: e, tradeId, release }, 'failed to release margin on close');
     }
+
+    // Phase 6.3 — push notification: trade closed.
+    const sign = profit >= 0 ? '+' : '';
+    sendPush(userId, {
+      title: `${trade.symbol} closed`,
+      body: `${sign}$${Math.abs(profit).toFixed(2)}`,
+      data: { tradeId, symbol: trade.symbol, profit, kind: 'trade_closed' },
+    }).catch(() => {/* fire-and-forget; push errors already logged inside sendPush */});
 
     return { tradeId, profit, closePrice };
   });
