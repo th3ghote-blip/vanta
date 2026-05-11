@@ -236,7 +236,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Call from anywhere → notification received.
 
 ## 6.3 Trade result notifications
-- [x] **Files:** `server/src/routes/orders.ts`, `server/src/workers/risk.ts`
+- [ ] **Files:** `server/src/routes/orders.ts`, `server/src/workers/risk.ts`
 - **What:** When trade closes (manual / SL / TP / stop-out), send push: "EURUSD closed +$48.20".
 - **Acceptance:** Close a trade → push received.
 

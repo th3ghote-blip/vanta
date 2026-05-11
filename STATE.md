@@ -4,48 +4,6 @@
 
 ---
 
-## 2026-05-11T(auto) — 6.3 Trade result notifications
-
-**Agent:** scheduled cowork auto-work pass
-**TODO item picked:** **6.3 Trade result notifications**
-
-**Startup fix**
-`components/pro/SymbolPicker.tsx` and `server/src/feed/pricefeed.ts` were truncated in the working tree from a prior run. Restored both from HEAD via `git show HEAD:<path>`. Regular `.git/index` had staged phantom deletions of tsconfig/vercel/migrations (known index corruption). Used custom `GIT_INDEX_FILE` for all git ops as usual.
-
-**What changed**
-- `server/src/routes/orders.ts`:
-  - Added `import { sendPush } from '../lib/push.js'`.
-  - After manual `/close` succeeds (margin released), fires `sendPush(userId, { title: '<SYMBOL> closed', body: '+/-$X.XX', data: { tradeId, symbol, profit, kind:'trade_closed' } })` — fire-and-forget (`.catch(()=>{})`).
-- `server/src/workers/risk.ts`:
-  - Added `import { sendPush } from '../lib/push.js'`.
-  - Added `user_id: string` to `OpenTrade` interface.
-  - Updated select query: `accounts!inner(leverage, user_id)` (was `accounts!inner(leverage)`).
-  - Populates `user_id: raw.accounts?.user_id ?? ''` when building each `OpenTrade`.
-  - After SL hit auto-close: sends push `"<SYMBOL> stop-loss hit +/-$X.XX"`.
-  - After TP hit auto-close: sends push `"<SYMBOL> take-profit hit +/-$X.XX"`.
-  - After stop-out auto-close: sends push `"<SYMBOL> stopped out +/-$X.XX"`.
-  - All push calls are fire-and-forget; `sendPush` itself never throws.
-- `TODO.md`: item 6.3 marked `[x]`.
-
-**Verification done in-sandbox**
-- `cd server && ./node_modules/.bin/tsc --noEmit` → exit 0.
-- `./node_modules/.bin/tsc --noEmit` (root) → exit 0.
-
-**Verification NOT done**
-- Railway deploy: `cd /c/Claude/vanta/server && railway up --detach`
-- E2E: close a trade manually → push received with "{symbol} closed +/-$X.XX".
-
-**Recurring gotchas (CRITICAL)**
-1. `.git/index.lock` + `.git/HEAD.lock` + `.git/refs/heads/main.lock` are stale WSL lockfiles that cannot be deleted. Use `GIT_INDEX_FILE=/sessions/*/git_vanta_idx` for all index ops; commit via `git commit-tree`; write SHA to both `.git/refs/heads/main` AND `.git/refs/heads/main.lock`.
-2. `unlink tmp_obj_*` warnings during `write-tree`/`git add` are cosmetic.
-3. **File truncation bug**: Write/Edit tool truncates long files. ALWAYS restore from HEAD first, then use bash `cat >>` or `python3` string replacement for edits near end-of-file. Verify with `wc -l` + `tail`.
-4. `npx --no-install tsc --noEmit` may swallow errors — use `./node_modules/.bin/tsc --noEmit`.
-5. **Index corruption**: always rebuild with `GIT_INDEX_FILE=.../git_vanta_idx git read-tree HEAD` before starting git ops.
-
-**Next agent:** pick **5.1 Camera-based document upload** (requires `expo-image-picker` + `expo-camera` installs — listed in TODO so install is permitted). Or **6.4 Price alerts** (migration 008 + worker + UI). Or **7.1 Change password screen** (frontend only, no installs).
-
----
-
 ## 2026-05-11T(auto) — 3.4 Tip-only robots send push notifications
 
 **Agent:** scheduled cowork auto-work pass
@@ -326,3 +284,41 @@ The git index was corrupted on entry (staged revert of all prior work). Fixed by
 **Verification done in-sandbox**
 - `npx tsc --noEmit` (root) → exit 0 (silent).
 - `cd server && npx tsc --noEmit` → exit 0 (silent).
+
+**Verification NOT done**
+- Vercel deploy: sandbox has no outbound network. Run `cd /c/Claude/vanta && vercel --prod --yes`.
+- E2E: Robots tab → "Browse robot templates" → modal opens → tap a template → modal closes → prompt builder filled with template text.
+
+**Recurring gotchas (still present)**
+1. `.git/index.lock` + `.git/HEAD.lock` + `.git/refs/heads/main.lock` (0-byte WSL stale lockfiles, cannot unlink). Workaround: use `GIT_INDEX_FILE=/sessions/exciting-admiring-thompson/git_vanta_idx` for all index ops; write commit SHA directly to `.git/refs/heads/main` (bypass `update-ref`).
+2. `unlink tmp_obj_*` warnings during `write-tree` are cosmetic.
+3. Write/Edit tool truncates long files mid-JSX. Fix: bash heredoc + verify `wc -l`.
+
+**Next agent:** pick **3.4 Tip-only robots send push notifications** — depends on **6.2 `lib/push.ts`** (not yet built). Recommended path: implement **6.1 Expo push token registration** first (no deps), then **6.2 server push helper**, then **3.4**. Alternatively skip to **4.1 Deposits screen** (no deps, frontend only).
+
+---
+
+## 2026-05-09T(auto) — 3.5 Robot leaderboard
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **3.5 Robot leaderboard**
+**Commit:** `f7fd776` — `auto: robot leaderboard (Phase 3.5)`
+
+**What changed**
+- `supabase/migrations/006_public_robots.sql` (new): adds `is_public boolean default false` to `robots`, partial index `robots_leaderboard_idx` on `(is_public, total_profit desc) WHERE is_public=true`, RLS policy "Anyone can view public robots".
+- `server/src/routes/robots.ts`: added `GET /api/robots/leaderboard?period=7d|30d|all` (top 20 public robots by P&L, anonymized owners, period filters via `last_run_at` cutoff); added `PATCH /:id/visibility` (owner-only `is_public` toggle). Leaderboard route registered *before* `/:id` to avoid parametric collision.
+- `lib/api.ts`: added `api.getRobotLeaderboard(period)` and `api.setRobotVisibility(id, flag)`; exported `LeaderboardEntry` interface.
+- `components/robots/RobotLeaderboard.tsx` (new, 227 lines): period selector (7d/30d/all), ranked rows with gold/silver/bronze Trophy icons for top 3, P&L with TrendingUp/Down, win rate, pull-to-refresh.
+- `app/(tabs)/robots.tsx`: added "My Robots / Leaderboard" pill tab switcher; leaderboard tab renders `<RobotLeaderboard />`.
+- `TODO.md`: all three 3.5 sub-items marked `[x]`.
+
+**Verification done in-sandbox**
+- `npx tsc --noEmit` (root) → exit 0 (silent).
+- `cd server && npx tsc --noEmit` → exit 0 (silent).
+
+**Verification NOT done**
+- Migration apply: sandbox has no outbound network. Run:
+  `SUPABASE_PAT=<pat> python scripts/apply-migration.py supabase/migrations/006_public_robots.sql`
+- Railway deploy: `cd server && railway up --detach`
+- Vercel deploy: `cd /c/Claude/vanta && vercel --prod --yes`
+- E2E: set `robots.is_public=true` via SQL or PATCH /api/robots/:id/visibility → robot appears in leaderboard tab ranked by
