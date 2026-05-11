@@ -205,8 +205,8 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 # Phase 5 — KYC
 
 ## 5.1 Camera-based document upload (homegrown)
-- [ ] **Files:** replace `app/kyc.tsx`, new `lib/kyc.ts`
-- [ ] **Install:** `expo-image-picker`, `expo-camera`
+- [x] **Files:** replace `app/kyc.tsx`, new `lib/kyc.ts`
+- [x] **Install:** `expo-image-picker`, `expo-camera`
 - **What:** Each step: tap → opens camera → take photo → upload to Supabase Storage `kyc/{user_id}/{doc_type}.jpg` → insert `kyc_documents` row. After all 4 docs: insert `kyc_submissions` row with `status='pending'`.
 - **Acceptance:** Complete all 4 steps → all docs in storage → submission status 'pending'.
 
