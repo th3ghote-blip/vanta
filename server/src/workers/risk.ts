@@ -4,6 +4,7 @@ import { supabaseAdmin } from '../lib/supabase.js';
 import { getMid, getQuote } from '../lib/quoteCache.js';
 import { calculatePnL } from '../lib/contracts.js';
 import { requiredMargin, releaseMargin } from '../lib/margin.js';
+import { sendPush } from '../lib/push.js';
 
 /**
  * Risk worker — Phase 1.1
@@ -34,6 +35,7 @@ type Side = 'buy' | 'sell';
 interface OpenTrade {
   id: number;
   account_id: string;
+  user_id: string;
   symbol: string;
   side: Side;
   volume: number;
@@ -112,7 +114,7 @@ async function tick(app: FastifyInstance): Promise<void> {
   const { data: trades, error } = await supabaseAdmin
     .from('trades')
     .select(
-      'id, account_id, symbol, side, volume, open_price, stop_loss, take_profit, accounts!inner(leverage)',
+      'id, account_id, symbol, side, volume, open_price, stop_loss, take_profit, accounts!inner(leverage, user_id)',
     )
     .eq('status', 'open');
 
@@ -129,6 +131,7 @@ async function tick(app: FastifyInstance): Promise<void> {
     const t: OpenTrade = {
       id: raw.id,
       account_id: raw.account_id,
+      user_id: raw.accounts?.user_id ?? '',
       symbol: raw.symbol,
       side: raw.side,
       volume: Number(raw.volume),
@@ -157,6 +160,14 @@ async function tick(app: FastifyInstance): Promise<void> {
           { tradeId: t.id, accountId: t.account_id, symbol: t.symbol, profit: closed, trigger: 'sl' },
           'risk: SL hit',
         );
+        if (t.user_id) {
+          const sign = closed >= 0 ? '+' : '';
+          sendPush(t.user_id, {
+            title: `${t.symbol} stop-loss hit`,
+            body: `${sign}$${Math.abs(closed).toFixed(2)}`,
+            data: { tradeId: t.id, symbol: t.symbol, profit: closed, kind: 'trade_closed', trigger: 'sl' },
+          }).catch(() => {});
+        }
       }
       continue;
     }
@@ -173,6 +184,14 @@ async function tick(app: FastifyInstance): Promise<void> {
           { tradeId: t.id, accountId: t.account_id, symbol: t.symbol, profit: closed, trigger: 'tp' },
           'risk: TP hit',
         );
+        if (t.user_id) {
+          const sign = closed >= 0 ? '+' : '';
+          sendPush(t.user_id, {
+            title: `${t.symbol} take-profit hit`,
+            body: `${sign}$${Math.abs(closed).toFixed(2)}`,
+            data: { tradeId: t.id, symbol: t.symbol, profit: closed, kind: 'trade_closed', trigger: 'tp' },
+          }).catch(() => {});
+        }
       }
       continue;
     }
@@ -233,6 +252,14 @@ async function tick(app: FastifyInstance): Promise<void> {
         },
         'risk: stop-out closed worst loser',
       );
+      if (worst.user_id) {
+        const sign = closed >= 0 ? '+' : '';
+        sendPush(worst.user_id, {
+          title: `${worst.symbol} stopped out`,
+          body: `${sign}$${Math.abs(closed).toFixed(2)}`,
+          data: { tradeId: worst.id, symbol: worst.symbol, profit: closed, kind: 'trade_closed', trigger: 'stopout' },
+        }).catch(() => {});
+      }
     }
   }
 }
