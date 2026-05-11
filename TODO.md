@@ -159,7 +159,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Active robot with `interval=60000` opens a trade every minute, appears in trade book with `reason='robot'`, robot stats update.
 
 ## 3.4 Tip-only robots send push notifications
-- [ ] **File:** `server/src/ai/robotEngine.ts` (uses Phase 6.2 `lib/push.ts`)
+- [x] **File:** `server/src/ai/robotEngine.ts` (uses Phase 6.2 `lib/push.ts`)
 - **What:** When `config.kind='tip'`, instead of opening trade, send push notification with the tip text.
 - **Acceptance:** Tip robot fires → push received on user's device.
 

@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { supabaseAdmin } from '../lib/supabase.js';
 import { getQuote } from '../lib/quoteCache.js';
 import { requiredMargin, reserveMargin } from '../lib/margin.js';
+import { sendPush } from '../lib/push.js';
 
 /**
  * Robot execution engine — Phase 3.3 (full implementation)
@@ -122,9 +123,17 @@ async function processRobot(app: FastifyInstance, robot: any, now: Date) {
       await touchRobotLastRun(robot.id, now);
     }
   } else if (kind === 'tip') {
-    // Phase 3.4 will add push notification here
-    const tipText = robot.config?.description ?? robot.name ?? 'Tip from robot';
-    await logRun(robot.id, 'tip_sent', null, tipText, now);
+    const tipText: string = robot.config?.tip_text
+      ?? robot.config?.description
+      ?? robot.name
+      ?? 'Tip from your robot';
+    const pushOk = await sendPush(robot.user_id, {
+      title: robot.name ?? 'Robot tip',
+      body: tipText,
+      data: { robotId: robot.id, kind: 'tip' },
+    });
+    const notes = pushOk ? `push_sent: ${tipText}` : `push_failed: ${tipText}`;
+    await logRun(robot.id, 'tip_sent', null, notes, now);
     await touchRobotLastRun(robot.id, now);
   } else {
     await logRun(robot.id, 'noop', null, `Unknown kind: ${kind}`, now);
