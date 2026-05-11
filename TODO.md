@@ -211,7 +211,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Complete all 4 steps → all docs in storage → submission status 'pending'.
 
 ## 5.2 Admin KYC review
-- [ ] **File:** `app/admin/kyc.tsx`
+- [x] **File:** `app/admin/kyc.tsx`
 - **What:** Admin queue of pending submissions. View each doc. Approve or reject with reason.
 - **Acceptance:** Approve → user's `kyc_submissions.status='approved'`, can withdraw.
 

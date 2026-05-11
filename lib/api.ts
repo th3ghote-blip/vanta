@@ -167,6 +167,19 @@ export const api = {
       body: JSON.stringify({ reason }),
     }),
 
+  // Admin KYC
+  adminGetKycSubmissions: (status: 'pending' | 'approved' | 'rejected' | 'all' = 'pending') =>
+    request<{ submissions: any[] }>(`/api/admin/kyc?status=${status}`),
+
+  adminApproveKyc: (id: string) =>
+    request<{ submission: any }>(`/api/admin/kyc/${id}/approve`, { method: 'POST' }),
+
+  adminRejectKyc: (id: string, reason?: string) =>
+    request<{ submission: any }>(`/api/admin/kyc/${id}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+
 };
 
 export interface LeaderboardEntry {
