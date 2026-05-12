@@ -256,7 +256,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 # Phase 7 — Profile & Security
 
 ## 7.1 Change password screen
-- [ ] **File:** `app/change-password.tsx` (new), wired from Profile → Security & Password
+- [x] **File:** `app/change-password.tsx` (new), wired from Profile → Security & Password
 - **What:** Form: current password (re-verify by signing in again silently), new password (×2), submit. Calls `useAuthStore.changePassword`. Show success → bounce to login (forced re-sign-in).
 - **Acceptance:** Change password → sign out → sign in with new password.
 
