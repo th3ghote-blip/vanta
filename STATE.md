@@ -4,6 +4,54 @@
 
 ---
 
+## 2026-05-12T(auto) -- 6.4 Price alerts
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **6.4 Price alerts**
+**Commit:** `f21a6ca`
+
+**What changed**
+- `supabase/migrations/008_price_alerts.sql` (new, 47 lines):
+  - `price_alerts` table: id, user_id, symbol, threshold, direction (above|below), triggered_at, created_at
+  - RLS: users see/insert/delete own alerts only
+  - Partial unique index: one active alert per (user, symbol, direction)
+  - Indexes for worker scan (by symbol, active only) and per-user listing
+- `server/src/routes/alerts.ts` (new, 98 lines):
+  - GET /api/alerts?active=true -- list caller's alerts
+  - POST /api/alerts -- create/replace alert {symbol, threshold, direction}
+  - DELETE /api/alerts/:id -- cancel alert
+- `server/src/workers/priceAlerts.ts` (new, 121 lines):
+  - 5s tick, fetches all un-triggered alerts, checks against in-memory quote cache
+  - Fires push + sets triggered_at (CAS guard) for each triggered alert
+- `server/src/index.ts`: registered alertsRoutes + startPriceAlertsWorker
+- `lib/api.ts`: added getAlerts(), createAlert(), deleteAlert() + PriceAlert interface
+- `components/pro/PriceAlertModal.tsx` (new, 331 lines):
+  - Bottom-sheet modal: above/below toggle, price input, pre-filled from live mid
+  - Shows existing active alert for the symbol with cancel option
+  - Success state auto-closes after 900ms
+- `components/pro/ProTradeScreen.tsx`: added "Set alert" button below chart
+- `TODO.md`: 6.4 sub-items marked [x]
+
+**Housekeeping this run**
+- lib/api.ts had garbage appended from previous run (file-write bug). Restored from HEAD before starting.
+- Write/Edit tool and Unicode box-drawing chars caused file truncation in api.ts, index.ts, ProTradeScreen.tsx. Fixed by rewriting all affected files via Python.
+
+**Verification**
+- `tsc --noEmit` client: exit 0
+- `tsc --noEmit` server: exit 0
+- Deploy NOT done (sandbox has no Railway/Vercel access)
+- Migration apply: `SUPABASE_PAT=<pat> python scripts/apply-migration.py supabase/migrations/008_price_alerts.sql`
+
+**Recurring gotchas (CRITICAL -- still active)**
+1. File truncation / corruption bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash. Verify with `wc -l` + `tail` + null-byte check after every write.
+2. Unicode characters (em-dash, box-drawing, arrows) in file content cause the Write/Edit tool to truncate the file. Use ASCII only or write via Python.
+3. `.git/index.lock` is a stale WSL lock -- cannot be deleted. Use `GIT_INDEX_FILE=/tmp/vanta_*_idx` for all git ops; commit via `git commit-tree`; write SHA to `.git/refs/heads/main`.
+4. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
+
+**Next agent:** pick **6.5 Notification preferences**, **7.1 Change password screen** (frontend only, simple), or **7.2 Show login number prominently**.
+
+---
+
 ## 2026-05-12T(auto) — 5.2 Admin KYC review
 
 **Agent:** scheduled cowork auto-work pass

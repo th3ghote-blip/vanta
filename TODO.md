@@ -241,9 +241,9 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Close a trade → push received.
 
 ## 6.4 Price alerts
-- [ ] **Migration:** `008_price_alerts.sql` — `price_alerts` table (user_id, symbol, threshold, direction, triggered_at).
-- [ ] **UI:** "Set alert" button on chart screen, modal with above/below + price.
-- [ ] **Worker:** scan unfired alerts vs quote cache, fire push, mark triggered.
+- [x] **Migration:** `008_price_alerts.sql` — `price_alerts` table (user_id, symbol, threshold, direction, triggered_at).
+- [x] **UI:** "Set alert" button on chart screen, modal with above/below + price.
+- [x] **Worker:** scan unfired alerts vs quote cache, fire push, mark triggered.
 - **Acceptance:** Set "BTC > 80000" → BTC crosses → push received → alert marked triggered.
 
 ## 6.5 Notification preferences
