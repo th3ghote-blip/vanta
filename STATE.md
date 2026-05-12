@@ -1,8 +1,50 @@
-# STATE — handoff notes for the next agent
+# STATE -- handoff notes for the next agent
 
 > Append, don't replace. Most recent at top. Each entry: date, agent, what changed, what's pending, gotchas.
 
 ---
+
+## 2026-05-12T(auto) -- 6.5 Notification preferences
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **6.5 Notification preferences**
+**Commit:** `9d500a8`
+
+**What changed**
+- `supabase/migrations/010_notification_prefs.sql` (new, 13 lines):
+  - `notification_prefs JSONB NOT NULL DEFAULT all-true` added to `profiles`
+  - Migration 010 -- apply: `SUPABASE_PAT=<pat> python scripts/apply-migration.py supabase/migrations/010_notification_prefs.sql`
+- `server/src/lib/push.ts`: added `sendPushChecked(userId, prefKey, payload)` + `NotificationPrefKey` type
+  - Checks `profiles.notification_prefs[prefKey]`; if explicitly `false`, suppresses push; defaults to send
+- `server/src/routes/account.ts`: added `PUT /api/account/notification-prefs`
+  - Merge-patch semantics: only supplied keys are updated; omitted keys retain current value
+  - Whitelists: price_alerts, robot_signals, trade_results, promotional
+- `server/src/routes/orders.ts`: trade-close push changed to `sendPushChecked(..., 'trade_results', ...)`
+- `server/src/workers/risk.ts`: all 3 SL/TP/stopout pushes changed to `sendPushChecked(..., 'trade_results', ...)`
+- `server/src/workers/priceAlerts.ts`: price-alert push changed to `sendPushChecked(..., 'price_alerts', ...)`
+- `lib/api.ts`: added `NotificationPrefs` interface + `getNotificationPrefs()` + `updateNotificationPrefs()`
+- `app/notifications-settings.tsx` (new, 190 lines):
+  - 4 Switch toggles: Trade Results, Price Alerts, Robot Signals, Promotions
+  - Optimistic update with rollback on failure; spinner while saving
+- `app/(tabs)/profile.tsx`: Notifications row now navigates to `/notifications-settings`
+- `TODO.md`: 6.5 marked [x]
+
+**Verification**
+- `tsc --noEmit` client: exit 0
+- `tsc --noEmit` server: exit 0
+- Deploy NOT done (sandbox has no Railway/Vercel access)
+- Migration apply needed: `SUPABASE_PAT=<pat> python scripts/apply-migration.py supabase/migrations/010_notification_prefs.sql`
+
+**Recurring gotchas (CRITICAL -- still active)**
+1. File truncation / corruption bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash. Verify with `wc -l` + `tail` + null-byte check after every write.
+2. Unicode characters (em-dash, box-drawing, arrows) in file content cause the Write/Edit tool to truncate the file. Use ASCII only or write via Python.
+3. `.git/index.lock` is a stale WSL lock -- cannot be deleted. Use `GIT_INDEX_FILE=/tmp/vanta_*_idx` for all git ops; commit via `git commit-tree`; write SHA to `.git/refs/heads/main`.
+4. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
+
+**Next agent:** pick **7.1 Change password screen** (frontend only, simple) or **7.2 Show login number prominently** (very small profile.tsx change).
+
+---
+
 
 ## 2026-05-12T(auto) -- 6.4 Price alerts
 
@@ -144,4 +186,5 @@ The migration creates the bucket via SQL (`insert into storage.buckets`). This w
 6. User commits made via standard `git` (not the custom index workaround) may accidentally revert auto-agent changes if the standard `.git/index` is out of sync with the custom one.
 
 **Next agent:** pick **5.2 Admin KYC review** (`app/admin/kyc.tsx` — queue of pending submissions, view docs, approve/reject). Or **6.4 Price alerts** (migration 008 + worker + UI). Or **7.1 Change password screen** (frontend only, simple).
+
 

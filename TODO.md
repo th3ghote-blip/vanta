@@ -247,7 +247,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Set "BTC > 80000" → BTC crosses → push received → alert marked triggered.
 
 ## 6.5 Notification preferences
-- [ ] **File:** `app/notifications-settings.tsx` (wired from Profile → Notifications)
+- [x] **File:** `app/notifications-settings.tsx` (wired from Profile → Notifications)
 - **What:** Toggles: price alerts / robot signals / trade results / promotional. Persists to `profiles.notification_prefs` JSONB.
 - **Acceptance:** Toggle off "trade results" → close trade → no push.
 
