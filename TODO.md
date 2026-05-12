@@ -261,7 +261,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Change password → sign out → sign in with new password.
 
 ## 7.2 Show login number prominently
-- [ ] **File:** `app/(tabs)/profile.tsx`
+- [x] **File:** `app/(tabs)/profile.tsx`
 - **What:** Replace "Trader" with `Account #80000001`. "Tap to copy" copies number to clipboard.
 - **Acceptance:** Profile shows "Account #80000001".
 

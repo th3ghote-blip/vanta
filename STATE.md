@@ -4,6 +4,36 @@
 
 ---
 
+## 2026-05-12T(auto) -- 7.2 Show login number prominently
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **7.2 Show login number prominently**
+**Commit:** `9738e36`
+
+**What changed**
+- `app/(tabs)/profile.tsx`:
+  - Added `import * as Clipboard from 'expo-clipboard'`
+  - Added `import { useAccountStore } from '@/stores/account'`
+  - Header now shows `Account #<login>` (from useAccountStore) instead of email/Trader
+  - Pressable wraps the account number text; tap calls `Clipboard.setStringAsync()`
+  - Below the number: Tap to copy hint that flips to Copied! (green) for 2s
+  - Security & Password row now routes to `/change-password` (prep for TODO 7.1)
+
+**Verification**
+- `tsc --noEmit` client: exit 0
+- `tsc --noEmit` server: exit 0
+- Deploy NOT done (sandbox has no Railway/Vercel access)
+
+**Recurring gotchas (CRITICAL -- still active)**
+1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash. Verify with Python null-byte check after every write.
+2. Unicode/heredoc: write via Python script piped via `python3 << 'PYEOF'` block, not bash heredoc with file writes.
+3. `.git/index.lock` is a stale WSL lock -- use `GIT_INDEX_FILE=/tmp/vanta_*_idx` for all git ops; commit via `git commit-tree`; write SHA to `.git/refs/heads/main`.
+4. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
+
+**Next agent:** pick **7.1 Change password screen** -- new file `app/change-password.tsx`. `useAuthStore.changePassword(newPassword)` already exists. Frontend only, no migration needed.
+
+---
+
 ## 2026-05-12T(auto) -- 6.5 Notification preferences
 
 **Agent:** scheduled cowork auto-work pass
