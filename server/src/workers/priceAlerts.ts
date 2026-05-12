@@ -17,7 +17,7 @@
 import type { FastifyInstance } from 'fastify';
 import { supabaseAdmin } from '../lib/supabase.js';
 import { getMid } from '../lib/quoteCache.js';
-import { sendPush } from '../lib/push.js';
+import { sendPushChecked } from '../lib/push.js';
 
 const TICK_MS = 5_000;
 
@@ -85,7 +85,7 @@ async function tick(app: FastifyInstance): Promise<void> {
         const dirLabel = alert.direction === 'above' ? 'above' : 'below';
         const midNow   = getMid(alert.symbol) ?? alert.threshold;
 
-        await sendPush(alert.user_id, {
+        await sendPushChecked(alert.user_id, 'price_alerts', {
           title: `🔔 ${alert.symbol} price alert`,
           body:  `${alert.symbol} is ${dirLabel} ${fmtPrice(alert.threshold)} — now ${fmtPrice(midNow)}`,
           data:  { type: 'price_alert', symbol: alert.symbol, alertId: alert.id },

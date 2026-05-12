@@ -125,6 +125,7 @@ export const api = {
     request<{ leaderboard: LeaderboardEntry[]; period: string }>(
       `/api/robots/leaderboard?period=${period}`,
     ),
+
   createDeposit: (input: {
     accountId: string;
     amount: number;
@@ -147,10 +148,27 @@ export const api = {
       body: JSON.stringify(input),
     }),
 
-
   // Profile
   getProfile: () =>
     request<{ profile: any }>('/api/account/profile'),
+
+  // Notification preferences (Phase 6.5)
+  getNotificationPrefs: async (): Promise<NotificationPrefs> => {
+    const { profile } = await request<{ profile: any }>('/api/account/profile');
+    const defaults: NotificationPrefs = {
+      price_alerts: true,
+      robot_signals: true,
+      trade_results: true,
+      promotional: true,
+    };
+    return { ...defaults, ...(profile.notification_prefs ?? {}) };
+  },
+
+  updateNotificationPrefs: (prefs: Partial<NotificationPrefs>) =>
+    request<{ profile: any }>('/api/account/notification-prefs', {
+      method: 'PUT',
+      body: JSON.stringify({ prefs }),
+    }),
 
   // Admin
   adminGetTransactions: (status: 'pending' | 'completed' | 'rejected' | 'all' = 'pending') =>
@@ -196,6 +214,15 @@ export const api = {
     request<{ ok: boolean }>(`/api/alerts/${id}`, { method: 'DELETE' }),
 
 };
+
+// ─── Shared interfaces ────────────────────────────────────────────────────────
+
+export interface NotificationPrefs {
+  price_alerts: boolean;
+  robot_signals: boolean;
+  trade_results: boolean;
+  promotional: boolean;
+}
 
 export interface PriceAlert {
   id: string;

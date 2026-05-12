@@ -162,3 +162,35 @@ async function sendToExpo(messages: ExpoPushMessage[]): Promise<ExpoPushTicket[]
     return [];
   }
 }
+
+// ─── pref-gated push helper ──────────────────────────────────────────────────
+
+export type NotificationPrefKey =
+  | 'price_alerts'
+  | 'robot_signals'
+  | 'trade_results'
+  | 'promotional';
+
+/**
+ * Like sendPush, but first checks the user's notification_prefs column.
+ * If the preference for `prefKey` is explicitly set to false, the push is
+ * suppressed. Defaults to sending when no prefs are set (graceful fallback
+ * for users that pre-date the 010 migration).
+ */
+export async function sendPushChecked(
+  userId: string,
+  prefKey: NotificationPrefKey,
+  payload: PushPayload,
+): Promise<boolean> {
+  const { data } = await supabaseAdmin
+    .from('profiles')
+    .select('notification_prefs')
+    .eq('id', userId)
+    .single();
+
+  const prefs = (data?.notification_prefs as Record<string, boolean> | null) ?? {};
+  // undefined means pref not set => default allow
+  if (prefs[prefKey] === false) return false;
+
+  return sendPush(userId, payload);
+}

@@ -4,7 +4,7 @@ import { supabaseAdmin } from '../lib/supabase.js';
 import { getMid, getQuote } from '../lib/quoteCache.js';
 import { calculatePnL } from '../lib/contracts.js';
 import { requiredMargin, releaseMargin } from '../lib/margin.js';
-import { sendPush } from '../lib/push.js';
+import { sendPushChecked } from '../lib/push.js';
 
 /**
  * Risk worker — Phase 1.1
@@ -162,7 +162,7 @@ async function tick(app: FastifyInstance): Promise<void> {
         );
         if (t.user_id) {
           const sign = closed >= 0 ? '+' : '';
-          sendPush(t.user_id, {
+          sendPushChecked(t.user_id, 'trade_results', {
             title: `${t.symbol} stop-loss hit`,
             body: `${sign}$${Math.abs(closed).toFixed(2)}`,
             data: { tradeId: t.id, symbol: t.symbol, profit: closed, kind: 'trade_closed', trigger: 'sl' },
@@ -186,7 +186,7 @@ async function tick(app: FastifyInstance): Promise<void> {
         );
         if (t.user_id) {
           const sign = closed >= 0 ? '+' : '';
-          sendPush(t.user_id, {
+          sendPushChecked(t.user_id, 'trade_results', {
             title: `${t.symbol} take-profit hit`,
             body: `${sign}$${Math.abs(closed).toFixed(2)}`,
             data: { tradeId: t.id, symbol: t.symbol, profit: closed, kind: 'trade_closed', trigger: 'tp' },
@@ -254,7 +254,7 @@ async function tick(app: FastifyInstance): Promise<void> {
       );
       if (worst.user_id) {
         const sign = closed >= 0 ? '+' : '';
-        sendPush(worst.user_id, {
+        sendPushChecked(worst.user_id, 'trade_results', {
           title: `${worst.symbol} stopped out`,
           body: `${sign}$${Math.abs(closed).toFixed(2)}`,
           data: { tradeId: worst.id, symbol: worst.symbol, profit: closed, kind: 'trade_closed', trigger: 'stopout' },
