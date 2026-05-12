@@ -1,23 +1,34 @@
 import { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { router } from 'expo-router';
+import * as Clipboard from 'expo-clipboard';
 import { Shield, Bell, MessageSquare, Phone, HelpCircle, LogOut, ChevronRight, BadgeCheck, ShieldCheck } from 'lucide-react-native';
 
 import { colors, radius, spacing, typography } from '@/lib/theme';
 import { useAuthStore } from '@/stores/auth';
+import { useAccountStore } from '@/stores/account';
 import { api } from '@/lib/api';
 import { ModeSwitcher } from '@/components/shared/ModeSwitcher';
 import { EnvBanner } from '@/components/shared/EnvBanner';
 
 export default function Profile() {
   const { user, signOut } = useAuthStore();
+  const account = useAccountStore((s) => s.account);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     api.getProfile()
       .then(({ profile }) => setIsAdmin(Boolean(profile.is_admin)))
       .catch(() => {});
   }, []);
+
+  function handleCopyLogin() {
+    if (!account?.login) return;
+    Clipboard.setStringAsync(String(account.login));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bgDeep }}>
@@ -51,10 +62,15 @@ export default function Profile() {
             </Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ ...typography.bodyBold, color: colors.textPrimary, fontSize: 16 }}>
-              {user?.email ?? 'Trader'}
+            <Pressable onPress={handleCopyLogin} style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={{ ...typography.bodyBold, color: colors.textPrimary, fontSize: 16 }}>
+                Account #{account?.login ?? '---'}
+              </Text>
+            </Pressable>
+            <Text style={{ ...typography.body, color: copied ? colors.profit : colors.textMuted, fontSize: 11, marginTop: 1 }}>
+              {copied ? 'Copied!' : 'Tap to copy'}
             </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
               <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.profit }} />
               <Text style={{ ...typography.body, color: colors.textSecondary, fontSize: 12 }}>Online</Text>
             </View>
@@ -95,13 +111,13 @@ export default function Profile() {
           />
           <Row icon={<Bell color={colors.textSecondary} size={20} />} label="Notifications" onPress={() => router.push('/notifications-settings')} />
           <Row icon={<MessageSquare color={colors.textSecondary} size={20} />} label="Support Chat" />
-          <Row icon={<Phone color={colors.textSecondary} size={20} />} label="Voice Support" sublabel="Available 9am–9pm" />
-          <Row icon={<Shield color={colors.textSecondary} size={20} />} label="Security & Password" />
+          <Row icon={<Phone color={colors.textSecondary} size={20} />} label="Voice Support" sublabel="Available 9am-9pm" />
+          <Row icon={<Shield color={colors.textSecondary} size={20} />} label="Security & Password" onPress={() => router.push('/change-password')} />
           <Row icon={<HelpCircle color={colors.textSecondary} size={20} />} label="Help Center" onPress={() => router.push('/help')} last={!isAdmin} />
           {isAdmin && (
             <Row
               icon={<ShieldCheck color={colors.primary} size={20} />}
-              label="Admin — Transactions"
+              label="Admin -- Transactions"
               sublabel="Approve / reject pending requests"
               onPress={() => router.push('/admin/transactions')}
               last
@@ -133,7 +149,7 @@ export default function Profile() {
         <View style={{ alignItems: 'center', marginTop: spacing.md }}>
           <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 11 }}>VANTA v0.1.0</Text>
           <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 10, marginTop: 4 }}>
-            Powered by AI App Genius · Analytics by Nifield
+            Powered by AI App Genius - Analytics by Nifield
           </Text>
         </View>
       </ScrollView>
