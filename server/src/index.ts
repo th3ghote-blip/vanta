@@ -13,10 +13,12 @@ import { barsRoutes } from './routes/bars.js';
 import { authRoutes } from './routes/auth.js';
 import { transactionsRoutes } from './routes/transactions.js';
 import { adminRoutes } from './routes/admin.js';
+import { alertsRoutes } from './routes/alerts.js';
 import { startPriceFeed } from './feed/pricefeed.js';
 import { startRobotEngine } from './ai/robotEngine.js';
 import { startRiskWorker } from './workers/risk.js';
 import { startRoundsWorker } from './workers/rounds.js';
+import { startPriceAlertsWorker } from './workers/priceAlerts.js';
 
 const PORT = Number(process.env.PORT ?? 4000);
 const HOST = process.env.HOST ?? '0.0.0.0';
@@ -60,11 +62,13 @@ await app.register(quotesRoutes, { prefix: '/api/quotes' });
 await app.register(barsRoutes, { prefix: '/api/bars' });
 await app.register(transactionsRoutes, { prefix: '/api/transactions' });
 await app.register(adminRoutes, { prefix: '/api/admin' });
+await app.register(alertsRoutes, { prefix: '/api/alerts' });
 
 startPriceFeed(app);
 startRobotEngine(app);
 startRiskWorker(app);
 startRoundsWorker(app);
+startPriceAlertsWorker(app);
 
 
 app

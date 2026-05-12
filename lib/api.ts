@@ -180,7 +180,32 @@ export const api = {
       body: JSON.stringify({ reason }),
     }),
 
+  // Price alerts (Phase 6.4)
+  getAlerts: (active?: boolean) => {
+    const url = active ? '/api/alerts?active=true' : '/api/alerts';
+    return request<{ alerts: PriceAlert[] }>(url);
+  },
+
+  createAlert: (symbol: string, threshold: number, direction: 'above' | 'below') =>
+    request<{ alert: PriceAlert }>('/api/alerts', {
+      method: 'POST',
+      body: JSON.stringify({ symbol, threshold, direction }),
+    }),
+
+  deleteAlert: (id: string) =>
+    request<{ ok: boolean }>(`/api/alerts/${id}`, { method: 'DELETE' }),
+
 };
+
+export interface PriceAlert {
+  id: string;
+  user_id: string;
+  symbol: string;
+  threshold: number;
+  direction: 'above' | 'below';
+  triggered_at: string | null;
+  created_at: string;
+}
 
 export interface LeaderboardEntry {
   rank: number;
