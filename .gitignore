@@ -18,3 +18,4 @@ server/dist/
 server/node_modules/
 
 .vercel
+git_vanta_idx*
