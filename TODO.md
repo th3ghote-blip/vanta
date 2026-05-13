@@ -266,7 +266,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Profile shows "Account #80000001".
 
 ## 7.3 2FA (TOTP)
-- [ ] **Files:** `app/2fa-setup.tsx` (new), `lib/2fa.ts`
+- [x] **Files:** `app/2fa-setup.tsx` (new), `lib/2fa.ts`
 - **What:** Use Supabase Auth MFA (`enroll`, `verify`, `unenroll`). QR code → user scans → verify code → enrolled. Login screen prompts for TOTP if user has factor.
 - **Acceptance:** Enable 2FA → sign out → sign in requires both password and TOTP.
 

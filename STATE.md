@@ -4,6 +4,34 @@
 
 ---
 
+## 2026-05-13T17:59(auto) -- 7.3 2FA (TOTP)
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **7.3 2FA (TOTP)**
+
+**What changed**
+- `lib/2fa.ts` (new): enroll2FA, verifyEnrollment, unenroll2FA, listVerifiedFactors, getAAL, challengeAndVerify
+- `app/2fa-setup.tsx` (new): enrollment QR flow (SvgXml), secret copy, disable flow
+- `app/(auth)/login.tsx`: after password auth, checks AAL; if aal2 needed shows TOTP step with challengeAndVerify
+- `app/(tabs)/profile.tsx`: new 'Two-Factor Authentication' row -> /2fa-setup; shows green icon if enabled
+- `TODO.md`: 7.3 marked [x]
+
+**Verification**
+- tsc --noEmit client: exit 0
+- tsc --noEmit server: exit 0
+- Deploy NOT done (sandbox has no Railway/Vercel access)
+
+**Recurring gotchas (CRITICAL -- still active)**
+1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
+2. `.git/index.lock` is a stale WSL lock -- use GIT_INDEX_FILE=/tmp/vanta_*_idx for all git ops.
+3. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
+4. Colors import: use @/lib/theme (not @/lib/colors).
+5. Git index corrupt -- always bootstrap with: GIT_INDEX_FILE=/tmp/X git read-tree HEAD before staging.
+
+**Next agent:** pick **7.4 Active sessions/device list**, **8.2 Symbol categories** (frontend only), or **11.1 First-trade confetti**.
+
+---
+
 ## 2026-05-13T(auto) -- 7.1 Change password screen
 
 **Agent:** scheduled cowork auto-work pass

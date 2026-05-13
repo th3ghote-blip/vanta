@@ -8,6 +8,7 @@ import { colors, radius, spacing, typography } from '@/lib/theme';
 import { useAuthStore } from '@/stores/auth';
 import { useAccountStore } from '@/stores/account';
 import { api } from '@/lib/api';
+import { listVerifiedFactors } from '@/lib/2fa';
 import { ModeSwitcher } from '@/components/shared/ModeSwitcher';
 import { EnvBanner } from '@/components/shared/EnvBanner';
 
@@ -16,10 +17,14 @@ export default function Profile() {
   const account = useAccountStore((s) => s.account);
   const [isAdmin, setIsAdmin] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [has2FA, setHas2FA] = useState(false);
 
   useEffect(() => {
     api.getProfile()
       .then(({ profile }) => setIsAdmin(Boolean(profile.is_admin)))
+      .catch(() => {});
+    listVerifiedFactors()
+      .then(({ factors }) => setHas2FA(factors.length > 0))
       .catch(() => {});
   }, []);
 
@@ -112,7 +117,17 @@ export default function Profile() {
           <Row icon={<Bell color={colors.textSecondary} size={20} />} label="Notifications" onPress={() => router.push('/notifications-settings')} />
           <Row icon={<MessageSquare color={colors.textSecondary} size={20} />} label="Support Chat" />
           <Row icon={<Phone color={colors.textSecondary} size={20} />} label="Voice Support" sublabel="Available 9am-9pm" />
-          <Row icon={<Shield color={colors.textSecondary} size={20} />} label="Security & Password" onPress={() => router.push('/change-password')} />
+          <Row
+            icon={<Shield color={colors.textSecondary} size={20} />}
+            label="Security & Password"
+            onPress={() => router.push('/change-password')}
+          />
+          <Row
+            icon={<ShieldCheck color={has2FA ? colors.profit : colors.textSecondary} size={20} />}
+            label="Two-Factor Authentication"
+            sublabel={has2FA ? 'Enabled' : 'Add extra sign-in security'}
+            onPress={() => router.push('/2fa-setup')}
+          />
           <Row icon={<HelpCircle color={colors.textSecondary} size={20} />} label="Help Center" onPress={() => router.push('/help')} last={!isAdmin} />
           {isAdmin && (
             <Row
