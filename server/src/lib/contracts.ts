@@ -1,5 +1,13 @@
 /**
- * Contract sizes — keep in sync with /c/Claude/vanta/lib/contracts.ts (client).
+ * Contract size per lot, per asset class. Used everywhere P&L is calculated
+ * to keep client and server consistent.
+ *
+ * Conventions (matches typical offshore B-book broker setup):
+ * - Forex pairs: 1 lot = 100,000 base currency units
+ * - Gold (XAU/USD): 1 lot = 100 oz
+ * - Silver (XAG/USD): 1 lot = 5,000 oz
+ * - Stocks: 1 lot = 1 share
+ * - Crypto: 1 lot = 1 unit of base coin (BTC, ETH, etc.)
  */
 
 const FOREX_PAIRS = new Set([
@@ -8,18 +16,24 @@ const FOREX_PAIRS = new Set([
 ]);
 
 const STOCK_SYMBOLS = new Set([
-  'AAPL', 'TSLA', 'AMZN', 'MSFT', 'GOOGL', 'GOOG', 'META', 'NVDA',
+  'AAPL', 'MSFT', 'TSLA', 'AMZN', 'GOOGL', 'GOOG', 'META', 'NVDA',
   'NFLX', 'AMD', 'INTC', 'CRM', 'ORCL', 'IBM', 'BA', 'JPM', 'BAC',
 ]);
 
 export function contractSize(symbol: string): number {
   if (FOREX_PAIRS.has(symbol)) return 100_000;
-  if (symbol === 'XAUUSD') return 100;
+  if (symbol === 'XAUUSD') return 100; // 100 oz
   if (symbol === 'XAGUSD') return 5_000;
   if (STOCK_SYMBOLS.has(symbol)) return 1;
+  // Crypto and anything else default to 1 unit per lot
   return 1;
 }
 
+/**
+ * Realized or unrealized P&L in account currency (USD).
+ *   buy:  (current - open) * volume * contractSize
+ *   sell: (open - current) * volume * contractSize
+ */
 export function calculatePnL(
   side: 'buy' | 'sell',
   volume: number,
@@ -32,11 +46,19 @@ export function calculatePnL(
 }
 
 /**
- * Notional value of a position in USD — base for margin calculations.
- *   notional = volume × price × contractSize
- * For a 0.1 BTC position at $80,000: 0.1 × 80000 × 1 = $8,000.
- * For 1 lot EURUSD at 1.10:        1 × 1.10 × 100,000 = $110,000.
+ * Notional value of a position in USD (for margin calculations).
  */
 export function notionalUSD(volume: number, price: number, symbol: string): number {
   return volume * price * contractSize(symbol);
+}
+
+/**
+ * Sensible default lot size when a symbol is first selected, before the user
+ * has typed anything.
+ */
+export function defaultVolumeFor(symbol: string): string {
+  if (FOREX_PAIRS.has(symbol)) return '0.10';
+  if (symbol === 'XAUUSD' || symbol === 'XAGUSD') return '0.10';
+  if (STOCK_SYMBOLS.has(symbol)) return '1';
+  return '0.01';
 }

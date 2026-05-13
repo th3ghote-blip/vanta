@@ -16,7 +16,7 @@ const FOREX_PAIRS = new Set([
 ]);
 
 const STOCK_SYMBOLS = new Set([
-  'AAPL', 'TSLA', 'AMZN', 'MSFT', 'GOOGL', 'GOOG', 'META', 'NVDA',
+  'AAPL', 'MSFT', 'TSLA', 'AMZN', 'GOOGL', 'GOOG', 'META', 'NVDA',
   'NFLX', 'AMD', 'INTC', 'CRM', 'ORCL', 'IBM', 'BA', 'JPM', 'BAC',
 ]);
 

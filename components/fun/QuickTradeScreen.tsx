@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { TrendingUp, TrendingDown, Flame } from 'lucide-react-native';
 
@@ -7,20 +7,11 @@ import { api, ApiError } from '@/lib/api';
 import { useAccountStore } from '@/stores/account';
 import { usePriceStore } from '@/stores/prices';
 import { useProfileStore } from '@/stores/profile';
+import { allSymbols, CATEGORIES, type SymbolCategory } from '@/lib/symbolMeta';
 import { BinaryCard } from './BinaryCard';
-import { CountdownRing } from './CountdownRing';
 import { ActiveRounds } from './ActiveRounds';
 import type { BinaryRound } from './ActiveRounds';
 import { RoundResultModal } from './RoundResultModal';
-
-const ASSETS = [
-  { symbol: 'EURUSD', name: 'Euro / Dollar' },
-  { symbol: 'BTCUSD', name: 'Bitcoin' },
-  { symbol: 'XAUUSD', name: 'Gold' },
-  { symbol: 'AAPL',   name: 'Apple' },
-  { symbol: 'TSLA',   name: 'Tesla' },
-  { symbol: 'AMZN',   name: 'Amazon' },
-];
 
 const DURATIONS = [
   { label: '60s',   seconds: 60,  multiplier: 1.85 },
@@ -28,22 +19,25 @@ const DURATIONS = [
   { label: '15min', seconds: 900, multiplier: 1.72 },
 ];
 
+type CategoryTab = 'All' | SymbolCategory;
+const TABS: CategoryTab[] = ['All', ...CATEGORIES];
+
 function describeRoundError(err: unknown): string {
   if (err instanceof ApiError) {
     switch (err.code) {
       case 'insufficient_balance':
-        return `Not enough balance (need $${(err.details.required as number)?.toFixed(2) ?? '—'}, have $${(err.details.available as number)?.toFixed(2) ?? '—'})`;
+        return `Not enough balance (need $${(err.details.required as number)?.toFixed(2) ?? '-'}, have $${(err.details.available as number)?.toFixed(2) ?? '-'})`;
       case 'no_quote':
-        return 'No live price available for this asset — try again.';
+        return 'No live price available for this asset - try again.';
       case 'account_not_found':
         return 'Account not found. Please reload.';
       case 'forbidden':
         return 'Account access denied.';
       case 'unauthorized':
-        return 'Session expired — please sign in again.';
+        return 'Session expired - please sign in again.';
       case 'deduct_failed':
       case 'insert_failed':
-        return 'Server error — your balance was not changed. Try again.';
+        return 'Server error - your balance was not changed. Try again.';
       default:
         return `Error: ${err.code}`;
     }
@@ -53,7 +47,8 @@ function describeRoundError(err: unknown): string {
 }
 
 export function QuickTradeScreen() {
-  const [selectedSymbol, setSelectedSymbol] = useState(ASSETS[0].symbol);
+  const [categoryTab, setCategoryTab] = useState<CategoryTab>('All');
+  const [selectedSymbol, setSelectedSymbol] = useState('BTCUSD');
   const [duration, setDuration] = useState(DURATIONS[0]);
   const [stake, setStake] = useState(10);
   const [busy, setBusy] = useState<'buy' | 'sell' | null>(null);
@@ -64,8 +59,6 @@ export function QuickTradeScreen() {
   const quotes = usePriceStore((s) => s.quotes);
   const { profile, fetch: fetchProfile, subscribe: subscribeProfile } = useProfileStore();
 
-  // Fetch streak on mount; subscribe to realtime updates so badge refreshes
-  // immediately after each round settles (server writes profiles.current_streak).
   useEffect(() => {
     fetchProfile();
     let cleanup: (() => void) | undefined;
@@ -75,8 +68,27 @@ export function QuickTradeScreen() {
 
   const streak = profile?.current_streak ?? 0;
 
-  const selected = ASSETS.find((a) => a.symbol === selectedSymbol) ?? ASSETS[0];
-  const quote = quotes[selected.symbol];
+  // All symbols that have a live quote right now
+  const liveSymbols = useMemo(() => {
+    return allSymbols().filter((s) => quotes[s.ticker] !== undefined);
+  }, [quotes]);
+
+  // Symbols visible in the chip strip based on active category tab
+  const visibleSymbols = useMemo(() => {
+    if (categoryTab === 'All') return liveSymbols;
+    return liveSymbols.filter((s) => s.category === categoryTab);
+  }, [liveSymbols, categoryTab]);
+
+  // Reset selected symbol when switching category if current isn't in new list
+  useEffect(() => {
+    const inView = visibleSymbols.some((s) => s.ticker === selectedSymbol);
+    if (!inView && visibleSymbols.length > 0) {
+      setSelectedSymbol(visibleSymbols[0].ticker);
+    }
+  }, [visibleSymbols, selectedSymbol]);
+
+  const selectedMeta = liveSymbols.find((s) => s.ticker === selectedSymbol) ?? liveSymbols[0];
+  const quote = quotes[selectedSymbol];
   const livePrice = quote ? (quote.bid + quote.ask) / 2 : 0;
 
   const openRound = useCallback(
@@ -93,7 +105,7 @@ export function QuickTradeScreen() {
       try {
         await api.openRound({
           accountId: account.id,
-          symbol: selected.symbol,
+          symbol: selectedSymbol,
           direction,
           stake,
           durationSeconds: duration.seconds,
@@ -102,7 +114,7 @@ export function QuickTradeScreen() {
         refetchAccount();
 
         setFeedback({
-          msg: `Round opened! ${direction === 'buy' ? '▲ Up' : '▼ Down'} ${selected.symbol} $${stake} · closes in ${duration.label}`,
+          msg: `Round opened! ${direction === 'buy' ? 'Up' : 'Down'} ${selectedSymbol} $${stake} - closes in ${duration.label}`,
           ok: true,
         });
       } catch (err) {
@@ -111,19 +123,19 @@ export function QuickTradeScreen() {
         setBusy(null);
       }
     },
-    [busy, account, selected.symbol, stake, duration, refetchAccount],
+    [busy, account, selectedSymbol, stake, duration, refetchAccount],
   );
 
   const selectedAsset = {
-    symbol: selected.symbol,
-    name: selected.name,
+    symbol: selectedSymbol,
+    name: selectedMeta?.name ?? selectedSymbol,
     price: livePrice,
     change: 0,
   };
 
   return (
     <View style={{ paddingHorizontal: spacing.md, gap: spacing.md }}>
-      {/* Streak badge — only rendered when the user has an active streak */}
+      {/* Streak badge */}
       {streak > 0 && (
         <View
           style={{
@@ -139,7 +151,7 @@ export function QuickTradeScreen() {
         >
           <Flame color={colors.warning} size={20} />
           <Text style={{ ...typography.bodyBold, color: colors.textPrimary, fontSize: 14 }}>
-            🔥 {streak} win streak
+            {streak} win streak
           </Text>
           <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 12, marginLeft: 'auto' }}>
             Best: {profile?.best_streak ?? streak}
@@ -147,16 +159,60 @@ export function QuickTradeScreen() {
         </View>
       )}
 
-      {/* Asset chips */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
-        {ASSETS.map((a) => {
-          const active = a.symbol === selectedSymbol;
-          const q = quotes[a.symbol];
+      {/* Category tabs */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: spacing.xs }}
+      >
+        {TABS.map((tab) => {
+          const active = tab === categoryTab;
+          const count =
+            tab === 'All'
+              ? liveSymbols.length
+              : liveSymbols.filter((s) => s.category === tab).length;
+          if (count === 0 && tab !== 'All') return null;
+          return (
+            <Pressable
+              key={tab}
+              onPress={() => { setCategoryTab(tab); setFeedback(null); }}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 5,
+                paddingHorizontal: spacing.md,
+                paddingVertical: 6,
+                borderRadius: radius.pill,
+                backgroundColor: active ? colors.primary : 'transparent',
+                borderWidth: 1,
+                borderColor: active ? colors.primary : colors.border,
+              }}
+            >
+              <Text style={{ ...typography.bodyBold, color: active ? '#fff' : colors.textSecondary, fontSize: 12 }}>
+                {tab}
+              </Text>
+              <Text style={{ ...typography.mono, color: active ? '#fff' : colors.textMuted, fontSize: 11 }}>
+                {count}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
+      {/* Asset chips filtered by category */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: spacing.sm }}
+      >
+        {visibleSymbols.map((s) => {
+          const active = s.ticker === selectedSymbol;
+          const q = quotes[s.ticker];
           const mid = q ? (q.bid + q.ask) / 2 : null;
           return (
             <Pressable
-              key={a.symbol}
-              onPress={() => { setSelectedSymbol(a.symbol); setFeedback(null); }}
+              key={s.ticker}
+              onPress={() => { setSelectedSymbol(s.ticker); setFeedback(null); }}
               style={{
                 paddingHorizontal: spacing.md,
                 paddingVertical: spacing.sm,
@@ -164,11 +220,11 @@ export function QuickTradeScreen() {
                 backgroundColor: active ? colors.primary : colors.bgSurface,
                 borderWidth: 1,
                 borderColor: active ? colors.primary : colors.border,
-                minWidth: 120,
+                minWidth: 110,
               }}
             >
               <Text style={{ ...typography.bodyBold, color: active ? '#fff' : colors.textPrimary, fontSize: 13 }}>
-                {a.symbol}
+                {s.ticker}
               </Text>
               <Text
                 style={{
@@ -179,8 +235,10 @@ export function QuickTradeScreen() {
                 }}
               >
                 {mid != null
-                  ? mid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })
-                  : '…'}
+                  ? mid >= 100
+                    ? mid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                    : mid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 5 })
+                  : '...'}
               </Text>
             </Pressable>
           );
@@ -210,7 +268,7 @@ export function QuickTradeScreen() {
             >
               <Text style={{ ...typography.bodyBold, color: colors.textPrimary, fontSize: 13 }}>{d.label}</Text>
               <Text style={{ ...typography.mono, color: colors.profit, fontSize: 11, marginTop: 2 }}>
-                ×{d.multiplier}
+                x{d.multiplier}
               </Text>
             </Pressable>
           );
@@ -280,7 +338,6 @@ export function QuickTradeScreen() {
 
       {/* Up / Down buttons */}
       <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm }}>
-        {/* Down */}
         <Pressable
           disabled={!!busy}
           onPress={() => openRound('sell')}
@@ -306,7 +363,6 @@ export function QuickTradeScreen() {
           )}
         </Pressable>
 
-        {/* Up */}
         <Pressable
           disabled={!!busy}
           onPress={() => openRound('buy')}
@@ -334,10 +390,10 @@ export function QuickTradeScreen() {
       </View>
 
       <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 11, textAlign: 'center' }}>
-        Win pays ×{duration.multiplier} · Loss costs ${stake.toFixed(2)}
+        Win pays x{duration.multiplier} - Loss costs ${stake.toFixed(2)}
       </Text>
 
-      {/* Active rounds — appears once at least one round is open (Phase 2.4) */}
+      {/* Active rounds */}
       {account && (
         <ActiveRounds
           accountId={account.id}
@@ -345,7 +401,7 @@ export function QuickTradeScreen() {
         />
       )}
 
-      {/* Win / loss result modal (Phase 2.5) */}
+      {/* Win / loss result modal */}
       <RoundResultModal
         round={settledRound}
         onDismiss={() => setSettledRound(null)}
@@ -353,4 +409,3 @@ export function QuickTradeScreen() {
     </View>
   );
 }
-           

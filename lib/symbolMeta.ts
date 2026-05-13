@@ -1,9 +1,9 @@
 /**
  * Display metadata for symbols.  Mostly used by the picker UI so users see
- * "Bitcoin · BTCUSD" instead of just "BTCUSD".
+ * "Bitcoin (BTCUSD)" instead of just "BTCUSD".
  */
 
-export type SymbolCategory = 'Forex' | 'Metals' | 'Stocks' | 'Crypto';
+export type SymbolCategory = 'Crypto' | 'Forex' | 'Metals' | 'Stocks';
 
 export interface SymbolMeta {
   ticker: string;
@@ -12,69 +12,91 @@ export interface SymbolMeta {
 }
 
 const META: Record<string, Omit<SymbolMeta, 'ticker'>> = {
-  // Forex
-  EURUSD: { name: 'Euro / US Dollar', category: 'Forex' },
-  GBPUSD: { name: 'British Pound / US Dollar', category: 'Forex' },
-  USDJPY: { name: 'US Dollar / Japanese Yen', category: 'Forex' },
+  // ── Crypto ──────────────────────────────────────────────────────────
+  BTCUSD:    { name: 'Bitcoin',               category: 'Crypto' },
+  ETHUSD:    { name: 'Ethereum',              category: 'Crypto' },
+  SOLUSD:    { name: 'Solana',                category: 'Crypto' },
+  XRPUSD:    { name: 'XRP',                   category: 'Crypto' },
+  DOGEUSD:   { name: 'Dogecoin',              category: 'Crypto' },
+  ADAUSD:    { name: 'Cardano',               category: 'Crypto' },
+  AVAXUSD:   { name: 'Avalanche',             category: 'Crypto' },
+  LINKUSD:   { name: 'Chainlink',             category: 'Crypto' },
+  DOTUSD:    { name: 'Polkadot',              category: 'Crypto' },
+  MATICUSD:  { name: 'Polygon',               category: 'Crypto' },
+  SHIBUSD:   { name: 'Shiba Inu',             category: 'Crypto' },
+  LTCUSD:    { name: 'Litecoin',              category: 'Crypto' },
+  UNIUSD:    { name: 'Uniswap',               category: 'Crypto' },
+  ATOMUSD:   { name: 'Cosmos',                category: 'Crypto' },
+  NEARUSD:   { name: 'NEAR Protocol',         category: 'Crypto' },
+  APTUSD:    { name: 'Aptos',                 category: 'Crypto' },
+  ARBUSD:    { name: 'Arbitrum',              category: 'Crypto' },
+  OPUSD:     { name: 'Optimism',              category: 'Crypto' },
+  FILUSD:    { name: 'Filecoin',              category: 'Crypto' },
+  ICPUSD:    { name: 'Internet Computer',     category: 'Crypto' },
+  INJUSD:    { name: 'Injective',             category: 'Crypto' },
+  SUIUSD:    { name: 'Sui',                   category: 'Crypto' },
+  TIAUSD:    { name: 'Celestia',              category: 'Crypto' },
+  SEIUSD:    { name: 'Sei',                   category: 'Crypto' },
+  ETCUSD:    { name: 'Ethereum Classic',      category: 'Crypto' },
+  BCHUSD:    { name: 'Bitcoin Cash',          category: 'Crypto' },
+  STXUSD:    { name: 'Stacks',                category: 'Crypto' },
+  RNDRUSD:   { name: 'Render',                category: 'Crypto' },
+  PEPEUSD:   { name: 'Pepe',                  category: 'Crypto' },
+  WIFUSD:    { name: 'dogwifhat',             category: 'Crypto' },
+  BONKUSD:   { name: 'Bonk',                  category: 'Crypto' },
+  JUPUSD:    { name: 'Jupiter',               category: 'Crypto' },
+  PYTHUSD:   { name: 'Pyth Network',          category: 'Crypto' },
+  WLDUSD:    { name: 'Worldcoin',             category: 'Crypto' },
+  AAVEUSD:   { name: 'Aave',                  category: 'Crypto' },
+  MKRUSD:    { name: 'Maker',                 category: 'Crypto' },
+  SNXUSD:    { name: 'Synthetix',             category: 'Crypto' },
+  CRVUSD:    { name: 'Curve DAO',             category: 'Crypto' },
+  COMPUSD:   { name: 'Compound',              category: 'Crypto' },
+  LDOUSD:    { name: 'Lido DAO',              category: 'Crypto' },
+  PENDLEUSD: { name: 'Pendle',                category: 'Crypto' },
+  ENAUSD:    { name: 'Ethena',                category: 'Crypto' },
+  SANDUSD:   { name: 'The Sandbox',           category: 'Crypto' },
+  AXSUSD:    { name: 'Axie Infinity',         category: 'Crypto' },
+  MANAUSD:   { name: 'Decentraland',          category: 'Crypto' },
+  APEUSD:    { name: 'ApeCoin',               category: 'Crypto' },
+  GALAUSD:   { name: 'Gala',                  category: 'Crypto' },
+
+  // ── Forex ────────────────────────────────────────────────────────────
+  EURUSD: { name: 'Euro / US Dollar',              category: 'Forex' },
+  GBPUSD: { name: 'British Pound / US Dollar',     category: 'Forex' },
+  USDJPY: { name: 'US Dollar / Japanese Yen',      category: 'Forex' },
   AUDUSD: { name: 'Australian Dollar / US Dollar', category: 'Forex' },
-  USDCAD: { name: 'US Dollar / Canadian Dollar', category: 'Forex' },
+  USDCAD: { name: 'US Dollar / Canadian Dollar',   category: 'Forex' },
+  NZDUSD: { name: 'New Zealand Dollar / US Dollar',category: 'Forex' },
+  USDCHF: { name: 'US Dollar / Swiss Franc',       category: 'Forex' },
+  EURJPY: { name: 'Euro / Japanese Yen',           category: 'Forex' },
+  GBPJPY: { name: 'British Pound / Japanese Yen',  category: 'Forex' },
+  EURGBP: { name: 'Euro / British Pound',          category: 'Forex' },
+  AUDJPY: { name: 'Australian Dollar / Japanese Yen', category: 'Forex' },
+  EURCHF: { name: 'Euro / Swiss Franc',            category: 'Forex' },
+  GBPCHF: { name: 'British Pound / Swiss Franc',   category: 'Forex' },
 
-  // Metals
-  XAUUSD: { name: 'Gold', category: 'Metals' },
+  // ── Metals ───────────────────────────────────────────────────────────
+  XAUUSD: { name: 'Gold',   category: 'Metals' },
+  XAGUSD: { name: 'Silver', category: 'Metals' },
 
-  // Stocks
-  AAPL: { name: 'Apple Inc.', category: 'Stocks' },
-  TSLA: { name: 'Tesla, Inc.', category: 'Stocks' },
-  AMZN: { name: 'Amazon.com, Inc.', category: 'Stocks' },
-
-  // Crypto
-  BTCUSD: { name: 'Bitcoin', category: 'Crypto' },
-  ETHUSD: { name: 'Ethereum', category: 'Crypto' },
-  SOLUSD: { name: 'Solana', category: 'Crypto' },
-  XRPUSD: { name: 'XRP', category: 'Crypto' },
-  DOGEUSD: { name: 'Dogecoin', category: 'Crypto' },
-  ADAUSD: { name: 'Cardano', category: 'Crypto' },
-  AVAXUSD: { name: 'Avalanche', category: 'Crypto' },
-  LINKUSD: { name: 'Chainlink', category: 'Crypto' },
-  DOTUSD: { name: 'Polkadot', category: 'Crypto' },
-  MATICUSD: { name: 'Polygon', category: 'Crypto' },
-  SHIBUSD: { name: 'Shiba Inu', category: 'Crypto' },
-  LTCUSD: { name: 'Litecoin', category: 'Crypto' },
-  UNIUSD: { name: 'Uniswap', category: 'Crypto' },
-  ATOMUSD: { name: 'Cosmos', category: 'Crypto' },
-  NEARUSD: { name: 'NEAR Protocol', category: 'Crypto' },
-  APTUSD: { name: 'Aptos', category: 'Crypto' },
-  ARBUSD: { name: 'Arbitrum', category: 'Crypto' },
-  OPUSD: { name: 'Optimism', category: 'Crypto' },
-  FILUSD: { name: 'Filecoin', category: 'Crypto' },
-  ICPUSD: { name: 'Internet Computer', category: 'Crypto' },
-  INJUSD: { name: 'Injective', category: 'Crypto' },
-  SUIUSD: { name: 'Sui', category: 'Crypto' },
-  TIAUSD: { name: 'Celestia', category: 'Crypto' },
-  SEIUSD: { name: 'Sei', category: 'Crypto' },
-  ETCUSD: { name: 'Ethereum Classic', category: 'Crypto' },
-  BCHUSD: { name: 'Bitcoin Cash', category: 'Crypto' },
-  STXUSD: { name: 'Stacks', category: 'Crypto' },
-  RNDRUSD: { name: 'Render', category: 'Crypto' },
-  PEPEUSD: { name: 'Pepe', category: 'Crypto' },
-  WIFUSD: { name: 'dogwifhat', category: 'Crypto' },
-  BONKUSD: { name: 'Bonk', category: 'Crypto' },
-  JUPUSD: { name: 'Jupiter', category: 'Crypto' },
-  PYTHUSD: { name: 'Pyth Network', category: 'Crypto' },
-  WLDUSD: { name: 'Worldcoin', category: 'Crypto' },
-  AAVEUSD: { name: 'Aave', category: 'Crypto' },
-  MKRUSD: { name: 'Maker', category: 'Crypto' },
-  SNXUSD: { name: 'Synthetix', category: 'Crypto' },
-  CRVUSD: { name: 'Curve DAO', category: 'Crypto' },
-  COMPUSD: { name: 'Compound', category: 'Crypto' },
-  LDOUSD: { name: 'Lido DAO', category: 'Crypto' },
-  PENDLEUSD: { name: 'Pendle', category: 'Crypto' },
-  ENAUSD: { name: 'Ethena', category: 'Crypto' },
-  SANDUSD: { name: 'The Sandbox', category: 'Crypto' },
-  AXSUSD: { name: 'Axie Infinity', category: 'Crypto' },
-  MANAUSD: { name: 'Decentraland', category: 'Crypto' },
-  APEUSD: { name: 'ApeCoin', category: 'Crypto' },
-  GALAUSD: { name: 'Gala', category: 'Crypto' },
+  // ── Stocks ───────────────────────────────────────────────────────────
+  AAPL:  { name: 'Apple Inc.',              category: 'Stocks' },
+  MSFT:  { name: 'Microsoft Corp.',         category: 'Stocks' },
+  TSLA:  { name: 'Tesla, Inc.',             category: 'Stocks' },
+  AMZN:  { name: 'Amazon.com, Inc.',        category: 'Stocks' },
+  GOOGL: { name: 'Alphabet Inc.',           category: 'Stocks' },
+  META:  { name: 'Meta Platforms, Inc.',    category: 'Stocks' },
+  NVDA:  { name: 'NVIDIA Corp.',            category: 'Stocks' },
+  NFLX:  { name: 'Netflix, Inc.',           category: 'Stocks' },
+  AMD:   { name: 'Advanced Micro Devices',  category: 'Stocks' },
+  INTC:  { name: 'Intel Corp.',             category: 'Stocks' },
+  CRM:   { name: 'Salesforce, Inc.',        category: 'Stocks' },
+  ORCL:  { name: 'Oracle Corp.',            category: 'Stocks' },
+  IBM:   { name: 'IBM Corp.',               category: 'Stocks' },
+  BA:    { name: 'Boeing Co.',              category: 'Stocks' },
+  JPM:   { name: 'JPMorgan Chase & Co.',   category: 'Stocks' },
+  BAC:   { name: 'Bank of America Corp.',  category: 'Stocks' },
 };
 
 export function symbolMeta(ticker: string): SymbolMeta {
@@ -94,4 +116,5 @@ export function symbolsByCategory(category: SymbolCategory): SymbolMeta[] {
   return allSymbols().filter((s) => s.category === category);
 }
 
-export const CATEGORIES: SymbolCategory[] = ['Forex', 'Metals', 'Stocks', 'Crypto'];
+/** Ordered category list — Crypto first (most used in Quick mode). */
+export const CATEGORIES: SymbolCategory[] = ['Crypto', 'Forex', 'Metals', 'Stocks'];
