@@ -3,6 +3,48 @@
 > Append, don't replace. Most recent at top. Each entry: date, agent, what changed, what's pending, gotchas.
 
 ---
+## 2026-05-13T22:11(auto) -- 8.2 Symbol categories in client
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **8.2 Symbol categories in client**
+**Commit:** `f241f33`
+
+**What changed**
+- `lib/symbolMeta.ts`: expanded from 56 to 78 symbols (47 crypto, 13 forex,
+  2 metals / XAUUSD + XAGUSD, 16 stocks). CATEGORIES reordered Crypto-first.
+  New forex: NZDUSD, USDCHF, EURJPY, GBPJPY, EURGBP, AUDJPY, EURCHF, GBPCHF.
+  New stocks: MSFT, GOOGL, META, NVDA, NFLX, AMD, INTC, CRM, ORCL, IBM, BA, JPM, BAC.
+- `lib/contracts.ts` + `server/src/lib/contracts.ts`: added all new forex pairs
+  and stocks to FOREX_PAIRS / STOCK_SYMBOLS sets for correct margin/P&L math.
+- `components/fun/QuickTradeScreen.tsx`: replaced hardcoded 6-item ASSETS with
+  dynamic allSymbols() filtered by live quotes. Added category tab strip
+  (All / Crypto / Forex / Metals / Stocks) above the asset chip row.
+- `TODO.md`: 8.2 marked [x]
+
+**Verification**
+- tsc --noEmit client: exit 0
+- tsc --noEmit server: exit 0
+- Deploy NOT done (sandbox has no Railway/Vercel access)
+
+**Notes**
+- 22 new symbols in symbolMeta have no live pricefeed yet (new forex crosses + stocks).
+  They show '--' in Pro picker but are excluded from QuickTradeScreen (filtered by live quotes).
+  Indices/Commodities categories intentionally skipped -- blocked on 8.1 OANDA.
+- Twelve Data credit budget unchanged (still 9 non-crypto symbols polled).
+
+**Recurring gotchas (CRITICAL -- still active)**
+1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
+2. `.git/index.lock` is a stale WSL lock -- use GIT_INDEX_FILE=/tmp/vanta_*_idx for all git ops.
+3. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
+4. Colors import: use @/lib/theme (not @/lib/colors).
+5. Git index corrupt -- always bootstrap with: GIT_INDEX_FILE=/tmp/X git read-tree HEAD before staging.
+6. Supabase JS SDK v2.45 has no `listUserSessions` -- sessions.ts calls the REST API directly.
+
+**Next agent:** pick **8.3 Search bar in symbol picker** (frontend only, small change to SymbolPickerModal),
+**11.1 First-trade confetti**, or **9.1 EAS configuration** (eas.json scaffold only).
+
+---
+
 ## 2026-05-13T(auto) -- 7.4 Active sessions / device list
 
 **Agent:** scheduled cowork auto-work pass

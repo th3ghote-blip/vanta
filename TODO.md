@@ -287,7 +287,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Forex prices update sub-second. Indices visible.
 
 ## 8.2 Symbol categories in client
-- [ ] **Files:** `components/pro/SymbolPicker.tsx`, `components/fun/QuickTradeScreen.tsx`
+- [x] **Files:** `components/pro/SymbolPicker.tsx`, `components/fun/QuickTradeScreen.tsx`
 - **What:** Group by category (Crypto / Forex / Indices / Commodities / Stocks) with category tabs.
 - **Acceptance:** 60+ symbols organized cleanly.
 
