@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
-import { Shield, Bell, MessageSquare, Phone, HelpCircle, LogOut, ChevronRight, BadgeCheck, ShieldCheck } from 'lucide-react-native';
+import { Shield, Bell, MessageSquare, Phone, HelpCircle, LogOut, ChevronRight, BadgeCheck, ShieldCheck, Laptop } from 'lucide-react-native';
 
 import { colors, radius, spacing, typography } from '@/lib/theme';
 import { useAuthStore } from '@/stores/auth';

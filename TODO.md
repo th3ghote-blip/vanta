@@ -271,7 +271,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Enable 2FA → sign out → sign in requires both password and TOTP.
 
 ## 7.4 Active sessions / device list
-- [ ] **File:** `app/sessions.tsx` (new)
+- [x] **File:** `app/sessions.tsx` (new)
 - **What:** List of devices currently signed in. "Revoke" button per session.
 - **Acceptance:** Sign in from another browser → both visible. Revoke → other browser logged out.
 

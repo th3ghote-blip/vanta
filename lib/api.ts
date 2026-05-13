@@ -245,3 +245,32 @@ export interface LeaderboardEntry {
   total_profit: number;
   last_run_at: string | null;
 }
+
+
+// ─── Sessions ─────────────────────────────────────────────────────────────────
+
+export interface DeviceSession {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  user_agent: string | null;
+  ip: string | null;
+  not_after: string | null;
+  aal: string | null;
+}
+
+export async function getSessions(): Promise<DeviceSession[]> {
+  const data = await request<{ sessions: DeviceSession[] }>('/api/auth/sessions');
+  return data.sessions;
+}
+
+export async function revokeSession(sessionId: string): Promise<void> {
+  await request<{ revoked: boolean }>(`/api/auth/sessions/${sessionId}`, { method: 'DELETE' });
+}
+
+export async function revokeOtherSessions(currentSessionId: string): Promise<{ revoked: number }> {
+  return request<{ revoked: number }>(
+    `/api/auth/sessions?currentSessionId=${encodeURIComponent(currentSessionId)}`,
+    { method: 'DELETE' }
+  );
+}
