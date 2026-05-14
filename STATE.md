@@ -3,6 +3,35 @@
 > Append, don't replace. Most recent at top. Each entry: date, agent, what changed, what's pending, gotchas.
 
 ---
+## 2026-05-14(auto) -- 8.3 Search bar in symbol picker
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **8.3 Search bar in symbol picker**
+
+**What changed**
+- No code written: `SymbolPickerModal.tsx` already had a complete search bar
+  implementation (TextInput, ticker/name filtering, clear button, empty state)
+  built during the 8.2 run. The feature fully satisfies the acceptance criteria.
+- `TODO.md`: 8.3 marked [x] (file reference corrected from SymbolPicker.tsx to
+  SymbolPickerModal.tsx where the search actually lives)
+
+**Verification**
+- tsc --noEmit client: exit 0
+- tsc --noEmit server: exit 0
+
+**Recurring gotchas (CRITICAL -- still active)**
+1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
+2. `.git/index.lock` is a stale WSL lock -- use GIT_INDEX_FILE=/tmp/vanta_*_idx for all git ops.
+3. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
+4. Colors import: use @/lib/theme (not @/lib/colors).
+5. Git index corrupt -- always bootstrap with: GIT_INDEX_FILE=/tmp/X git read-tree HEAD before staging.
+6. Supabase JS SDK v2.45 has no `listUserSessions` -- sessions.ts calls the REST API directly.
+
+**Next agent:** pick **9.1 EAS configuration** (eas.json scaffold -- `eas build:configure`
+output, no credentials needed) or **11.1 First-trade confetti** (frontend only,
+install react-native-confetti-cannon + add Confetti.tsx + hook into trade open success).
+
+---
 ## 2026-05-13T22:11(auto) -- 8.2 Symbol categories in client
 
 **Agent:** scheduled cowork auto-work pass
@@ -185,23 +214,4 @@
 - `server/src/routes/orders.ts`: trade-close push changed to `sendPushChecked(..., 'trade_results', ...)`
 - `server/src/workers/risk.ts`: all 3 SL/TP/stopout pushes changed to `sendPushChecked(..., 'trade_results', ...)`
 - `server/src/workers/priceAlerts.ts`: price-alert push changed to `sendPushChecked(..., 'price_alerts', ...)`
-- `lib/api.ts`: added `NotificationPrefs` interface + `getNotificationPrefs()` + `updateNotificationPrefs()`
-- `app/notifications-settings.tsx` (new, 190 lines):
-  - 4 Switch toggles: Trade Results, Price Alerts, Robot Signals, Promotions
-  - Optimistic update with rollback on failure; spinner while saving
-- `app/(tabs)/profile.tsx`: Notifications row now navigates to `/notifications-settings`
-- `TODO.md`: 6.5 marked [x]
-
-**Verification**
-- `tsc --noEmit` client: exit 0
-- `tsc --noEmit` server: exit 0
-- Deploy NOT done (sandbox has no Railway/Vercel access)
-- Migration apply needed: `SUPABASE_PAT=<pat> python scripts/apply-migration.py supabase/migrations/010_notification_prefs.sql`
-
-**Recurring gotchas (CRITICAL -- still active)**
-1. File truncation / corruption bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash. Verify with `wc -l` + `tail` + null-byte check after every write.
-2. Unicode characters (em-dash, box-drawing, arrows) in file content cause the Write/Edit tool to truncate the file. Use ASCII only or write via Python.
-3. `.git/index.lock` is a stale WSL lock -- cannot be deleted. Use `GIT_INDEX_FILE=/tmp/vanta_*_idx` for all git ops; commit via `git commit-tree`; write SHA to `.git/refs/heads/main`.
-4. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
-
-**Next agent:** pick **7.1 Change password screen** (frontend only, simple) or **7.2 Show login number prominently** (very small profile.tsx change).
+- `lib/api.ts`: ad

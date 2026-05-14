@@ -292,7 +292,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** 60+ symbols organized cleanly.
 
 ## 8.3 Search bar in symbol picker
-- [ ] **File:** `components/pro/SymbolPicker.tsx`
+- [x] **File:** `components/pro/SymbolPickerModal.tsx`
 - **What:** Search input that filters symbols by name or ticker.
 - **Acceptance:** Type "BTC" → only BTCUSD shown.
 
@@ -517,4 +517,4 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 
 ---
 
-*Maintain ordering within phases (dependencies flow downward). Strike `[x]` completed items in place — don't delete (history is useful).*
+*Maintain ordering within phases (dependencies flow downward). Strike `[x]` completed items in place — don't delete (history is usefu
