@@ -351,8 +351,8 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 # Phase 11 — Engagement (Tier 1 — table stakes)
 
 ## 11.1 First-trade confetti
-- [ ] **Files:** `components/shared/Confetti.tsx`, hook into trade open success
-- [ ] **Install:** `react-native-confetti-cannon`
+- [x] **Files:** `components/shared/Confetti.tsx`, hook into trade open success
+- [x] **Install:** `react-native-confetti-cannon`
 - **What:** When user's first ever trade opens (count `trades` for account = 1), trigger 3-second confetti burst.
 - **Acceptance:** First trade → confetti. Second+ trades → nothing.
 

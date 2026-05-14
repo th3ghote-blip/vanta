@@ -3,37 +3,39 @@
 > Append, don't replace. Most recent at top. Each entry: date, agent, what changed, what's pending, gotchas.
 
 ---
-## 2026-05-14(auto) -- 9.2 App icons + splash screens
+## 2026-05-14(auto) -- 11.1 First-trade confetti
 
 **Agent:** scheduled cowork auto-work pass
-**TODO item picked:** **9.2 App icons + splash screens**
-**Commit:** `0059fb9`
+**TODO item picked:** **11.1 First-trade confetti**
 
 **What changed**
-- `assets/icon.png` (1024x1024): dark `#0a0a0f` background with rounded corners,
-  electric-blue V chevron (bold, 8.5% stroke width) + radial blue glow layer
-- `assets/adaptive-icon.png` (1024x1024): same V mark on transparent background
-  (Android adaptive icon foreground layer; bg color set in app.json)
-- `assets/splash.png` (1242x2436): full portrait splash canvas, dark background,
-  V mark centered with radial glow
-- `assets/favicon.png` (32x32): minimal V mark on dark background for web
-- `app.json`: wired all four assets -- `expo.icon`, `expo.splash` (contain/`#0a0a0f`),
-  `expo.android.adaptiveIcon` (foreground + backgroundColor), `expo.web.favicon`
-- `TODO.md`: 9.2 marked [x]
+- `components/shared/Confetti.tsx` (new, 45 lines): forwardRef component exposing
+  `fire()` via useImperativeHandle. Renders an absolutely-positioned full-screen
+  overlay (pointerEvents="none") containing react-native-confetti-cannon's Explosion.
+  180 particles, electric-blue/white/gold palette, fallSpeed 3000ms, fadeOut.
+  Hides itself (setVisible(false)) when onAnimationEnd fires.
+- `components/pro/OrderEntry.tsx`: added `onFirstTrade?: () => void` prop.
+  After successful `api.openOrder()`, fires a void async IIFE that counts trades
+  for this account via Supabase `select('*', { count: 'exact', head: true })`.
+  If count === 1, calls onFirstTrade(). Silently ignores any Supabase errors.
+- `components/pro/ProTradeScreen.tsx`: accepts `onFirstTrade?` prop and threads
+  it down to OrderEntry.
+- `app/(tabs)/trade.tsx`: holds confettiRef, renders `<Confetti ref={confettiRef} />`
+  as an overlay inside the root View. Passes `onFirstTrade={() => confettiRef.current?.fire()}`
+  to ProTradeScreen (Pro mode only).
+- `TODO.md`: 11.1 marked [x] (both sub-items).
 
 **Verification**
-- All files present and correct sizes: confirmed via PIL Image.size check
 - tsc --noEmit client: exit 0
 - tsc --noEmit server: exit 0
-- Deploy NOT done (sandbox has no Railway/Vercel access; assets are app-bundle level)
+- Deploy NOT done (sandbox has no Railway/Vercel access; this is frontend-only)
+- react-native-confetti-cannon was already in package.json/node_modules from Phase 2.5
 
-**Notes on 9.2**
-- V mark is drawn programmatically with Pillow (no font dependency)
-- Glow applied via Gaussian-blurred RGBA ellipse overlay
-- Android adaptive icon bg color `#0a0a0f` matches app background token `bgDeep`
-- If user wants a different icon style (logo vs lettermark, gradient, etc.),
-  assets can be regenerated trivially by re-running the Python script
-- EAS build will pick these up automatically via app.json references
+**Notes on 11.1**
+- Confetti fires only in Pro mode (QuickMode already has confetti via RoundResultModal).
+- The Supabase count query runs client-side with the user's JWT -- RLS on `trades`
+  must allow the user to SELECT their own rows (standard setup).
+- `package-lock.json` had sandbox drift (extra babel peer deps) -- included in commit.
 
 **Recurring gotchas (CRITICAL -- still active)**
 1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
@@ -43,156 +45,10 @@
 5. Git index corrupt -- always bootstrap with: GIT_INDEX_FILE=/tmp/X git read-tree HEAD before staging.
 6. Supabase JS SDK v2.45 has no `listUserSessions` -- sessions.ts calls the REST API directly.
 
-**Next agent:** pick **11.1 First-trade confetti** (frontend only, install
-react-native-confetti-cannon + Confetti.tsx + hook into trade open success path)
-or **11.2 Daily check-in streak** (migration + server + UI).
+**Next agent:** pick **11.2 Daily check-in streak** (migration + server + UI) or
+**11.4 Win flash on trade close** (frontend only, small -- WinFlash.tsx + hook into close path).
 
 ---
----
-## 2026-05-14(auto) -- 9.1 EAS configuration
-
-**Agent:** scheduled cowork auto-work pass
-**TODO item picked:** **9.1 EAS configuration**
-**Commit:** `c6d59ea`
-
-**What changed**
-- `eas.json` (new, 51 lines): EAS build configuration scaffold
-  - `development` profile: developmentClient=true, iOS simulator, Android debug APK
-  - `preview` profile: internal distribution, iOS device (m-medium), Android APK
-  - `production` profile: store distribution, iOS (m-medium), Android AAB
-  - `submit.production`: placeholder TBD values for Apple (appleId, ascAppId, appleTeamId)
-    and Google (serviceAccountKeyPath, track=internal) -- fill in when registering accounts
-- `TODO.md`: 9.1 marked [x]
-- `STATE.md` + `TODO.md` changes from 8.3 run also included in this commit
-
-**Verification**
-- File present and valid JSON: confirmed
-- tsc --noEmit: not re-run (eas.json has no TypeScript impact)
-- Deploy NOT done (sandbox has no Railway/Vercel access; EAS config is app-level, not server)
-
-**Notes on 9.1**
-- `app.json` already has `extra.eas.projectId: "TBD"` -- user needs to run `eas init` or set
-  a real project ID from https://expo.dev once they have an Expo account
-- `promptToConfigurePushNotifications: false` prevents EAS CLI from interrupting unattended builds
-- All credential placeholders (appleId, ascAppId, appleTeamId, serviceAccountKeyPath) are marked
-  TBD -- fill in when Apple Developer ($99/yr) and Google Play ($25 one-time) accounts are ready
-- `cli.version ">= 12.0.0"` ensures the new EAS CLI API is required
-
-**Recurring gotchas (CRITICAL -- still active)**
-1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
-2. `.git/index.lock` is a stale WSL lock -- use GIT_INDEX_FILE=/tmp/vanta_*_idx for all git ops.
-3. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
-4. Colors import: use @/lib/theme (not @/lib/colors).
-5. Git index corrupt -- always bootstrap with: GIT_INDEX_FILE=/tmp/X git read-tree HEAD before staging.
-6. Supabase JS SDK v2.45 has no `listUserSessions` -- sessions.ts calls the REST API directly.
-
-**Next agent:** pick **9.2 App icons + splash screens** (generate VANTA mark assets at required sizes)
-or **11.1 First-trade confetti** (frontend only, install react-native-confetti-cannon + Confetti.tsx).
-
----
-## 2026-05-14(auto) -- 8.3 Search bar in symbol picker
-
-**Agent:** scheduled cowork auto-work pass
-**TODO item picked:** **8.3 Search bar in symbol picker**
-
-**What changed**
-- No code written: `SymbolPickerModal.tsx` already had a complete search bar
-  implementation (TextInput, ticker/name filtering, clear button, empty state)
-  built during the 8.2 run. The feature fully satisfies the acceptance criteria.
-- `TODO.md`: 8.3 marked [x] (file reference corrected from SymbolPicker.tsx to
-  SymbolPickerModal.tsx where the search actually lives)
-
-**Verification**
-- tsc --noEmit client: exit 0
-- tsc --noEmit server: exit 0
-
-**Recurring gotchas (CRITICAL -- still active)**
-1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
-2. `.git/index.lock` is a stale WSL lock -- use GIT_INDEX_FILE=/tmp/vanta_*_idx for all git ops.
-3. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
-4. Colors import: use @/lib/theme (not @/lib/colors).
-5. Git index corrupt -- always bootstrap with: GIT_INDEX_FILE=/tmp/X git read-tree HEAD before staging.
-6. Supabase JS SDK v2.45 has no `listUserSessions` -- sessions.ts calls the REST API directly.
-
-**Next agent:** pick **9.1 EAS configuration** (eas.json scaffold -- `eas build:configure`
-output, no credentials needed) or **11.1 First-trade confetti** (frontend only,
-install react-native-confetti-cannon + add Confetti.tsx + hook into trade open success).
-
----
-## 2026-05-13T22:11(auto) -- 8.2 Symbol categories in client
-
-**Agent:** scheduled cowork auto-work pass
-**TODO item picked:** **8.2 Symbol categories in client**
-**Commit:** `f241f33`
-
-**What changed**
-- `lib/symbolMeta.ts`: expanded from 56 to 78 symbols (47 crypto, 13 forex,
-  2 metals / XAUUSD + XAGUSD, 16 stocks). CATEGORIES reordered Crypto-first.
-  New forex: NZDUSD, USDCHF, EURJPY, GBPJPY, EURGBP, AUDJPY, EURCHF, GBPCHF.
-  New stocks: MSFT, GOOGL, META, NVDA, NFLX, AMD, INTC, CRM, ORCL, IBM, BA, JPM, BAC.
-- `lib/contracts.ts` + `server/src/lib/contracts.ts`: added all new forex pairs
-  and stocks to FOREX_PAIRS / STOCK_SYMBOLS sets for correct margin/P&L math.
-- `components/fun/QuickTradeScreen.tsx`: replaced hardcoded 6-item ASSETS with
-  dynamic allSymbols() filtered by live quotes. Added category tab strip
-  (All / Crypto / Forex / Metals / Stocks) above the asset chip row.
-- `TODO.md`: 8.2 marked [x]
-
-**Verification**
-- tsc --noEmit client: exit 0
-- tsc --noEmit server: exit 0
-- Deploy NOT done (sandbox has no Railway/Vercel access)
-
-**Notes**
-- 22 new symbols in symbolMeta have no live pricefeed yet (new forex crosses + stocks).
-  They show '--' in Pro picker but are excluded from QuickTradeScreen (filtered by live quotes).
-  Indices/Commodities categories intentionally skipped -- blocked on 8.1 OANDA.
-- Twelve Data credit budget unchanged (still 9 non-crypto symbols polled).
-
-**Recurring gotchas (CRITICAL -- still active)**
-1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
-2. `.git/index.lock` is a stale WSL lock -- use GIT_INDEX_FILE=/tmp/vanta_*_idx for all git ops.
-3. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
-4. Colors import: use @/lib/theme (not @/lib/colors).
-5. Git index corrupt -- always bootstrap with: GIT_INDEX_FILE=/tmp/X git read-tree HEAD before staging.
-6. Supabase JS SDK v2.45 has no `listUserSessions` -- sessions.ts calls the REST API directly.
-
-**Next agent:** pick **8.3 Search bar in symbol picker** (frontend only, small change to SymbolPickerModal),
-**11.1 First-trade confetti**, or **9.1 EAS configuration** (eas.json scaffold only).
-
----
-
-## 2026-05-13T(auto) -- 7.4 Active sessions / device list
-
-**Agent:** scheduled cowork auto-work pass
-**TODO item picked:** **7.4 Active sessions / device list**
-**Commit:** `873488f`
-
-**What changed**
-- `server/src/routes/sessions.ts` (new): GET /api/auth/sessions, DELETE /api/auth/sessions/:id, DELETE /api/auth/sessions (revoke-all-others). Uses direct fetch to Supabase REST API (`/auth/v1/admin/users/{uid}/sessions`) because `listUserSessions` is not in @supabase/supabase-js v2.45 JS SDK.
-- `server/src/index.ts`: registered sessionsRoutes under `/api/auth`
-- `lib/api.ts`: `getSessions()`, `revokeSession()`, `revokeOtherSessions()` + `DeviceSession` interface
-- `app/sessions.tsx` (new): device list screen -- user-agent parsing, THIS DEVICE badge, per-session Revoke button, sign-out-all-others button with confirmation
-- `app/(tabs)/profile.tsx`: added Active Sessions row (Laptop icon) under Security section
-- `TODO.md`: 7.4 marked [x]
-
-**Verification**
-- tsc --noEmit client: exit 0
-- tsc --noEmit server: exit 0
-- Deploy NOT done (sandbox has no Railway/Vercel access)
-
-**Recurring gotchas (CRITICAL -- still active)**
-1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
-2. `.git/index.lock` is a stale WSL lock -- use GIT_INDEX_FILE=/tmp/vanta_*_idx for all git ops.
-3. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
-4. Colors import: use @/lib/theme (not @/lib/colors).
-5. Git index corrupt -- always bootstrap with: GIT_INDEX_FILE=/tmp/X git read-tree HEAD before staging.
-6. Supabase JS SDK v2.45 has no `listUserSessions` -- sessions.ts calls the REST API directly via fetch.
-
-**Next agent:** pick **8.2 Symbol categories** (frontend only, no migration), **11.1 First-trade confetti**, or **8.3 Search bar in symbol picker**.
-
----
-
-
 ## 2026-05-13T17:59(auto) -- 7.3 2FA (TOTP)
 
 **Agent:** scheduled cowork auto-work pass

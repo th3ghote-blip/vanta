@@ -6,10 +6,12 @@ import { colors, radius, spacing, typography } from '@/lib/theme';
 import { usePriceStore } from '@/stores/prices';
 import { useAccountStore } from '@/stores/account';
 import { api, ApiError } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { defaultVolumeFor } from '@/lib/contracts';
 
 interface Props {
   symbol: string;
+  onFirstTrade?: () => void;
 }
 
 /**
@@ -64,7 +66,7 @@ function describeOrderError(err: unknown, symbol: string): string {
   return msg ? `Order failed: ${msg}` : 'Order failed.';
 }
 
-export function OrderEntry({ symbol }: Props) {
+export function OrderEntry({ symbol, onFirstTrade }: Props) {
   const [volume, setVolume] = useState(() => defaultVolumeFor(symbol));
   const [stopLoss, setStopLoss] = useState('');
   const [takeProfit, setTakeProfit] = useState('');
@@ -118,6 +120,22 @@ export function OrderEntry({ symbol }: Props) {
       });
       // Refresh account so balance/margin reflects new position
       fetchAccount();
+      // First-trade confetti: count all trades for this account.
+      // Fire the callback only when the count is exactly 1 (this was the very
+      // first trade). Do it async/non-blocking so it never delays the UI.
+      if (onFirstTrade && account) {
+        void (async () => {
+          try {
+            const { count } = await supabase
+              .from('trades')
+              .select('*', { count: 'exact', head: true })
+              .eq('account_id', account.id);
+            if (count === 1) onFirstTrade();
+          } catch {
+            // confetti is best-effort; ignore failures silently
+          }
+        })();
+      }
     } catch (err: any) {
       setLastError(describeOrderError(err, symbol));
     } finally {
