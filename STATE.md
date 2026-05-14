@@ -214,4 +214,23 @@ install react-native-confetti-cannon + add Confetti.tsx + hook into trade open s
 - `server/src/routes/orders.ts`: trade-close push changed to `sendPushChecked(..., 'trade_results', ...)`
 - `server/src/workers/risk.ts`: all 3 SL/TP/stopout pushes changed to `sendPushChecked(..., 'trade_results', ...)`
 - `server/src/workers/priceAlerts.ts`: price-alert push changed to `sendPushChecked(..., 'price_alerts', ...)`
-- `lib/api.ts`: ad
+- `lib/api.ts`: added `NotificationPrefs` interface + `getNotificationPrefs()` + `updateNotificationPrefs()`
+- `app/notifications-settings.tsx` (new, 190 lines):
+  - 4 Switch toggles: Trade Results, Price Alerts, Robot Signals, Promotions
+  - Optimistic update with rollback on failure; spinner while saving
+- `app/(tabs)/profile.tsx`: Notifications row now navigates to `/notifications-settings`
+- `TODO.md`: 6.5 marked [x]
+
+**Verification**
+- `tsc --noEmit` client: exit 0
+- `tsc --noEmit` server: exit 0
+- Deploy NOT done (sandbox has no Railway/Vercel access)
+- Migration apply needed: `SUPABASE_PAT=<pat> python scripts/apply-migration.py supabase/migrations/010_notification_prefs.sql`
+
+**Recurring gotchas (CRITICAL -- still active)**
+1. File truncation / corruption bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash. Verify with `wc -l` + `tail` + null-byte check after every write.
+2. Unicode characters (em-dash, box-drawing, arrows) in file content cause the Write/Edit tool to truncate the file. Use ASCII only or write via Python.
+3. `.git/index.lock` is a stale WSL lock -- cannot be deleted. Use `GIT_INDEX_FILE=/tmp/vanta_*_idx` for all git ops; commit via `git commit-tree`; write SHA to `.git/refs/heads/main`.
+4. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
+
+**Next agent:** pick **7.1 Change password screen** (frontend only, simple) or **7.2 Show login number prominently** (very small profile.tsx change).

@@ -517,4 +517,4 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 
 ---
 
-*Maintain ordering within phases (dependencies flow downward). Strike `[x]` completed items in place — don't delete (history is usefu
+*Maintain ordering within phases (dependencies flow downward). Strike `[x]` completed items in place — don't delete (history is useful).*
