@@ -3,6 +3,47 @@
 > Append, don't replace. Most recent at top. Each entry: date, agent, what changed, what's pending, gotchas.
 
 ---
+## 2026-05-14(auto) -- 9.1 EAS configuration
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **9.1 EAS configuration**
+**Commit:** `c6d59ea`
+
+**What changed**
+- `eas.json` (new, 51 lines): EAS build configuration scaffold
+  - `development` profile: developmentClient=true, iOS simulator, Android debug APK
+  - `preview` profile: internal distribution, iOS device (m-medium), Android APK
+  - `production` profile: store distribution, iOS (m-medium), Android AAB
+  - `submit.production`: placeholder TBD values for Apple (appleId, ascAppId, appleTeamId)
+    and Google (serviceAccountKeyPath, track=internal) -- fill in when registering accounts
+- `TODO.md`: 9.1 marked [x]
+- `STATE.md` + `TODO.md` changes from 8.3 run also included in this commit
+
+**Verification**
+- File present and valid JSON: confirmed
+- tsc --noEmit: not re-run (eas.json has no TypeScript impact)
+- Deploy NOT done (sandbox has no Railway/Vercel access; EAS config is app-level, not server)
+
+**Notes on 9.1**
+- `app.json` already has `extra.eas.projectId: "TBD"` -- user needs to run `eas init` or set
+  a real project ID from https://expo.dev once they have an Expo account
+- `promptToConfigurePushNotifications: false` prevents EAS CLI from interrupting unattended builds
+- All credential placeholders (appleId, ascAppId, appleTeamId, serviceAccountKeyPath) are marked
+  TBD -- fill in when Apple Developer ($99/yr) and Google Play ($25 one-time) accounts are ready
+- `cli.version ">= 12.0.0"` ensures the new EAS CLI API is required
+
+**Recurring gotchas (CRITICAL -- still active)**
+1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
+2. `.git/index.lock` is a stale WSL lock -- use GIT_INDEX_FILE=/tmp/vanta_*_idx for all git ops.
+3. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
+4. Colors import: use @/lib/theme (not @/lib/colors).
+5. Git index corrupt -- always bootstrap with: GIT_INDEX_FILE=/tmp/X git read-tree HEAD before staging.
+6. Supabase JS SDK v2.45 has no `listUserSessions` -- sessions.ts calls the REST API directly.
+
+**Next agent:** pick **9.2 App icons + splash screens** (generate VANTA mark assets at required sizes)
+or **11.1 First-trade confetti** (frontend only, install react-native-confetti-cannon + Confetti.tsx).
+
+---
 ## 2026-05-14(auto) -- 8.3 Search bar in symbol picker
 
 **Agent:** scheduled cowork auto-work pass

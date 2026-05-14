@@ -301,7 +301,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 # Phase 9 — Mobile builds
 
 ## 9.1 EAS configuration
-- [ ] **Files:** `eas.json` (new)
+- [x] **Files:** `eas.json` (new)
 - **What:** Run `eas build:configure`. Configure preview + production profiles for iOS + Android.
 - **Acceptance:** `eas.json` exists with build profiles.
 
