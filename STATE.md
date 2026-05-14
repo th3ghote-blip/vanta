@@ -3,6 +3,52 @@
 > Append, don't replace. Most recent at top. Each entry: date, agent, what changed, what's pending, gotchas.
 
 ---
+## 2026-05-14(auto) -- 9.2 App icons + splash screens
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **9.2 App icons + splash screens**
+**Commit:** `0059fb9`
+
+**What changed**
+- `assets/icon.png` (1024x1024): dark `#0a0a0f` background with rounded corners,
+  electric-blue V chevron (bold, 8.5% stroke width) + radial blue glow layer
+- `assets/adaptive-icon.png` (1024x1024): same V mark on transparent background
+  (Android adaptive icon foreground layer; bg color set in app.json)
+- `assets/splash.png` (1242x2436): full portrait splash canvas, dark background,
+  V mark centered with radial glow
+- `assets/favicon.png` (32x32): minimal V mark on dark background for web
+- `app.json`: wired all four assets -- `expo.icon`, `expo.splash` (contain/`#0a0a0f`),
+  `expo.android.adaptiveIcon` (foreground + backgroundColor), `expo.web.favicon`
+- `TODO.md`: 9.2 marked [x]
+
+**Verification**
+- All files present and correct sizes: confirmed via PIL Image.size check
+- tsc --noEmit client: exit 0
+- tsc --noEmit server: exit 0
+- Deploy NOT done (sandbox has no Railway/Vercel access; assets are app-bundle level)
+
+**Notes on 9.2**
+- V mark is drawn programmatically with Pillow (no font dependency)
+- Glow applied via Gaussian-blurred RGBA ellipse overlay
+- Android adaptive icon bg color `#0a0a0f` matches app background token `bgDeep`
+- If user wants a different icon style (logo vs lettermark, gradient, etc.),
+  assets can be regenerated trivially by re-running the Python script
+- EAS build will pick these up automatically via app.json references
+
+**Recurring gotchas (CRITICAL -- still active)**
+1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
+2. `.git/index.lock` is a stale WSL lock -- use GIT_INDEX_FILE=/tmp/vanta_*_idx for all git ops.
+3. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
+4. Colors import: use @/lib/theme (not @/lib/colors).
+5. Git index corrupt -- always bootstrap with: GIT_INDEX_FILE=/tmp/X git read-tree HEAD before staging.
+6. Supabase JS SDK v2.45 has no `listUserSessions` -- sessions.ts calls the REST API directly.
+
+**Next agent:** pick **11.1 First-trade confetti** (frontend only, install
+react-native-confetti-cannon + Confetti.tsx + hook into trade open success path)
+or **11.2 Daily check-in streak** (migration + server + UI).
+
+---
+---
 ## 2026-05-14(auto) -- 9.1 EAS configuration
 
 **Agent:** scheduled cowork auto-work pass

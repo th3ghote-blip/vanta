@@ -306,7 +306,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** `eas.json` exists with build profiles.
 
 ## 9.2 App icons + splash screens
-- [ ] **Files:** `assets/icon.png` (1024x1024), `assets/adaptive-icon.png` (1024x1024 transparent foreground), `assets/splash.png` (1242x2436), `assets/favicon.png` (32x32)
+- [x] **Files:** `assets/icon.png` (1024x1024), `assets/adaptive-icon.png` (1024x1024 transparent foreground), `assets/splash.png` (1242x2436), `assets/favicon.png` (32x32)
 - **What:** Generate VANTA mark (V letter, electric blue on dark) at all sizes.
 - **Acceptance:** App icon + splash visible on builds.
 
