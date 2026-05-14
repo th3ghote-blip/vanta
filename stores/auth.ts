@@ -18,6 +18,7 @@ interface AuthState {
   session: Session | null;
   user: User | null;
   loading: boolean;
+  loginStreak: number;
   init: () => () => void;
   register: (contactEmail?: string) => Promise<RegisterResult | AuthError>;
   signIn: (login: number, password: string) => Promise<{ error?: string }>;
@@ -43,6 +44,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   session: null,
   user: null,
   loading: true,
+  loginStreak: 0,
 
   init: () => {
     supabase.auth.getSession().then(({ data }) => {
@@ -87,8 +89,9 @@ export const useAuthStore = create<AuthState>((set) => ({
         const body = await res.json().catch(() => ({}));
         return { error: body.error === 'invalid_credentials' ? 'Wrong login or password.' : body.error ?? `HTTP ${res.status}` };
       }
-      const data = (await res.json()) as { session: BackendSession };
+      const data = (await res.json()) as { session: BackendSession; login_streak?: number };
       await setSupabaseSession(data.session);
+      set({ loginStreak: data.login_streak ?? 0 });
       return {};
     } catch (err: any) {
       return { error: err?.message ?? 'sign in failed' };

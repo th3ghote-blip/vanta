@@ -165,7 +165,44 @@ export async function authRoutes(app: FastifyInstance) {
 
       await logAttempt({ login, email, ip, ua, outcome: 'success' });
 
-      return { session: toSessionPayload(data.session, data.user?.id ?? '') };
+      // Update daily login streak (best-effort -- never blocks login)
+      const userId = data.user?.id ?? '';
+      let login_streak = 0;
+      if (userId) {
+        try {
+          const today = new Date().toISOString().slice(0, 10);
+          const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+          const { data: prof } = await supabaseAdmin
+            .from('profiles')
+            .select('last_login_date, login_streak')
+            .eq('id', userId)
+            .single();
+          if (prof) {
+            if (prof.last_login_date === today) {
+              // Already logged in today -- keep existing streak
+              login_streak = prof.login_streak ?? 0;
+            } else if (prof.last_login_date === yesterday) {
+              // Consecutive day -- extend streak
+              login_streak = (prof.login_streak ?? 0) + 1;
+              await supabaseAdmin
+                .from('profiles')
+                .update({ last_login_date: today, login_streak })
+                .eq('id', userId);
+            } else {
+              // Gap of more than 1 day (or never set) -- reset to 1
+              login_streak = 1;
+              await supabaseAdmin
+                .from('profiles')
+                .update({ last_login_date: today, login_streak: 1 })
+                .eq('id', userId);
+            }
+          }
+        } catch {
+          // best-effort; never block login on streak failure
+        }
+      }
+
+      return { session: toSessionPayload(data.session, userId), login_streak };
     },
   );
 
