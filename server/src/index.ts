@@ -15,6 +15,7 @@ import { transactionsRoutes } from './routes/transactions.js';
 import { adminRoutes } from './routes/admin.js';
 import { alertsRoutes } from './routes/alerts.js';
 import { sessionsRoutes } from './routes/sessions.js';
+import { achievementsRoutes } from './routes/achievements.js';
 import { startPriceFeed } from './feed/pricefeed.js';
 import { startRobotEngine } from './ai/robotEngine.js';
 import { startRiskWorker } from './workers/risk.js';
@@ -65,6 +66,7 @@ await app.register(transactionsRoutes, { prefix: '/api/transactions' });
 await app.register(adminRoutes, { prefix: '/api/admin' });
 await app.register(alertsRoutes, { prefix: '/api/alerts' });
 await app.register(sessionsRoutes, { prefix: '/api/auth' });
+await app.register(achievementsRoutes, { prefix: '/api/achievements' });
 
 startPriceFeed(app);
 startRobotEngine(app);

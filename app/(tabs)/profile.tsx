@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
-import { Shield, Bell, MessageSquare, Phone, HelpCircle, LogOut, ChevronRight, BadgeCheck, ShieldCheck, Laptop } from 'lucide-react-native';
+import { Shield, Bell, MessageSquare, Phone, HelpCircle, LogOut, ChevronRight, BadgeCheck, ShieldCheck, Laptop, Trophy, Lock } from 'lucide-react-native';
 
 import { colors, radius, spacing, typography } from '@/lib/theme';
 import { useAuthStore } from '@/stores/auth';
 import { useAccountStore } from '@/stores/account';
-import { api } from '@/lib/api';
+import { api, getAchievements } from '@/lib/api';
+import type { Achievement, AchievementMeta } from '@/lib/api';
 import { listVerifiedFactors } from '@/lib/2fa';
 import { ModeSwitcher } from '@/components/shared/ModeSwitcher';
 import { EnvBanner } from '@/components/shared/EnvBanner';
@@ -18,6 +19,8 @@ export default function Profile() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [copied, setCopied] = useState(false);
   const [has2FA, setHas2FA] = useState(false);
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
+  const [achievementMeta, setAchievementMeta] = useState<Record<string, AchievementMeta>>({});
 
   useEffect(() => {
     api.getProfile()
@@ -25,6 +28,9 @@ export default function Profile() {
       .catch(() => {});
     listVerifiedFactors()
       .then(({ factors }) => setHas2FA(factors.length > 0))
+      .catch(() => {});
+    getAchievements()
+      .then(({ achievements: a, meta: m }) => { setAchievements(a); setAchievementMeta(m); })
       .catch(() => {});
   }, []);
 
@@ -138,6 +144,86 @@ export default function Profile() {
               last
             />
           )}
+        </View>
+
+
+        {/* Achievements */}
+        <View
+          style={{
+            backgroundColor: colors.bgElevated,
+            borderRadius: radius.lg,
+            padding: spacing.md,
+            borderWidth: 1,
+            borderColor: colors.border,
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}>
+            <Trophy color={colors.warning} size={18} />
+            <Text style={{ ...typography.bodyBold, color: colors.textPrimary, fontSize: 14 }}>
+              Achievements
+            </Text>
+            {achievements.length > 0 && (
+              <View
+                style={{
+                  backgroundColor: colors.warning,
+                  borderRadius: 10,
+                  paddingHorizontal: 7,
+                  paddingVertical: 1,
+                }}
+              >
+                <Text style={{ ...typography.bodyBold, color: '#000', fontSize: 11 }}>
+                  {achievements.length}
+                </Text>
+              </View>
+            )}
+          </View>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+            {Object.entries(achievementMeta).map(([code, meta]) => {
+              const unlocked = achievements.find((a) => a.code === code);
+              return (
+                <View
+                  key={code}
+                  style={{
+                    width: '30%',
+                    alignItems: 'center',
+                    padding: spacing.sm,
+                    borderRadius: radius.md,
+                    borderWidth: 1,
+                    borderColor: unlocked ? colors.warning : colors.border,
+                    backgroundColor: unlocked ? colors.bgSurface : colors.bgDeep,
+                    opacity: unlocked ? 1 : 0.5,
+                  }}
+                >
+                  <Text style={{ fontSize: 22, marginBottom: 4 }}>{meta.emoji}</Text>
+                  <Text
+                    style={{
+                      ...typography.bodyBold,
+                      color: unlocked ? colors.textPrimary : colors.textMuted,
+                      fontSize: 11,
+                      textAlign: 'center',
+                    }}
+                    numberOfLines={2}
+                  >
+                    {meta.label}
+                  </Text>
+                  {!unlocked && (
+                    <Text
+                      style={{
+                        ...typography.body,
+                        color: colors.textMuted,
+                        fontSize: 9,
+                        textAlign: 'center',
+                        marginTop: 2,
+                      }}
+                      numberOfLines={2}
+                    >
+                      {meta.description}
+                    </Text>
+                  )}
+                </View>
+              );
+            })}
+          </View>
         </View>
 
         <Pressable

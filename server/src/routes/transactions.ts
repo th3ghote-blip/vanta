@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 
 import { authUser, supabaseAdmin } from '../lib/supabase.js';
+import { awardAchievement } from '../lib/achievements.js';
 
 const CreateDepositSchema = z.object({
   accountId: z.string().uuid(),
@@ -57,6 +58,9 @@ export async function transactionsRoutes(app: FastifyInstance) {
       app.log.error({ err: txErr }, 'transactions: deposit insert failed');
       return reply.code(500).send({ error: 'insert_failed' });
     }
+
+    // Phase 11.3 — award first_deposit achievement (fire-and-forget)
+    void awardAchievement(account.user_id, 'first_deposit').catch(() => {});
 
     return reply.code(201).send({ transaction: tx });
   });

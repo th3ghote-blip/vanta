@@ -3,6 +3,7 @@ import { z } from 'zod';
 import Anthropic from '@anthropic-ai/sdk';
 
 import { authUser, supabaseAdmin } from '../lib/supabase.js';
+import { checkRobotEngineer } from '../lib/achievements.js';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY ?? '' });
 
@@ -90,6 +91,10 @@ export async function robotsRoutes(app: FastifyInstance) {
       .single();
 
     if (error) return reply.code(500).send({ error: error.message });
+
+    // Phase 11.3 — check robot_engineer achievement (fire-and-forget)
+    void checkRobotEngineer(userId).catch(() => {});
+
     return { robot: data };
   });
 

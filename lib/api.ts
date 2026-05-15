@@ -274,3 +274,26 @@ export async function revokeOtherSessions(currentSessionId: string): Promise<{ r
     { method: 'DELETE' }
   );
 }
+
+
+// ─── Achievements ─────────────────────────────────────────────────────────────
+
+export interface Achievement {
+  code: string;
+  unlocked_at: string;
+}
+
+export interface AchievementMeta {
+  label: string;
+  emoji: string;
+  description: string;
+}
+
+export interface AchievementsResponse {
+  achievements: Achievement[];
+  meta: Record<string, AchievementMeta>;
+}
+
+export async function getAchievements(): Promise<AchievementsResponse> {
+  return request<AchievementsResponse>('/api/achievements');
+}

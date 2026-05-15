@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { randomBytes } from 'node:crypto';
 
 import { supabaseAdmin } from '../lib/supabase.js';
+import { awardAchievement } from '../lib/achievements.js';
 
 /**
  * MT4-style auth.
@@ -200,6 +201,10 @@ export async function authRoutes(app: FastifyInstance) {
         } catch {
           // best-effort; never block login on streak failure
         }
+      }
+      // Phase 11.3 — award 7-day streak achievement (fire-and-forget)
+      if (login_streak >= 7) {
+        void awardAchievement(userId, 'seven_day_streak').catch(() => {});
       }
 
       return { session: toSessionPayload(data.session, userId), login_streak };

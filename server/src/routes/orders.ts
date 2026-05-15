@@ -6,6 +6,7 @@ import { getQuote } from '../lib/quoteCache.js';
 import { calculatePnL } from '../lib/contracts.js';
 import { requiredMargin, reserveMargin, releaseMargin } from '../lib/margin.js';
 import { sendPushChecked } from '../lib/push.js';
+import { checkFirstTrade, checkFiveWins, checkRiskMaster, checkBalance1000 } from '../lib/achievements.js';
 
 const OpenOrderSchema = z.object({
   accountId: z.string().uuid(),
@@ -112,6 +113,9 @@ export async function ordersRoutes(app: FastifyInstance) {
       return reply.code(500).send({ error: 'insert_failed' });
     }
 
+    // Phase 11.3 — achievement check: first_trade (fire-and-forget)
+    void checkFirstTrade(userId).catch(() => {});
+
     return { trade };
   });
 
@@ -178,6 +182,13 @@ export async function ordersRoutes(app: FastifyInstance) {
       body: `${sign}$${Math.abs(profit).toFixed(2)}`,
       data: { tradeId, symbol: trade.symbol, profit, kind: 'trade_closed' },
     }).catch(() => {/* fire-and-forget; push errors already logged inside sendPush */});
+
+    // Phase 11.3 — achievement checks after close (fire-and-forget)
+    void Promise.all([
+      profit > 0 ? checkFiveWins(userId) : Promise.resolve(),
+      checkRiskMaster(userId),
+      checkBalance1000(userId),
+    ]).catch(() => {});
 
     return { tradeId, profit, closePrice };
   });
