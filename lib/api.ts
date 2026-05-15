@@ -224,6 +224,26 @@ export const api = {
   deleteAlert: (id: string) =>
     request<{ ok: boolean }>(`/api/alerts/${id}`, { method: 'DELETE' }),
 
+  // Admin: user search + impersonation
+  adminSearchUsers: (q?: string) =>
+    request<{ users: AdminUser[] }>(`/api/admin/users${q ? '?q=' + encodeURIComponent(q) : ''}`),
+
+  adminGetUser: (userId: string) =>
+    request<{
+      profile: AdminUser;
+      accounts: any[];
+      trades: any[];
+      transactions: any[];
+      kyc: any[];
+    }>(`/api/admin/users/${userId}`),
+
+  adminImpersonate: (userId: string) =>
+    request<{ magic_link: string | null; token_hash: string | null; email: string }>(
+      `/api/admin/users/${userId}/impersonate`,
+      { method: 'POST' },
+    ),
+
+
 };
 
 // ─── Shared interfaces ────────────────────────────────────────────────────────
@@ -255,6 +275,24 @@ export interface LeaderboardEntry {
   win_rate: number | null;
   total_profit: number;
   last_run_at: string | null;
+}
+
+
+
+export interface AdminUser {
+  id: string;
+  display_name: string | null;
+  email?: string;
+  is_admin: boolean;
+  created_at: string;
+  accounts?: Array<{
+    id: string;
+    login: number;
+    type: string;
+    status: string;
+    balance: string;
+    currency: string;
+  }>;
 }
 
 

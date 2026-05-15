@@ -286,6 +286,11 @@ export default function AdminDashboard() {
 
         <View style={{ gap: spacing.sm }}>
           <NavRow
+            icon={<Users size={18} color={colors.primary} />}
+            label="User Search"
+            onPress={() => router.push('/admin/users' as any)}
+          />
+          <NavRow
             icon={<FileText size={18} color={colors.primary} />}
             label="Transaction Approvals"
             onPress={() => router.push('/admin/transactions')}

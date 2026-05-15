@@ -358,4 +358,166 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
 
+  // ────────────────────────────────────────────────────────────────────────────
+  // User search + impersonation
+  // ────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * GET /api/admin/users?q=<search>
+   * Search users by login number (exact) or email (substring).
+   * Returns up to 50 matching profiles with their account info.
+   */
+  app.get('/users', async (req, reply) => {
+    const adminId = await authAdmin(req.headers.authorization);
+    if (!adminId) return reply.code(403).send({ error: 'forbidden' });
+
+    const { q } = req.query as { q?: string };
+    const search = (q ?? '').trim();
+
+    if (!search) {
+      // No query — return most-recently-created 50 users
+      const { data, error } = await supabaseAdmin
+        .from('profiles')
+        .select('id, display_name, is_admin, created_at, accounts(id, login, type, status, balance, currency)')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (error) return reply.code(500).send({ error: 'query_failed' });
+      return reply.send({ users: data ?? [] });
+    }
+
+    // Try login number first (numeric exact match)
+    const loginNum = parseInt(search, 10);
+    if (!isNaN(loginNum) && String(loginNum) === search) {
+      const { data, error } = await supabaseAdmin
+        .from('accounts')
+        .select('id, login, type, status, balance, currency, profiles!inner(id, display_name, is_admin, created_at)')
+        .eq('login', loginNum)
+        .limit(10);
+      if (error) return reply.code(500).send({ error: 'query_failed' });
+      // Reshape to profiles-first form
+      const users = (data ?? []).map((a: any) => ({
+        ...a.profiles,
+        accounts: [{ id: a.id, login: a.login, type: a.type, status: a.status, balance: a.balance, currency: a.currency }],
+      }));
+      return reply.send({ users });
+    }
+
+    // Email substring search — look up auth.users via admin API
+    // Supabase admin.listUsers doesn't support search; use the accounts join via email stored in auth.users
+    // We query auth.users using the admin API pagination to find matching emails, then join profiles
+    const { data: listData, error: listErr } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
+    if (listErr) return reply.code(500).send({ error: 'user_list_failed' });
+
+    const lc = search.toLowerCase();
+    const matching = (listData?.users ?? [])
+      .filter((u: any) => u.email?.toLowerCase().includes(lc))
+      .slice(0, 50);
+
+    if (matching.length === 0) return reply.send({ users: [] });
+
+    const ids = matching.map((u: any) => u.id);
+    const { data: profiles, error: profErr } = await supabaseAdmin
+      .from('profiles')
+      .select('id, display_name, is_admin, created_at, accounts(id, login, type, status, balance, currency)')
+      .in('id', ids);
+    if (profErr) return reply.code(500).send({ error: 'profile_query_failed' });
+
+    // Attach email from auth.users
+    const emailMap: Record<string, string> = {};
+    for (const u of matching) emailMap[u.id] = u.email ?? '';
+    const users = (profiles ?? []).map((p: any) => ({ ...p, email: emailMap[p.id] ?? '' }));
+    return reply.send({ users });
+  });
+
+  /**
+   * GET /api/admin/users/:userId
+   * Full profile for a single user: profile, accounts, recent trades, transactions, KYC.
+   */
+  app.get('/users/:userId', async (req, reply) => {
+    const adminId = await authAdmin(req.headers.authorization);
+    if (!adminId) return reply.code(403).send({ error: 'forbidden' });
+
+    const { userId } = req.params as { userId: string };
+
+    // Auth user (for email)
+    const { data: authData } = await supabaseAdmin.auth.admin.getUserById(userId);
+    const email = authData?.user?.email ?? null;
+
+    const [profileRes, accountsRes, tradesRes, txRes, kycRes] = await Promise.all([
+      supabaseAdmin.from('profiles').select('*').eq('id', userId).single(),
+      supabaseAdmin.from('accounts').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+      supabaseAdmin.from('trades').select('id, symbol, side, volume, open_price, close_price, profit, status, reason, open_time, close_time')
+        .eq('account_id',
+          // subselect: we need account_ids for this user
+          // workaround: fetch inline below
+          '__placeholder__'
+        ),
+      supabaseAdmin.from('transactions').select('id, type, amount, currency, status, method, created_at, completed_at, notes')
+        .eq('account_id', '__placeholder__')
+        .order('created_at', { ascending: false })
+        .limit(50),
+      supabaseAdmin.from('kyc_submissions').select('id, status, rejection_reason, submitted_at, reviewed_at').eq('user_id', userId).order('created_at', { ascending: false }).limit(5),
+    ]);
+
+    // Re-fetch trades + transactions with actual account ids
+    const accountIds = (accountsRes.data ?? []).map((a: any) => a.id);
+    const [tradesRes2, txRes2] = await Promise.all([
+      accountIds.length
+        ? supabaseAdmin.from('trades').select('id, symbol, side, volume, open_price, close_price, profit, status, reason, open_time, close_time')
+            .in('account_id', accountIds).order('open_time', { ascending: false }).limit(50)
+        : { data: [], error: null },
+      accountIds.length
+        ? supabaseAdmin.from('transactions').select('id, type, amount, currency, status, method, created_at, completed_at, notes')
+            .in('account_id', accountIds).order('created_at', { ascending: false }).limit(50)
+        : { data: [], error: null },
+    ]);
+
+    return reply.send({
+      profile:      { ...(profileRes.data ?? {}), email },
+      accounts:     accountsRes.data ?? [],
+      trades:       tradesRes2.data ?? [],
+      transactions: txRes2.data ?? [],
+      kyc:          kycRes.data ?? [],
+    });
+  });
+
+  /**
+   * POST /api/admin/users/:userId/impersonate
+   * Generates a one-time magic link for the target user (admin use only).
+   * Returns { magic_link, email } — admin opens this link in a browser to sign in as the user.
+   */
+  app.post('/users/:userId/impersonate', async (req, reply) => {
+    const adminId = await authAdmin(req.headers.authorization);
+    if (!adminId) return reply.code(403).send({ error: 'forbidden' });
+
+    const { userId } = req.params as { userId: string };
+
+    // Prevent impersonating another admin
+    const { data: target } = await supabaseAdmin.from('profiles').select('is_admin').eq('id', userId).single();
+    if (target?.is_admin) {
+      return reply.code(400).send({ error: 'cannot_impersonate_admin' });
+    }
+
+    const { data: authData } = await supabaseAdmin.auth.admin.getUserById(userId);
+    const email = authData?.user?.email;
+    if (!email) return reply.code(404).send({ error: 'user_not_found' });
+
+    const { data: linkData, error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'magiclink',
+      email,
+    });
+    if (linkErr || !linkData) {
+      app.log.error({ err: linkErr }, 'admin/impersonate: generate link failed');
+      return reply.code(500).send({ error: 'link_generation_failed' });
+    }
+
+    app.log.warn({ adminId, targetUserId: userId }, 'admin: impersonation link generated');
+    return reply.send({
+      magic_link:  (linkData as any).properties?.action_link ?? null,
+      token_hash:  (linkData as any).properties?.hashed_token ?? null,
+      email,
+    });
+  });
+
+
 }
