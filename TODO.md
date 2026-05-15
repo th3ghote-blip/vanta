@@ -369,7 +369,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Trigger conditions → badge auto-unlocks visibly.
 
 ## 11.4 Win celebration on trade close (in-the-money)
-- [ ] **Files:** `components/shared/WinFlash.tsx`, hook into trade close success
+- [x] **Files:** `components/shared/WinFlash.tsx`, hook into trade close success
 - **What:** Brief green flash + "+$X.XX" text overlay when a trade closes profitably.
 - **Acceptance:** Close winning trade → green flash; losing trade → no flash.
 

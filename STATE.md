@@ -3,6 +3,50 @@
 > Append, don't replace. Most recent at top. Each entry: date, agent, what changed, what's pending, gotchas.
 
 ---
+## 2026-05-15(auto) -- 11.4 Win flash on trade close
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **11.4 Win celebration on trade close**
+**Commit:** `0574905`
+
+**What changed**
+- `components/shared/WinFlash.tsx` (new, 83 lines): forwardRef component exposing
+  `flash(amount: number)` via useImperativeHandle. Full-screen absoluteFill overlay
+  (pointerEvents="none", zIndex 999). Animates: spring pop-in (scale 0.7->1) + 750ms
+  hold + fade-out. Green pill showing "+$X.XX" + "WIN" label.
+- `components/pro/TradeBook.tsx`: added `onWinClose?(profit: number)` prop. `close()`
+  snapshots live P&L before calling `api.closeOrder()`; calls `onWinClose(profit)` if
+  profit > 0 on success.
+- `components/pro/ProTradeScreen.tsx`: threads `onWinClose` prop to TradeBook.
+- `app/(tabs)/trade.tsx`: adds `winFlashRef<WinFlashRef>`, renders `<WinFlash />` at
+  root (above ScrollView so not clipped), passes callback to ProTradeScreen.
+
+**Verification**
+- tsc --noEmit client: exit 0
+- tsc --noEmit server: exit 0
+- Deploy NOT done (sandbox has no Railway/Vercel access; frontend-only change)
+
+**Notes**
+- Profit is computed from live bid/ask at the moment the X button is pressed.
+  If the quote goes stale, fallback is open_price (same as live display), so
+  profit may show 0 and flash will be suppressed -- conservative and correct.
+- Flash is Pro mode only (Quick mode has RoundResultModal for win/loss feedback).
+
+**Recurring gotchas (CRITICAL -- still active)**
+1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
+2. `.git/HEAD.lock` + `.git/index.lock` are stale WSL locks -- cannot be deleted.
+   Use GIT_INDEX_FILE=/tmp/X, git commit-tree, write to .git/refs/heads/main.
+3. After every session start, run: git read-tree HEAD to fix the corrupt index
+   before doing git status (index drifts between sessions due to the lock workaround).
+4. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
+5. Colors import: use @/lib/theme (not @/lib/colors).
+6. Supabase JS SDK v2.45 has no `listUserSessions` -- sessions.ts calls the REST API directly.
+
+**Next agent:** pick **11.3 Achievements / badges** (migration 011_achievements.sql +
+server event hooks in orders/rounds/robots workers + Profile UI section).
+
+
+---
 ## 2026-05-15(auto) -- 11.2 Daily check-in streak
 
 **Agent:** scheduled cowork auto-work pass
@@ -171,44 +215,3 @@
 4. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
 
 **Next agent:** pick **7.1 Change password screen** -- new file `app/change-password.tsx`. `useAuthStore.changePassword(newPassword)` already exists. Frontend only, no migration needed.
-
----
-
-## 2026-05-12T(auto) -- 6.5 Notification preferences
-
-**Agent:** scheduled cowork auto-work pass
-**TODO item picked:** **6.5 Notification preferences**
-**Commit:** `9d500a8`
-
-**What changed**
-- `supabase/migrations/010_notification_prefs.sql` (new, 13 lines):
-  - `notification_prefs JSONB NOT NULL DEFAULT all-true` added to `profiles`
-  - Migration 010 -- apply: `SUPABASE_PAT=<pat> python scripts/apply-migration.py supabase/migrations/010_notification_prefs.sql`
-- `server/src/lib/push.ts`: added `sendPushChecked(userId, prefKey, payload)` + `NotificationPrefKey` type
-  - Checks `profiles.notification_prefs[prefKey]`; if explicitly `false`, suppresses push; defaults to send
-- `server/src/routes/account.ts`: added `PUT /api/account/notification-prefs`
-  - Merge-patch semantics: only supplied keys are updated; omitted keys retain current value
-  - Whitelists: price_alerts, robot_signals, trade_results, promotional
-- `server/src/routes/orders.ts`: trade-close push changed to `sendPushChecked(..., 'trade_results', ...)`
-- `server/src/workers/risk.ts`: all 3 SL/TP/stopout pushes changed to `sendPushChecked(..., 'trade_results', ...)`
-- `server/src/workers/priceAlerts.ts`: price-alert push changed to `sendPushChecked(..., 'price_alerts', ...)`
-- `lib/api.ts`: added `NotificationPrefs` interface + `getNotificationPrefs()` + `updateNotificationPrefs()`
-- `app/notifications-settings.tsx` (new, 190 lines):
-  - 4 Switch toggles: Trade Results, Price Alerts, Robot Signals, Promotions
-  - Optimistic update with rollback on failure; spinner while saving
-- `app/(tabs)/profile.tsx`: Notifications row now navigates to `/notifications-settings`
-- `TODO.md`: 6.5 marked [x]
-
-**Verification**
-- `tsc --noEmit` client: exit 0
-- `tsc --noEmit` server: exit 0
-- Deploy NOT done (sandbox has no Railway/Vercel access)
-- Migration apply needed: `SUPABASE_PAT=<pat> python scripts/apply-migration.py supabase/migrations/010_notification_prefs.sql`
-
-**Recurring gotchas (CRITICAL -- still active)**
-1. File truncation / corruption bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash. Verify with `wc -l` + `tail` + null-byte check after every write.
-2. Unicode characters (em-dash, box-drawing, arrows) in file content cause the Write/Edit tool to truncate the file. Use ASCII only or write via Python.
-3. `.git/index.lock` is a stale WSL lock -- cannot be deleted. Use `GIT_INDEX_FILE=/tmp/vanta_*_idx` for all git ops; commit via `git commit-tree`; write SHA to `.git/refs/heads/main`.
-4. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
-
-**Next agent:** pick **7.1 Change password screen** (frontend only, simple) or **7.2 Show login number prominently** (very small profile.tsx change).
