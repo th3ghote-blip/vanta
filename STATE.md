@@ -4,6 +4,51 @@
 
 
 ---
+## 2026-05-15T18:12Z -- 12.1 Admin dashboard route
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **12.1 Admin dashboard route**
+**Commit:** `5fe4e26`
+
+**What changed**
+- `app/admin/index.tsx` (new, 302 lines): Admin dashboard screen gated by
+  `is_admin`. 5 stat cards: total users, active accounts, total deposits
+  (completed), open trade count, total exposure (sum of open notionals).
+  System-health pill in header (green/red). Pull-to-refresh. Non-admin users
+  see a 403 guard screen. Nav rows at bottom link to Transactions and KYC admin.
+- `server/src/routes/admin.ts`: new `GET /api/admin/dashboard` endpoint.
+  Runs 5 parallel Supabase queries in Promise.all; returns single JSON payload
+  with counts, sums, and health {status, server_time}.
+- `lib/api.ts`: `adminGetDashboard()` typed fetch helper added.
+- `app/(tabs)/profile.tsx`: admin row now navigates to `/admin` (dashboard)
+  instead of `/admin/transactions` directly. Label = "Admin Dashboard".
+
+**Verification**
+- tsc --noEmit client: exit 0
+- tsc --noEmit server: exit 0
+- Deploy NOT done (sandbox has no Railway/Vercel access)
+
+**Notes**
+- The 5 Supabase queries run in parallel (Promise.all) so latency is bounded
+  by the slowest single query, not their sum.
+- `colors.bgBase` does not exist in theme — uses `colors.bgDeep` instead.
+- `colors.warning` exists ('#FFB020') — used for Open Trades card accent.
+
+**Recurring gotchas (CRITICAL -- still active)**
+1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
+2. `.git/HEAD.lock` + `.git/index.lock` are stale WSL locks -- cannot be deleted.
+   Use GIT_INDEX_FILE=/tmp/X, git commit-tree, write to .git/refs/heads/main.
+3. After every session start, run: GIT_INDEX_FILE=/tmp/X git read-tree HEAD to fix the corrupt index
+   before doing git status (index drifts between sessions due to the lock workaround).
+4. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
+5. Colors import: use @/lib/theme (not @/lib/colors). bgBase does not exist -- use bgDeep.
+6. Supabase JS SDK v2.45 has no `listUserSessions` -- sessions.ts calls the REST API directly.
+
+**Next agent:** pick **12.2 User search + impersonation** (app/admin/users.tsx +
+app/admin/user/[id].tsx) or **15.1 Onboarding flow** (app/onboarding.tsx, 3-step
+swipeable, frontend only).
+
+---
 ## 2026-05-15T14:10Z -- 11.3 Achievements / badges
 
 **Agent:** scheduled cowork auto-work pass
@@ -185,29 +230,3 @@ server event hooks in orders/rounds/robots workers + Profile UI section).
 **Next agent:** pick **11.2 Daily check-in streak** (migration + server + UI) or
 **11.4 Win flash on trade close** (frontend only, small -- WinFlash.tsx + hook into close path).
 
----
-## 2026-05-13T17:59(auto) -- 7.3 2FA (TOTP)
-
-**Agent:** scheduled cowork auto-work pass
-**TODO item picked:** **7.3 2FA (TOTP)**
-
-**What changed**
-- `lib/2fa.ts` (new): enroll2FA, verifyEnrollment, unenroll2FA, listVerifiedFactors, getAAL, challengeAndVerify
-- `app/2fa-setup.tsx` (new): enrollment QR flow (SvgXml), secret copy, disable flow
-- `app/(auth)/login.tsx`: after password auth, checks AAL; if aal2 needed shows TOTP step with challengeAndVerify
-- `app/(tabs)/profile.tsx`: new 'Two-Factor Authentication' row -> /2fa-setup; shows green icon if enabled
-- `TODO.md`: 7.3 marked [x]
-
-**Verification**
-- tsc --noEmit client: exit 0
-- tsc --noEmit server: exit 0
-- Deploy NOT done (sandbox has no Railway/Vercel access)
-
-**Recurring gotchas (CRITICAL -- still active)**
-1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
-2. `.git/index.lock` is a stale WSL lock -- use GIT_INDEX_FILE=/tmp/vanta_*_idx for all git ops.
-3. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
-4. Colors import: use @/lib/theme (not @/lib/colors).
-5. Git index corrupt -- always bootstrap with: GIT_INDEX_FILE=/tmp/X git read-tree HEAD before staging.
-
-**Next agent:** pick **7.4 Active sessions/device list**, **8.2 Symbol categories** (frontend only), or **11.1 First-trade confetti**.

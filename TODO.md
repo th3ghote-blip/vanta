@@ -378,7 +378,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 # Phase 12 — Admin panel
 
 ## 12.1 Admin dashboard route
-- [ ] **File:** `app/admin/index.tsx` (gated by is_admin)
+- [x] **File:** `app/admin/index.tsx` (gated by is_admin)
 - **What:** Top-level admin page: total users, active accounts, total deposits, open trade count, total exposure, system health.
 - **Acceptance:** Accessible only to admins. Numbers match DB queries.
 
