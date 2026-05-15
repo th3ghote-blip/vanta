@@ -8,11 +8,13 @@ import { EnvBanner } from '@/components/shared/EnvBanner';
 import { ProTradeScreen } from '@/components/pro/ProTradeScreen';
 import { QuickTradeScreen } from '@/components/fun/QuickTradeScreen';
 import { Confetti, type ConfettiRef } from '@/components/shared/Confetti';
+import { WinFlash, type WinFlashRef } from '@/components/shared/WinFlash';
 
 export default function Trade() {
   const mode = useModeStore((s) => s.mode);
   const loginStreak = useAuthStore((s) => s.loginStreak);
   const confettiRef = useRef<ConfettiRef>(null);
+  const winFlashRef = useRef<WinFlashRef>(null);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bgDeep }}>
@@ -45,10 +47,14 @@ export default function Trade() {
       </View>
       <ScrollView contentContainerStyle={{ paddingVertical: spacing.md }}>
         {mode === 'pro'
-          ? <ProTradeScreen onFirstTrade={() => confettiRef.current?.fire()} />
+          ? <ProTradeScreen
+              onFirstTrade={() => confettiRef.current?.fire()}
+              onWinClose={(profit) => winFlashRef.current?.flash(profit)}
+            />
           : <QuickTradeScreen />}
       </ScrollView>
       <Confetti ref={confettiRef} />
+      <WinFlash ref={winFlashRef} />
     </View>
   );
 }

@@ -13,7 +13,7 @@ import { usePriceStore } from '@/stores/prices';
 const DEFAULT_SYMBOL = 'BTCUSD';
 const DEFAULT_TIMEFRAME: Timeframe = '5m';
 
-export function ProTradeScreen({ onFirstTrade }: { onFirstTrade?: () => void } = {}) {
+export function ProTradeScreen({ onFirstTrade, onWinClose }: { onFirstTrade?: () => void; onWinClose?: (profit: number) => void } = {}) {
   const [symbol, setSymbol] = useState(DEFAULT_SYMBOL);
   const [timeframe, setTimeframe] = useState<Timeframe>(DEFAULT_TIMEFRAME);
   const [alertVisible, setAlertVisible] = useState(false);
@@ -52,7 +52,7 @@ export function ProTradeScreen({ onFirstTrade }: { onFirstTrade?: () => void } =
       <Text style={{ ...typography.heading, fontSize: 18, color: colors.textPrimary, marginTop: spacing.md }}>
         Order Book
       </Text>
-      <TradeBook />
+      <TradeBook onWinClose={onWinClose} />
 
       <PriceAlertModal
         visible={alertVisible}

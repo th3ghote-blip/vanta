@@ -29,7 +29,7 @@ interface Trade {
 
 type Tab = 'open' | 'closed' | 'all';
 
-export function TradeBook() {
+export function TradeBook({ onWinClose }: { onWinClose?: (profit: number) => void } = {}) {
   const account = useAccountStore((s) => s.account);
   const fetchAccount = useAccountStore((s) => s.fetch);
   const quotes = usePriceStore((s) => s.quotes);
@@ -79,9 +79,22 @@ export function TradeBook() {
 
   const close = async (tradeId: number) => {
     setClosing(tradeId);
+    // Snapshot the profit before the close so we can celebrate wins
+    const trade = trades.find((t) => t.id === tradeId);
+    let snapshotProfit = 0;
+    if (trade) {
+      const q = quotes[trade.symbol];
+      const livePrice = q
+        ? trade.side === 'buy' ? q.bid : q.ask
+        : trade.open_price;
+      snapshotProfit = calculatePnL(trade.side, trade.volume, trade.open_price, livePrice, trade.symbol);
+    }
     try {
       await api.closeOrder(tradeId);
       fetchAccount();
+      if (snapshotProfit > 0 && onWinClose) {
+        onWinClose(snapshotProfit);
+      }
     } catch {}
     finally { setClosing(null); }
   };
