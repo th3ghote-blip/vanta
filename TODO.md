@@ -383,7 +383,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Accessible only to admins. Numbers match DB queries.
 
 ## 12.2 User search + impersonation
-- [ ] **Files:** `app/admin/users.tsx`, `app/admin/user/[id].tsx`
+- [x] **Files:** `app/admin/users.tsx`, `app/admin/user/[id].tsx`
 - **What:** Search by login number or email. View user's trades, transactions, KYC status. "View as user" generates a one-time auth token.
 - **Acceptance:** Find any user, see their full activity.
 
