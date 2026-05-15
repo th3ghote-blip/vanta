@@ -301,4 +301,61 @@ export async function adminRoutes(app: FastifyInstance) {
     app.log.info({ adminId, submissionId: id, reason }, 'admin: KYC rejected');
     return reply.send({ submission: updated });
   });
+  /**
+   * GET /api/admin/dashboard
+   * Returns aggregate stats: users, accounts, deposits, open trades, exposure, health.
+   */
+  app.get('/dashboard', async (req, reply) => {
+    const adminId = await authAdmin(req.headers.authorization);
+    if (!adminId) return reply.code(403).send({ error: 'forbidden' });
+
+    const [
+      usersRes,
+      accountsRes,
+      depositsRes,
+      openTradesRes,
+      exposureRes,
+    ] = await Promise.all([
+      supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true }),
+      supabaseAdmin.from('accounts').select('*', { count: 'exact', head: true }),
+      supabaseAdmin
+        .from('transactions')
+        .select('amount')
+        .eq('type', 'deposit')
+        .eq('status', 'completed'),
+      supabaseAdmin
+        .from('trades')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'open'),
+      supabaseAdmin
+        .from('trades')
+        .select('volume, open_price')
+        .eq('status', 'open'),
+    ]);
+
+    const totalDeposits = (depositsRes.data ?? []).reduce(
+      (sum: number, tx: any) => sum + parseFloat(tx.amount ?? '0'),
+      0,
+    );
+
+    const totalExposure = (exposureRes.data ?? []).reduce(
+      (sum: number, t: any) =>
+        sum + parseFloat(t.volume ?? '0') * parseFloat(t.open_price ?? '0'),
+      0,
+    );
+
+    return reply.send({
+      total_users:    usersRes.count    ?? 0,
+      active_accounts: accountsRes.count ?? 0,
+      total_deposits: totalDeposits,
+      open_trades:    openTradesRes.count ?? 0,
+      total_exposure: totalExposure,
+      health: {
+        status:      'ok',
+        server_time: new Date().toISOString(),
+      },
+    });
+  });
+
+
 }

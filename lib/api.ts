@@ -189,6 +189,17 @@ export const api = {
   adminGetKycSubmissions: (status: 'pending' | 'approved' | 'rejected' | 'all' = 'pending') =>
     request<{ submissions: any[] }>(`/api/admin/kyc?status=${status}`),
 
+  adminGetDashboard: () =>
+    request<{
+      total_users: number;
+      active_accounts: number;
+      total_deposits: number;
+      open_trades: number;
+      total_exposure: number;
+      health: { status: string; server_time: string };
+    }>('/api/admin/dashboard'),
+
+
   adminApproveKyc: (id: string) =>
     request<{ submission: any }>(`/api/admin/kyc/${id}/approve`, { method: 'POST' }),
 

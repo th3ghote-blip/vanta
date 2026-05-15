@@ -138,9 +138,9 @@ export default function Profile() {
           {isAdmin && (
             <Row
               icon={<ShieldCheck color={colors.primary} size={20} />}
-              label="Admin -- Transactions"
-              sublabel="Approve / reject pending requests"
-              onPress={() => router.push('/admin/transactions')}
+              label="Admin Dashboard"
+              sublabel="Users, deposits, trades, KYC & more"
+              onPress={() => router.push('/admin')}
               last
             />
           )}
