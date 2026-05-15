@@ -363,9 +363,9 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Sign in → streak increments on first sign-in of the day.
 
 ## 11.3 Achievements / badges
-- [ ] **Migration:** `011_achievements.sql` — `achievements` table (user_id, code, unlocked_at).
-- [ ] **Server checks** (after relevant events): First Trade, 5 Wins, Risk Master (10 trades with SL set), Robot Engineer (3 robots), 7-Day Streak, First Deposit, $1000 Balance.
-- [ ] **UI:** Profile section "Achievements" — unlocked badges + locked silhouettes with unlock criteria.
+- [x] **Migration:** `011_achievements.sql` — `achievements` table (user_id, code, unlocked_at).
+- [x] **Server checks** (after relevant events): First Trade, 5 Wins, Risk Master (10 trades with SL set), Robot Engineer (3 robots), 7-Day Streak, First Deposit, $1000 Balance.
+- [x] **UI:** Profile section "Achievements" — unlocked badges + locked silhouettes with unlock criteria.
 - **Acceptance:** Trigger conditions → badge auto-unlocks visibly.
 
 ## 11.4 Win celebration on trade close (in-the-money)

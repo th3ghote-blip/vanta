@@ -2,6 +2,64 @@
 
 > Append, don't replace. Most recent at top. Each entry: date, agent, what changed, what's pending, gotchas.
 
+
+---
+## 2026-05-15T14:10Z -- 11.3 Achievements / badges
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **11.3 Achievements / badges**
+**Commit:** `211916d`
+
+**What changed**
+- `supabase/migrations/012_achievements.sql` (new): achievements table with
+  `(user_id, code, unlocked_at)`, unique constraint, RLS read policy.
+  Note: migration file is numbered 012 (011 was login_streak); TODO.md listed
+  it as 011_achievements — kept TODO text as-is, file named 012.
+- `server/src/lib/achievements.ts` (new, 134 lines): `awardAchievement()`
+  idempotent upsert (23505 race-safe) + 5 check functions: checkFirstTrade,
+  checkFiveWins, checkRiskMaster, checkRobotEngineer, checkBalance1000.
+  `ACHIEVEMENT_META` record exported for client UI rendering.
+- `server/src/routes/achievements.ts` (new): `GET /api/achievements` returns
+  user's unlocked badges + full metadata object.
+- `server/src/index.ts`: registers achievementsRoutes at `/api/achievements`.
+- `server/src/routes/orders.ts`: fire-and-forget `checkFirstTrade` after
+  trade open; `checkFiveWins + checkRiskMaster + checkBalance1000` after close.
+- `server/src/routes/auth.ts`: awards `seven_day_streak` when `login_streak >= 7`.
+- `server/src/routes/transactions.ts`: awards `first_deposit` on deposit creation.
+- `server/src/routes/robots.ts`: `checkRobotEngineer` after robot save.
+- `lib/api.ts`: `getAchievements()` + `Achievement`/`AchievementMeta` types.
+- `app/(tabs)/profile.tsx`: Achievements section — 7-badge grid, unlocked
+  badges glow amber, locked badges show description hint. Trophy icon + count pill.
+
+**Verification**
+- tsc --noEmit client: exit 0
+- tsc --noEmit server: exit 0
+- Deploy NOT done (sandbox has no Railway/Vercel access)
+
+**Migration needed**
+- Apply: `SUPABASE_PAT=<pat> python scripts/apply-migration.py supabase/migrations/012_achievements.sql`
+
+**Notes**
+- All achievement checks are fire-and-forget (wrapped in `.catch(() => {})`) —
+  they never block the primary request path.
+- `awardAchievement` is idempotent: duplicate inserts caught via 23505 unique_violation.
+- Profile UI renders all 7 badge slots from `ACHIEVEMENT_META`; locked ones are
+  50% opacity and show their unlock description as a hint.
+
+**Recurring gotchas (CRITICAL -- still active)**
+1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
+2. `.git/HEAD.lock` + `.git/index.lock` are stale WSL locks -- cannot be deleted.
+   Use GIT_INDEX_FILE=/tmp/X, git commit-tree, write to .git/refs/heads/main.
+3. After every session start, run: git read-tree HEAD to fix the corrupt index
+   before doing git status (index drifts between sessions due to the lock workaround).
+4. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
+5. Colors import: use @/lib/theme (not @/lib/colors).
+6. Supabase JS SDK v2.45 has no `listUserSessions` -- sessions.ts calls the REST API directly.
+
+**Next agent:** pick **12.1 Admin dashboard route** (app/admin/index.tsx — gated by is_admin,
+shows total users / accounts / deposits / open trades / exposure / system health)
+or **15.1 Onboarding flow** (app/onboarding.tsx, frontend only, 3-step swipeable).
+
 ---
 ## 2026-05-15(auto) -- 11.4 Win flash on trade close
 
@@ -153,65 +211,3 @@ server event hooks in orders/rounds/robots workers + Profile UI section).
 5. Git index corrupt -- always bootstrap with: GIT_INDEX_FILE=/tmp/X git read-tree HEAD before staging.
 
 **Next agent:** pick **7.4 Active sessions/device list**, **8.2 Symbol categories** (frontend only), or **11.1 First-trade confetti**.
-
----
-
-## 2026-05-13T(auto) -- 7.1 Change password screen
-
-**Agent:** scheduled cowork auto-work pass
-**TODO item picked:** **7.1 Change password screen**
-**Commit:** `00f1918`
-
-**What changed**
-- `app/change-password.tsx` (new, 278 lines):
-  - Form: current password + new password x2
-  - Validation: length >= 8, both new fields match, new != current
-  - Step 1: silently re-verifies via `signIn(account.login, currentPassword)`
-  - Step 2: calls `useAuthStore.changePassword(newPassword)`
-  - On success: green CheckCircle state shown for 2.2s, then `signOut()` + `router.replace('/(auth)/login')`
-  - Uses `@/lib/theme` tokens (bgDeep, bgSurface, border, textPrimary, textSecondary, loss, profit, primary)
-- `TODO.md`: 7.1 marked [x]
-
-**Verification**
-- `tsc --noEmit` client: exit 0 (silent)
-- `tsc --noEmit` server: exit 0 (silent)
-- Deploy NOT done (sandbox has no Railway/Vercel access)
-
-**Recurring gotchas (CRITICAL -- still active)**
-1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash. Verify with Python null-byte check after every write.
-2. Unicode/heredoc: write via Python script piped via python3 heredoc block, not bash heredoc with file writes.
-3. `.git/index.lock` is a stale WSL lock -- use `GIT_INDEX_FILE=/tmp/vanta_*_idx` for all git ops; commit via `git commit-tree`; write SHA to `.git/refs/heads/main`.
-4. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
-5. Colors import: use `@/lib/theme` (not `@/lib/colors`). Keys: bgDeep, bgElevated, bgSurface, border, textPrimary, textSecondary, textMuted, primary, profit, loss, warning, info.
-
-**Next agent:** pick **7.3 2FA (TOTP)**, **8.2 Symbol categories** (frontend only), or **11.1 First-trade confetti**.
-
----
-
-## 2026-05-12T(auto) -- 7.2 Show login number prominently
-
-**Agent:** scheduled cowork auto-work pass
-**TODO item picked:** **7.2 Show login number prominently**
-**Commit:** `9738e36`
-
-**What changed**
-- `app/(tabs)/profile.tsx`:
-  - Added `import * as Clipboard from 'expo-clipboard'`
-  - Added `import { useAccountStore } from '@/stores/account'`
-  - Header now shows `Account #<login>` (from useAccountStore) instead of email/Trader
-  - Pressable wraps the account number text; tap calls `Clipboard.setStringAsync()`
-  - Below the number: Tap to copy hint that flips to Copied! (green) for 2s
-  - Security & Password row now routes to `/change-password` (prep for TODO 7.1)
-
-**Verification**
-- `tsc --noEmit` client: exit 0
-- `tsc --noEmit` server: exit 0
-- Deploy NOT done (sandbox has no Railway/Vercel access)
-
-**Recurring gotchas (CRITICAL -- still active)**
-1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash. Verify with Python null-byte check after every write.
-2. Unicode/heredoc: write via Python script piped via `python3 << 'PYEOF'` block, not bash heredoc with file writes.
-3. `.git/index.lock` is a stale WSL lock -- use `GIT_INDEX_FILE=/tmp/vanta_*_idx` for all git ops; commit via `git commit-tree`; write SHA to `.git/refs/heads/main`.
-4. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
-
-**Next agent:** pick **7.1 Change password screen** -- new file `app/change-password.tsx`. `useAuthStore.changePassword(newPassword)` already exists. Frontend only, no migration needed.
