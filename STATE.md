@@ -3,6 +3,41 @@
 > Append, don't replace. Most recent at top. Each entry: date, agent, what changed, what's pending, gotchas.
 
 ---
+## 2026-05-15(auto) -- 11.2 Daily check-in streak
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **11.2 Daily check-in streak**
+**Commit:** `82e0de2`
+
+**What changed**
+- `supabase/migrations/011_login_streak.sql` (new, 4 lines): adds `last_login_date date` and `login_streak int not null default 0` to profiles via `add column if not exists`.
+- `server/src/routes/auth.ts`: after successful login, queries profiles for `last_login_date`/`login_streak`, computes new streak (extend if yesterday, reset to 1 if gap, hold if already today), updates profiles (best-effort — wrapped in try/catch so it never blocks login). Returns `login_streak` in the login response alongside `session`.
+- `stores/auth.ts`: added `loginStreak: number` field to `AuthState` (default 0). `signIn()` now reads `login_streak` from server response and calls `set({ loginStreak })`.
+- `app/(tabs)/trade.tsx`: renders a fire-emoji banner when `loginStreak >= 2` ("🔥 N-day streak — log in tomorrow to keep it going!") using `colors.warning` styling, positioned above the ModeSwitcher.
+- `TODO.md`: 11.2 marked [x] (all three sub-items).
+
+**Verification**
+- tsc --noEmit client: exit 0
+- tsc --noEmit server: exit 0
+- Deploy NOT done (sandbox has no Railway/Vercel access; frontend-only change once migration applied)
+
+**Migration needed**
+- Apply: `SUPABASE_PAT=<pat> python scripts/apply-migration.py supabase/migrations/011_login_streak.sql`
+- Migration number is 011 (010 was notification_prefs). TODO.md incorrectly listed it as 010_login_streak — corrected in the file.
+
+**Streak shows at >= 2 days** (day-1 is silent; banner appears on second consecutive login day).
+
+**Recurring gotchas (CRITICAL -- still active)**
+1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
+2. `.git/index.lock` is a stale WSL lock -- use GIT_INDEX_FILE=/tmp/vanta_*_idx for all git ops.
+3. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
+4. Colors import: use @/lib/theme (not @/lib/colors).
+5. Git index corrupt -- always bootstrap with: GIT_INDEX_FILE=/tmp/X git read-tree HEAD before staging.
+6. Supabase JS SDK v2.45 has no `listUserSessions` -- sessions.ts calls the REST API directly.
+
+**Next agent:** pick **11.3 Achievements / badges** (migration + server event hooks + UI) or **11.4 Win flash on trade close** (frontend only, small).
+
+---
 ## 2026-05-14(auto) -- 11.1 First-trade confetti
 
 **Agent:** scheduled cowork auto-work pass

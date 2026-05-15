@@ -357,9 +357,9 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** First trade → confetti. Second+ trades → nothing.
 
 ## 11.2 Daily check-in streak (login-based)
-- [ ] **Migration:** `010_login_streak.sql` — `last_login_date date`, `login_streak int` on profiles.
-- [ ] **Server:** On `/api/auth/login` success: if last_login_date == yesterday → streak++; else if older → streak=1; else (today) no change.
-- [ ] **UI:** Banner on Profile or Trade tab "🔥 4-day streak — log in tomorrow to keep it going".
+- [x] **Migration:** `011_login_streak.sql` — `last_login_date date`, `login_streak int` on profiles.
+- [x] **Server:** On `/api/auth/login` success: if last_login_date == yesterday → streak++; else if older → streak=1; else (today) no change.
+- [x] **UI:** Banner on Trade tab "🔥 N-day streak — log in tomorrow to keep it going" (shown when streak >= 2).
 - **Acceptance:** Sign in → streak increments on first sign-in of the day.
 
 ## 11.3 Achievements / badges
