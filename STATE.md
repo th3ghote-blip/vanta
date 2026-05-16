@@ -1,5 +1,58 @@
 # STATE -- handoff notes for the next agent
 
+
+## 2026-05-16T08:00Z -- 12.4 Risk dashboard
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **12.4 Risk dashboard**
+**Commit:** `43298b7`
+
+**What changed**
+- `server/src/routes/admin.ts`: new `GET /api/admin/risk` endpoint.
+  Queries all open trades joined with accounts. Returns three payloads:
+  (1) `symbol_exposure` — per-symbol buy/sell/net lot volumes, mid price,
+      gross and net USD exposure; sorted by gross exposure descending.
+  (2) `top_winning` / `top_losing` — top 10 open positions by live
+      unrealized P&L (calculatePnL vs current getMid); coloured in UI.
+  (3) `near_margin_call` — accounts where (equity/margin_used)*100 < 150%;
+      includes balance, equity, margin_used, free_margin, unrealized P&L,
+      margin level %; sorted by margin level ascending (most at risk first).
+  Added imports: getMid (quoteCache), calculatePnL + contractSize (contracts).
+- `lib/api.ts`: `adminGetRisk()` typed fetch helper with full response types.
+- `app/admin/risk.tsx` (new, ~380 lines): three-section screen:
+  Symbol Exposure cards (net direction badge, buy/sell lots, gross exposure),
+  Open Positions with tab switcher (Top Winners / Top Losers),
+  Near Margin Call list (colour-coded warning/danger by margin level).
+  Pull-to-refresh. Error state with retry. Snapshot timestamp in header.
+- `app/admin/index.tsx`: added "Risk Dashboard" NavRow (warning colour).
+
+**Verification**
+- tsc --noEmit client: exit 0
+- tsc --noEmit server: exit 0
+- Deploy NOT done (sandbox has no Railway/Vercel access)
+
+**Notes**
+- Margin call threshold is 150% (approaching the typical 100% hard stop-out).
+  This is conservative — gives the admin early warning before stop-out fires.
+- `RawOpenTrade` interface was needed in the endpoint to satisfy TS — Supabase
+  infers `GenericStringError` from the multi-relation select string without it.
+- The `package-lock.json` modification is pre-existing (not from this run).
+
+**Recurring gotchas (CRITICAL -- still active)**
+1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
+2. `.git/HEAD.lock` + `.git/index.lock` + `.git/refs/heads/main.lock` are stale WSL locks.
+   Use GIT_INDEX_FILE=/tmp/vanta_main_idx, git commit-tree, write to .git/refs/heads/main.
+3. After every session start: GIT_INDEX_FILE=/tmp/vanta_main_idx git read-tree HEAD.
+4. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
+5. Colors import: use @/lib/theme (not @/lib/colors). bgBase does not exist -- use bgDeep.
+6. Supabase JS SDK v2.45 has no `listUserSessions` -- sessions.ts calls the REST API directly.
+7. Supabase select with joins returns GenericStringError unless you cast: `as unknown as TypedArray[]`.
+
+**Next agent:** pick **15.1 Onboarding flow** (app/onboarding.tsx — 3-step swipeable:
+"Welcome to Vanta", "Pro vs Quick mode", "Your $10k demo"; frontend only, shown once
+after first signup, persisted via AsyncStorage).
+
+---
 > Append, don't replace. Most recent at top. Each entry: date, agent, what changed, what's pending, gotchas.
 
 
@@ -214,80 +267,3 @@ shows total users / accounts / deposits / open trades / exposure / system health
 or **15.1 Onboarding flow** (app/onboarding.tsx, frontend only, 3-step swipeable).
 
 ---
-## 2026-05-15(auto) -- 11.4 Win flash on trade close
-
-**Agent:** scheduled cowork auto-work pass
-**TODO item picked:** **11.4 Win celebration on trade close**
-**Commit:** `0574905`
-
-**What changed**
-- `components/shared/WinFlash.tsx` (new, 83 lines): forwardRef component exposing
-  `flash(amount: number)` via useImperativeHandle. Full-screen absoluteFill overlay
-  (pointerEvents="none", zIndex 999). Animates: spring pop-in (scale 0.7->1) + 750ms
-  hold + fade-out. Green pill showing "+$X.XX" + "WIN" label.
-- `components/pro/TradeBook.tsx`: added `onWinClose?(profit: number)` prop. `close()`
-  snapshots live P&L before calling `api.closeOrder()`; calls `onWinClose(profit)` if
-  profit > 0 on success.
-- `components/pro/ProTradeScreen.tsx`: threads `onWinClose` prop to TradeBook.
-- `app/(tabs)/trade.tsx`: adds `winFlashRef<WinFlashRef>`, renders `<WinFlash />` at
-  root (above ScrollView so not clipped), passes callback to ProTradeScreen.
-
-**Verification**
-- tsc --noEmit client: exit 0
-- tsc --noEmit server: exit 0
-- Deploy NOT done (sandbox has no Railway/Vercel access; frontend-only change)
-
-**Notes**
-- Profit is computed from live bid/ask at the moment the X button is pressed.
-  If the quote goes stale, fallback is open_price (same as live display), so
-  profit may show 0 and flash will be suppressed -- conservative and correct.
-- Flash is Pro mode only (Quick mode has RoundResultModal for win/loss feedback).
-
-**Recurring gotchas (CRITICAL -- still active)**
-1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
-2. `.git/HEAD.lock` + `.git/index.lock` are stale WSL locks -- cannot be deleted.
-   Use GIT_INDEX_FILE=/tmp/X, git commit-tree, write to .git/refs/heads/main.
-3. After every session start, run: git read-tree HEAD to fix the corrupt index
-   before doing git status (index drifts between sessions due to the lock workaround).
-4. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
-5. Colors import: use @/lib/theme (not @/lib/colors).
-6. Supabase JS SDK v2.45 has no `listUserSessions` -- sessions.ts calls the REST API directly.
-
-**Next agent:** pick **11.3 Achievements / badges** (migration 011_achievements.sql +
-server event hooks in orders/rounds/robots workers + Profile UI section).
-
-
----
-## 2026-05-15(auto) -- 11.2 Daily check-in streak
-
-**Agent:** scheduled cowork auto-work pass
-**TODO item picked:** **11.2 Daily check-in streak**
-**Commit:** `82e0de2`
-
-**What changed**
-- `supabase/migrations/011_login_streak.sql` (new, 4 lines): adds `last_login_date date` and `login_streak int not null default 0` to profiles via `add column if not exists`.
-- `server/src/routes/auth.ts`: after successful login, queries profiles for `last_login_date`/`login_streak`, computes new streak (extend if yesterday, reset to 1 if gap, hold if already today), updates profiles (best-effort — wrapped in try/catch so it never blocks login). Returns `login_streak` in the login response alongside `session`.
-- `stores/auth.ts`: added `loginStreak: number` field to `AuthState` (default 0). `signIn()` now reads `login_streak` from server response and calls `set({ loginStreak })`.
-- `app/(tabs)/trade.tsx`: renders a fire-emoji banner when `loginStreak >= 2` ("🔥 N-day streak — log in tomorrow to keep it going!") using `colors.warning` styling, positioned above the ModeSwitcher.
-- `TODO.md`: 11.2 marked [x] (all three sub-items).
-
-**Verification**
-- tsc --noEmit client: exit 0
-- tsc --noEmit server: exit 0
-- Deploy NOT done (sandbox has no Railway/Vercel access; frontend-only change once migration applied)
-
-**Migration needed**
-- Apply: `SUPABASE_PAT=<pat> python scripts/apply-migration.py supabase/migrations/011_login_streak.sql`
-- Migration number is 011 (010 was notification_prefs). TODO.md incorrectly listed it as 010_login_streak — corrected in the file.
-
-**Streak shows at >= 2 days** (day-1 is silent; banner appears on second consecutive login day).
-
-**Recurring gotchas (CRITICAL -- still active)**
-1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
-2. `.git/index.lock` is a stale WSL lock -- use GIT_INDEX_FILE=/tmp/vanta_*_idx for all git ops.
-3. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
-4. Colors import: use @/lib/theme (not @/lib/colors).
-5. Git index corrupt -- always bootstrap with: GIT_INDEX_FILE=/tmp/X git read-tree HEAD before staging.
-6. Supabase JS SDK v2.45 has no `listUserSessions` -- sessions.ts calls the REST API directly.
-
-**Next agent:** pick **11.3 Achievements / badges** (migration + server event hooks + UI) or **11.4 Win flash on trade close** (frontend only, small).

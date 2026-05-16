@@ -394,7 +394,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Adjust balance → transaction logged → user sees it.
 
 ## 12.4 Risk dashboard
-- [ ] **File:** `app/admin/risk.tsx`
+- [x] **File:** `app/admin/risk.tsx`
 - **What:** Aggregate exposure per symbol (sum of buy − sell volumes × current price). Top losing/winning open positions. Clients near margin call.
 - **Acceptance:** Visible at-a-glance risk picture.
 
