@@ -388,8 +388,8 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Find any user, see their full activity.
 
 ## 12.3 Manual balance adjustment
-- [ ] **Endpoint:** `POST /api/admin/accounts/:id/adjust` — `{amount, reason}`.
-- [ ] **UI:** Button on user detail page.
+- [x] **Endpoint:** `POST /api/admin/accounts/:id/adjust` — `{amount, reason}`.
+- [x] **UI:** Button on user detail page.
 - **What:** Inserts a `transactions` row with `type='adjustment'` and updates balance. Audit log includes admin user_id.
 - **Acceptance:** Adjust balance → transaction logged → user sees it.
 
