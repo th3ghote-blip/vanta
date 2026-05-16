@@ -520,4 +520,86 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
 
+  /**
+   * POST /api/admin/accounts/:id/adjust
+   * Manually credit or debit an account balance.
+   * Body: { amount: number, reason: string }
+   * amount may be negative (debit). Audit trail via transactions row.
+   */
+  app.post('/accounts/:id/adjust', async (req, reply) => {
+    const adminId = await authAdmin(req.headers.authorization);
+    if (!adminId) return reply.code(403).send({ error: 'forbidden' });
+
+    const { id } = req.params as { id: string };
+    const body = req.body as any;
+    const amount: number = Number(body?.amount);
+    const reason: string = String(body?.reason ?? '').trim();
+
+    if (isNaN(amount) || amount === 0) {
+      return reply.code(400).send({ error: 'invalid_amount', message: 'amount must be a non-zero number' });
+    }
+    if (!reason) {
+      return reply.code(400).send({ error: 'reason_required', message: 'reason is required' });
+    }
+
+    // Fetch account
+    const { data: account, error: accErr } = await supabaseAdmin
+      .from('accounts')
+      .select('id, user_id, balance, margin_used, free_margin, currency')
+      .eq('id', id)
+      .single();
+    if (accErr || !account) return reply.code(404).send({ error: 'account_not_found' });
+
+    const currentBalance = Number(account.balance);
+    const marginUsed     = Number(account.margin_used ?? 0);
+    const newBalance     = currentBalance + amount;
+
+    // Prevent negative balance on debit
+    if (newBalance < 0) {
+      return reply.code(400).send({
+        error:     'insufficient_balance',
+        current:   currentBalance,
+        requested: amount,
+      });
+    }
+
+    // Insert adjustment transaction (immediately completed)
+    const { data: tx, error: txErr } = await supabaseAdmin
+      .from('transactions')
+      .insert({
+        account_id:   id,
+        type:         'adjustment',
+        amount:       Math.abs(amount),
+        currency:     account.currency ?? 'USD',
+        status:       'completed',
+        notes:        `${amount > 0 ? 'Credit' : 'Debit'} by admin (${adminId}): ${reason}`,
+        completed_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (txErr) {
+      app.log.error({ err: txErr }, 'admin/adjust: transaction insert failed');
+      return reply.code(500).send({ error: 'transaction_failed' });
+    }
+
+    // Update account balance
+    const { error: balErr } = await supabaseAdmin
+      .from('accounts')
+      .update({
+        balance:     newBalance,
+        free_margin: Math.max(0, newBalance - marginUsed),
+      })
+      .eq('id', id);
+
+    if (balErr) {
+      app.log.error({ err: balErr }, 'admin/adjust: balance update failed');
+      return reply.code(500).send({ error: 'balance_update_failed' });
+    }
+
+    app.log.warn({ adminId, accountId: id, amount, reason }, 'admin: manual balance adjustment');
+    return reply.send({ transaction: tx, new_balance: newBalance, delta: amount });
+  });
+
+
 }

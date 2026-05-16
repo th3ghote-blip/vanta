@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -8,19 +8,19 @@ import {
   RefreshControl,
   Alert,
   Clipboard,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import {
   ArrowLeft,
-  User,
-  Wallet,
-  TrendingUp,
-  FileText,
   ShieldCheck,
-  Copy,
   ArrowDownCircle,
   ArrowUpCircle,
   LogIn,
+  SlidersHorizontal,
 } from 'lucide-react-native';
 
 import { api } from '@/lib/api';
@@ -76,7 +76,7 @@ function InfoRow({ label, value, mono }: { label: string; value: string; mono?: 
 }
 
 function KycBadge({ status }: { status: string }) {
-  const color = status === 'approved' ? colors.profit : status === 'rejected' ? colors.loss : colors.warning ?? colors.primary;
+  const color = status === 'approved' ? colors.profit : status === 'rejected' ? colors.loss : (colors as any).warning ?? colors.primary;
   return (
     <View style={{
       backgroundColor: color + '22', borderRadius: 4, paddingHorizontal: 7, paddingVertical: 2,
@@ -84,6 +84,189 @@ function KycBadge({ status }: { status: string }) {
     }}>
       <Text style={{ ...typography.bodyBold, color, fontSize: 11 }}>{status.toUpperCase()}</Text>
     </View>
+  );
+}
+
+// ── AdjustBalanceModal ────────────────────────────────────────────────────────
+
+interface AdjustModalProps {
+  visible: boolean;
+  account: any | null;
+  onClose: () => void;
+  onSuccess: (newBalance: number) => void;
+}
+
+function AdjustBalanceModal({ visible, account, onClose, onSuccess }: AdjustModalProps) {
+  const [amount, setAmount]   = useState('');
+  const [reason, setReason]   = useState('');
+  const [busy, setBusy]       = useState(false);
+  const [error, setError]     = useState<string | null>(null);
+  const reasonRef             = useRef<TextInput>(null);
+
+  // Reset state when modal opens
+  useEffect(() => {
+    if (visible) {
+      setAmount('');
+      setReason('');
+      setError(null);
+      setBusy(false);
+    }
+  }, [visible]);
+
+  const handleSubmit = useCallback(async () => {
+    setError(null);
+    const parsed = parseFloat(amount.replace(/,/g, ''));
+    if (isNaN(parsed) || parsed === 0) {
+      setError('Enter a non-zero amount (negative to debit).');
+      return;
+    }
+    if (!reason.trim()) {
+      setError('A reason is required for audit purposes.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await api.adminAdjustBalance(account.id, parsed, reason.trim());
+      onSuccess(res.new_balance);
+      onClose();
+    } catch (e: any) {
+      const code = e?.code ?? '';
+      if (code === 'insufficient_balance') {
+        setError(`Insufficient balance. Current: ${fmt$(e?.current ?? 0)}`);
+      } else if (code === 'invalid_amount') {
+        setError('Invalid amount.');
+      } else if (code === 'reason_required') {
+        setError('Reason is required.');
+      } else {
+        setError(e?.message ?? 'Adjustment failed. Try again.');
+      }
+    } finally {
+      setBusy(false);
+    }
+  }, [amount, reason, account, onClose, onSuccess]);
+
+  const currentBalance = account ? parseFloat(account.balance ?? '0') : 0;
+  const parsedAmount   = parseFloat(amount.replace(/,/g, ''));
+  const preview        = isNaN(parsedAmount) ? null : currentBalance + parsedAmount;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' }}
+      >
+        <View style={{
+          backgroundColor: colors.bgElevated,
+          borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg,
+          padding: spacing.lg, paddingBottom: Platform.OS === 'ios' ? 40 : spacing.lg,
+          borderTopWidth: 1, borderColor: colors.border,
+        }}>
+          {/* Title */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.md }}>
+            <Text style={{ ...typography.bodyBold, color: colors.textPrimary, fontSize: 17 }}>
+              Adjust Balance
+            </Text>
+            <Pressable onPress={onClose} hitSlop={8}>
+              <Text style={{ ...typography.body, color: colors.textSecondary, fontSize: 14 }}>Cancel</Text>
+            </Pressable>
+          </View>
+
+          {account && (
+            <Text style={{ ...typography.body, color: colors.textSecondary, fontSize: 13, marginBottom: spacing.md }}>
+              Account #{account.login} · Current balance: {fmt$(account.balance)}
+            </Text>
+          )}
+
+          {/* Amount input */}
+          <Text style={{ ...typography.body, color: colors.textSecondary, fontSize: 12, marginBottom: 4 }}>
+            AMOUNT (use − for debit, e.g. −500)
+          </Text>
+          <TextInput
+            value={amount}
+            onChangeText={setAmount}
+            placeholder="e.g. 250 or -100"
+            placeholderTextColor={colors.textSecondary}
+            keyboardType="numbers-and-punctuation"
+            returnKeyType="next"
+            onSubmitEditing={() => reasonRef.current?.focus()}
+            style={{
+              ...typography.body,
+              color: colors.textPrimary,
+              backgroundColor: colors.bgSurface,
+              borderWidth: 1,
+              borderColor: colors.border,
+              borderRadius: radius.sm,
+              paddingHorizontal: spacing.md,
+              paddingVertical: spacing.sm,
+              fontSize: 15,
+              marginBottom: spacing.sm,
+            }}
+          />
+
+          {/* Preview */}
+          {preview !== null && (
+            <Text style={{
+              ...typography.body, fontSize: 12, marginBottom: spacing.sm,
+              color: preview < 0 ? colors.loss : colors.textSecondary,
+            }}>
+              New balance: {fmt$(preview)}{preview < 0 ? ' — will be rejected' : ''}
+            </Text>
+          )}
+
+          {/* Reason input */}
+          <Text style={{ ...typography.body, color: colors.textSecondary, fontSize: 12, marginBottom: 4 }}>
+            REASON (required for audit log)
+          </Text>
+          <TextInput
+            ref={reasonRef}
+            value={reason}
+            onChangeText={setReason}
+            placeholder="e.g. Bonus credit, correction, promotional"
+            placeholderTextColor={colors.textSecondary}
+            returnKeyType="done"
+            onSubmitEditing={handleSubmit}
+            style={{
+              ...typography.body,
+              color: colors.textPrimary,
+              backgroundColor: colors.bgSurface,
+              borderWidth: 1,
+              borderColor: colors.border,
+              borderRadius: radius.sm,
+              paddingHorizontal: spacing.md,
+              paddingVertical: spacing.sm,
+              fontSize: 14,
+              marginBottom: spacing.sm,
+            }}
+          />
+
+          {/* Error */}
+          {error && (
+            <Text style={{ ...typography.body, color: colors.loss, fontSize: 13, marginBottom: spacing.sm }}>
+              {error}
+            </Text>
+          )}
+
+          {/* Submit */}
+          <Pressable
+            onPress={handleSubmit}
+            disabled={busy}
+            style={({ pressed }) => ({
+              backgroundColor: colors.primary,
+              borderRadius: radius.md,
+              paddingVertical: spacing.md,
+              alignItems: 'center',
+              opacity: busy || pressed ? 0.6 : 1,
+              marginTop: spacing.xs,
+            })}
+          >
+            {busy
+              ? <ActivityIndicator size="small" color="#fff" />
+              : <Text style={{ ...typography.bodyBold, color: '#fff', fontSize: 15 }}>Apply Adjustment</Text>
+            }
+          </Pressable>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
   );
 }
 
@@ -97,6 +280,9 @@ export default function AdminUserDetail() {
   const [data, setData]               = useState<any | null>(null);
   const [error, setError]             = useState<string | null>(null);
   const [impersonating, setImpersonating] = useState(false);
+
+  // Adjust modal state
+  const [adjustTarget, setAdjustTarget] = useState<any | null>(null);
 
   // ── admin gate ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -162,6 +348,18 @@ export default function AdminUserDetail() {
       ],
     );
   }, [id]);
+
+  // ── balance adjustment success ────────────────────────────────────────────
+  const handleAdjustSuccess = useCallback((accountId: string, newBalance: number) => {
+    setData((prev: any) => {
+      if (!prev) return prev;
+      const accounts = (prev.accounts ?? []).map((a: any) =>
+        a.id === accountId ? { ...a, balance: String(newBalance) } : a
+      );
+      return { ...prev, accounts };
+    });
+    Alert.alert('Balance adjusted', `New balance: ${fmt$(newBalance)}`);
+  }, []);
 
   // ── guards ────────────────────────────────────────────────────────────────
   if (isAdmin === null || (isAdmin === true && loading && !data)) {
@@ -268,6 +466,20 @@ export default function AdminUserDetail() {
               <InfoRow label="Balance" value={fmt$(acc.balance)} />
               <InfoRow label="Free margin" value={fmt$(acc.free_margin)} />
               <InfoRow label="Leverage" value={`1:${acc.leverage ?? 100}`} />
+              {/* Adjust balance button */}
+              <Pressable
+                onPress={() => setAdjustTarget(acc)}
+                style={({ pressed }) => ({
+                  flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  marginTop: spacing.sm, marginBottom: spacing.sm,
+                  backgroundColor: pressed ? colors.bgSurface : colors.bgDeep,
+                  borderRadius: radius.sm, paddingVertical: 8,
+                  borderWidth: 1, borderColor: colors.border,
+                })}
+              >
+                <SlidersHorizontal size={14} color={colors.primary} />
+                <Text style={{ ...typography.body, color: colors.primary, fontSize: 13 }}>Adjust Balance</Text>
+              </Pressable>
             </View>
           ))
         }
@@ -360,6 +572,17 @@ export default function AdminUserDetail() {
           )
         }
       </ScrollView>
+
+      {/* Balance adjustment modal */}
+      <AdjustBalanceModal
+        visible={adjustTarget !== null}
+        account={adjustTarget}
+        onClose={() => setAdjustTarget(null)}
+        onSuccess={(newBalance) => {
+          if (adjustTarget) handleAdjustSuccess(adjustTarget.id, newBalance);
+          setAdjustTarget(null);
+        }}
+      />
     </View>
   );
 }

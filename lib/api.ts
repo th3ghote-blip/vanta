@@ -243,6 +243,15 @@ export const api = {
       { method: 'POST' },
     ),
 
+  adminAdjustBalance: (accountId: string, amount: number, reason: string) =>
+    request<{ transaction: any; new_balance: number; delta: number }>(
+      `/api/admin/accounts/${accountId}/adjust`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount, reason }),
+      },
+    ),
 
 };
 
