@@ -291,6 +291,11 @@ export default function AdminDashboard() {
             onPress={() => router.push('/admin/users' as any)}
           />
           <NavRow
+            icon={<BarChart2 size={18} color={colors.warning} />}
+            label="Risk Dashboard"
+            onPress={() => router.push('/admin/risk' as any)}
+          />
+          <NavRow
             icon={<FileText size={18} color={colors.primary} />}
             label="Transaction Approvals"
             onPress={() => router.push('/admin/transactions')}

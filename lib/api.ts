@@ -253,6 +253,54 @@ export const api = {
       },
     ),
 
+  adminGetRisk: () =>
+    request<{
+      symbol_exposure: {
+        symbol: string;
+        buyVol: number;
+        sellVol: number;
+        netVolume: number;
+        midPrice: number;
+        grossExposure: number;
+        netExposure: number;
+      }[];
+      top_winning: {
+        id: number;
+        account_id: string;
+        user_id: string | null;
+        symbol: string;
+        side: string;
+        volume: number;
+        open_price: number;
+        mid_price: number;
+        pnl: number;
+        opened_at: string;
+      }[];
+      top_losing: {
+        id: number;
+        account_id: string;
+        user_id: string | null;
+        symbol: string;
+        side: string;
+        volume: number;
+        open_price: number;
+        mid_price: number;
+        pnl: number;
+        opened_at: string;
+      }[];
+      near_margin_call: {
+        account_id: string;
+        user_id: string | null;
+        balance: number;
+        equity: number;
+        margin_used: number;
+        free_margin: number;
+        unrealized_pnl: number;
+        margin_level_pct: number;
+      }[];
+      generated_at: string;
+    }>('/api/admin/risk')
+
 };
 
 // ─── Shared interfaces ────────────────────────────────────────────────────────

@@ -1,6 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authUser, supabaseAdmin } from '../lib/supabase.js';
+import { getMid } from '../lib/quoteCache.js';
+import { calculatePnL, contractSize } from '../lib/contracts.js';
 
 /** Verify auth + admin role. Returns userId or null. */
 async function authAdmin(token: string | undefined): Promise<string | null> {
@@ -601,5 +603,162 @@ export async function adminRoutes(app: FastifyInstance) {
     return reply.send({ transaction: tx, new_balance: newBalance, delta: amount });
   });
 
+
+
+  /**
+   * GET /api/admin/risk
+   * Risk dashboard: symbol-level exposure, top winning/losing positions,
+   * accounts near margin call.
+   */
+  app.get('/risk', async (req, reply) => {
+    const adminId = await authAdmin(req.headers.authorization);
+    if (!adminId) return reply.code(403).send({ error: 'forbidden' });
+
+    // Pull all open trades with account margin info
+    interface RawOpenTrade {
+      id: number;
+      account_id: string;
+      symbol: string;
+      side: string;
+      volume: number | string;
+      open_price: number | string;
+      stop_loss: number | string | null;
+      take_profit: number | string | null;
+      opened_at: string;
+      accounts: {
+        user_id: string;
+        balance: number | string;
+        equity: number | string;
+        margin_used: number | string;
+        free_margin: number | string;
+        leverage: number | string;
+      } | null;
+    }
+    const { data: rawTradesUnsafe, error: tradesErr } = await supabaseAdmin
+      .from('trades')
+      .select(
+        'id, account_id, symbol, side, volume, open_price, stop_loss, take_profit, opened_at,' +
+        'accounts!inner(user_id, balance, equity, margin_used, free_margin, leverage)',
+      )
+      .eq('status', 'open')
+      .order('opened_at', { ascending: false });
+    const rawTrades = (rawTradesUnsafe ?? []) as unknown as RawOpenTrade[];
+
+    if (tradesErr) {
+      app.log.error({ err: tradesErr }, 'admin/risk: query failed');
+      return reply.code(500).send({ error: 'query_failed' });
+    }
+
+    const trades = rawTrades;
+
+    // ── 1. Symbol-level net exposure ────────────────────────────────────────
+    const symbolMap = new Map<string, { buyVol: number; sellVol: number; midPrice: number }>();
+    for (const t of trades) {
+      const mid = getMid(t.symbol);
+      if (!symbolMap.has(t.symbol)) {
+        symbolMap.set(t.symbol, { buyVol: 0, sellVol: 0, midPrice: mid ?? Number(t.open_price) });
+      }
+      const entry = symbolMap.get(t.symbol)!;
+      if (t.side === 'buy') entry.buyVol  += Number(t.volume);
+      else                  entry.sellVol += Number(t.volume);
+    }
+
+    const symbolExposure = Array.from(symbolMap.entries())
+      .map(([symbol, { buyVol, sellVol, midPrice }]) => {
+        const cs = contractSize(symbol);
+        const netVolume     = buyVol - sellVol;
+        const grossExposure = (buyVol + sellVol) * midPrice * cs;
+        const netExposure   = netVolume * midPrice * cs;
+        return { symbol, buyVol, sellVol, netVolume, midPrice, grossExposure, netExposure };
+      })
+      .sort((a, b) => Math.abs(b.grossExposure) - Math.abs(a.grossExposure));
+
+    // ── 2. Top winning + losing open positions ───────────────────────────────
+    const positionsWithPnL = trades.map((t) => {
+      const mid = getMid(t.symbol) ?? Number(t.open_price);
+      const pnl = +calculatePnL(
+        t.side as 'buy' | 'sell',
+        Number(t.volume),
+        Number(t.open_price),
+        mid,
+        t.symbol,
+      ).toFixed(2);
+      const acc = (t as any).accounts;
+      return {
+        id:         t.id,
+        account_id: t.account_id,
+        user_id:    acc?.user_id ?? null,
+        symbol:     t.symbol,
+        side:       t.side,
+        volume:     Number(t.volume),
+        open_price: Number(t.open_price),
+        mid_price:  mid,
+        pnl,
+        opened_at:  t.opened_at,
+      };
+    });
+
+    positionsWithPnL.sort((a, b) => b.pnl - a.pnl);
+    const topWinning = positionsWithPnL.slice(0, 10);
+    const topLosing  = positionsWithPnL.slice(-10).reverse();
+
+    // ── 3. Accounts near margin call ─────────────────────────────────────────
+    // Group positions by account_id, compute total unrealized P&L per account
+    const accountPnL = new Map<string, number>();
+    for (const p of positionsWithPnL) {
+      accountPnL.set(p.account_id, (accountPnL.get(p.account_id) ?? 0) + p.pnl);
+    }
+
+    const accountsSeen = new Map<string, any>();
+    for (const t of trades) {
+      if (!accountsSeen.has(t.account_id)) {
+        accountsSeen.set(t.account_id, (t as any).accounts);
+      }
+    }
+
+    const nearMarginCall: {
+      account_id: string;
+      user_id: string | null;
+      balance: number;
+      equity: number;
+      margin_used: number;
+      free_margin: number;
+      unrealized_pnl: number;
+      margin_level_pct: number;
+    }[] = [];
+
+    for (const [accountId, acc] of accountsSeen.entries()) {
+      const balance      = Number(acc?.balance ?? 0);
+      const marginUsed   = Number(acc?.margin_used ?? 0);
+      if (marginUsed <= 0) continue;
+      const unrealized   = accountPnL.get(accountId) ?? 0;
+      const equity       = balance + unrealized;
+      const freeMargin   = equity - marginUsed;
+      const marginLevel  = (equity / marginUsed) * 100; // e.g. 200 = 200%
+      // Flag if margin level < 150% (approaching the typical 100% call threshold)
+      if (marginLevel < 150) {
+        nearMarginCall.push({
+          account_id:       accountId,
+          user_id:          acc?.user_id ?? null,
+          balance,
+          equity: +equity.toFixed(2),
+          margin_used:      +marginUsed.toFixed(2),
+          free_margin:      +freeMargin.toFixed(2),
+          unrealized_pnl:   +unrealized.toFixed(2),
+          margin_level_pct: +marginLevel.toFixed(1),
+        });
+      }
+    }
+
+    nearMarginCall.sort((a, b) => a.margin_level_pct - b.margin_level_pct);
+
+    return reply.send({
+      symbol_exposure: symbolExposure,
+      top_winning:     topWinning,
+      top_losing:      topLosing,
+      near_margin_call: nearMarginCall,
+      generated_at:    new Date().toISOString(),
+    });
+  });
 
 }
