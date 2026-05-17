@@ -447,7 +447,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** New signup → onboarding → "Get started" → trade screen. Subsequent signups skip.
 
 ## 15.2 Empty states audit
-- [ ] **What:** Audit all screens. Each blank state should say what user can do next.
+- [x] **What:** Audit all screens. Each blank state should say what user can do next.
 - **Acceptance:** No silent gray screens.
 
 ## 15.3 Loading skeletons

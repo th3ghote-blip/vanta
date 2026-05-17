@@ -1,6 +1,52 @@
 # STATE -- handoff notes for the next agent
 
-# STATE -- handoff notes for the next agent
+## 2026-05-17T00:00Z -- 15.2 Empty states audit
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **15.2 Empty states audit**
+**Commit:** `881cdb6`
+
+**What changed**
+- `components/shared/EmptyState.tsx` (new, 70 lines): reusable component with
+  icon + title + optional subtitle + optional CTA button. Use this going forward
+  instead of ad-hoc `alignItems:'center'` blocks.
+- `components/pro/TradeBook.tsx`: the `!account` guard was a bare spinner with
+  no text — now shows "Loading account…" so users aren't left at a silent spinner.
+- `app/admin/kyc.tsx`: empty state for each filter tab now includes a subtitle:
+  pending → "KYC submissions appear here when users complete verification."
+  approved/rejected/all → appropriate context messages.
+- `app/admin/transactions.tsx`: same pattern. Pending tab → "Pending deposits
+  and withdrawals appear here for approval." etc.
+- `app/admin/user/[id].tsx`: 4 bare `No X` fallback texts replaced with
+  italic full-sentence descriptions (e.g. "No trading accounts found for this user.").
+
+**Verification**
+- tsc --noEmit client: exit 0 (silent)
+- tsc --noEmit server: exit 0 (silent)
+- Deploy NOT done (sandbox has no Railway/Vercel access)
+
+**Notes**
+- EmptyState component is ready to use but not yet wired into user-facing screens
+  (TradeBook, Portfolio, etc.) — those already had reasonable hand-rolled empty states.
+  Available for 15.3 (loading skeletons) and beyond.
+- `colors.primaryDim` does not exist in theme — avoided it in EmptyState.
+
+**Recurring gotchas (CRITICAL -- still active)**
+1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
+2. `.git/HEAD.lock` + `.git/index.lock` + `.git/refs/heads/main.lock` are stale WSL locks.
+   Use GIT_INDEX_FILE=/tmp/vanta_<unique> git read-tree HEAD, then commit-tree, write to .git/refs/heads/main.
+3. After every session start: pick a fresh GIT_INDEX_FILE tmp path (previous session's may error).
+4. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
+5. Colors import: use @/lib/theme (not @/lib/colors). bgBase does not exist -- use bgDeep.
+6. Supabase JS SDK v2.45 has no `listUserSessions` -- sessions.ts calls the REST API directly.
+7. Supabase select with joins returns GenericStringError unless you cast: `as unknown as TypedArray[]`.
+8. `colors.primaryDim` does not exist -- just use `colors.primary`.
+
+**Next agent:** pick **15.3 Loading skeletons** — replace ActivityIndicators on Trade /
+Portfolio / Robots tabs with shape skeletons (shimmer animation). Frontend only, no migrations.
+
+---
+> Append, don't replace. Most recent at top. Each entry: date, agent, what changed, what's pending, gotchas.
 
 
 ## 2026-05-17T00:00Z -- 15.1 Onboarding flow
