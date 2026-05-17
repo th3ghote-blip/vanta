@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Pressable } from 'react-native';
 import { Sparkles, Plus, Trophy } from 'lucide-react-native';
 
 import { colors, radius, spacing, typography } from '@/lib/theme';
 import { EnvBanner } from '@/components/shared/EnvBanner';
+import { RobotsSkeleton } from '@/components/shared/SkeletonShimmer';
 import { RobotCard } from '@/components/robots/RobotCard';
 import { RobotPromptBuilder } from '@/components/robots/RobotPromptBuilder';
 import { RobotLeaderboard } from '@/components/robots/RobotLeaderboard';
@@ -100,7 +101,7 @@ export default function Robots() {
           </Text>
 
           {loading && robots.length === 0 ? (
-            <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.lg }} />
+            <RobotsSkeleton />
           ) : robots.length === 0 ? (
             <View
               style={{

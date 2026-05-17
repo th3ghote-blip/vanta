@@ -1,5 +1,58 @@
 # STATE -- handoff notes for the next agent
 
+## 2026-05-18T00:00Z -- 15.3 Loading skeletons
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **15.3 Loading skeletons**
+
+**What changed**
+- `components/shared/SkeletonShimmer.tsx` (new, 260 lines): core shimmer skeleton system.
+  - `Skeleton` — base shimmer box: configurable width/height/borderRadius, animated
+    LinearGradient sweep (expo-linear-gradient + Animated, useNativeDriver:true).
+  - `PortfolioSkeleton` — full-screen placeholder matching portfolio layout:
+    account header strip, balance card with equity/change row, action buttons, 4 activity rows.
+  - `TradeBookSkeleton` — inline placeholder: tab bar, stats row, 3 trade card rows.
+  - `RobotsSkeleton` — inline placeholder: 3 robot card rows with icon/name/badge/stats.
+- `app/(tabs)/portfolio.tsx`: replaced centered ActivityIndicator + "Loading account…"
+  full-screen block with `<PortfolioSkeleton />`.
+- `components/pro/TradeBook.tsx`: replaced two ActivityIndicator loading states
+  (account loading + trades loading) with `<TradeBookSkeleton />`.
+  The third ActivityIndicator (close-button spinner when `closing=true`) is intentional
+  button feedback — left as-is.
+- `app/(tabs)/robots.tsx`: replaced `<ActivityIndicator>` when loading robots list
+  with `<RobotsSkeleton />`.
+
+**Verification**
+- tsc --noEmit client: exit 0 (silent)
+- tsc --noEmit server: exit 0 (silent)
+- Deploy NOT done (sandbox has no Railway/Vercel access)
+
+**Notes**
+- The shimmer uses `useNativeDriver: true` (transform translateX) so it's GPU-accelerated.
+- `DimensionValue` imported from react-native to type the `width` prop correctly.
+- Chart.tsx loading state (ActivityIndicator inside a fixed-height WebView container) was
+  intentionally left as-is — it's in a bounded box and a skeleton there would add no value.
+- PriceAlertModal and QuickTradeScreen ActivityIndicators are button-state spinners — left alone.
+
+**Recurring gotchas (CRITICAL -- still active)**
+1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
+2. `.git/HEAD.lock` + `.git/index.lock` + `.git/refs/heads/main.lock` are stale WSL locks.
+   Use GIT_INDEX_FILE=/tmp/vanta_<unique> git read-tree HEAD, then commit-tree, write to .git/refs/heads/main.
+3. After every session start: pick a fresh GIT_INDEX_FILE tmp path (previous session's may error).
+4. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
+5. Colors import: use @/lib/theme (not @/lib/colors). bgBase does not exist -- use bgDeep.
+6. Supabase JS SDK v2.45 has no `listUserSessions` -- sessions.ts calls the REST API directly.
+7. Supabase select with joins returns GenericStringError unless you cast: `as unknown as TypedArray[]`.
+8. `colors.primaryDim` does not exist -- just use `colors.primary`.
+
+**Next agent:** pick **15.4 Brand polish** — load custom fonts (@expo-google-fonts/inter,
+@expo-google-fonts/jetbrains-mono), replace text-based "VANTA" wordmark with SVG logo,
+audit spacing consistency. Frontend only, no migrations.
+
+---
+> Append, don't replace. Most recent at top. Each entry: date, agent, what changed, what's pending, gotchas.
+
+
 ## 2026-05-17T00:00Z -- 15.2 Empty states audit
 
 **Agent:** scheduled cowork auto-work pass

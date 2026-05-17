@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';
-import { View, Text, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Pressable } from 'react-native';
 import { ArrowDownToLine, ArrowUpFromLine, RefreshCw } from 'lucide-react-native';
 
 import { colors, radius, spacing, typography } from '@/lib/theme';
 import { EnvBanner } from '@/components/shared/EnvBanner';
+import { PortfolioSkeleton } from '@/components/shared/SkeletonShimmer';
 import { useAccountStore } from '@/stores/account';
 import { usePriceStore } from '@/stores/prices';
 import { supabase } from '@/lib/supabase';
@@ -80,17 +81,7 @@ export default function Portfolio() {
   }, [trades, quotes]);
 
   if (accountLoading || !account) {
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.bgDeep }}>
-        <EnvBanner />
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={colors.primary} />
-          <Text style={{ ...typography.body, color: colors.textSecondary, marginTop: spacing.md }}>
-            Loading account…
-          </Text>
-        </View>
-      </View>
-    );
+    return <PortfolioSkeleton />;
   }
 
   const equity = Number(account.equity ?? account.balance) + stats.totalUnrealized;

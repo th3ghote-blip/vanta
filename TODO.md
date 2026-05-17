@@ -451,7 +451,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** No silent gray screens.
 
 ## 15.3 Loading skeletons
-- [ ] **What:** Replace ActivityIndicators on Trade / Portfolio / Robots tabs with shape skeletons (shimmer animation).
+- [x] **What:** Replace ActivityIndicators on Trade / Portfolio / Robots tabs with shape skeletons (shimmer animation).
 - **Acceptance:** Loading states feel intentional, not janky.
 
 ## 15.4 Brand polish

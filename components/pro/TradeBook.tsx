@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { View, Text, Pressable, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { X, ArrowUpRight, ArrowDownRight } from 'lucide-react-native';
 
 import { colors, radius, spacing, typography } from '@/lib/theme';
+import { TradeBookSkeleton } from '@/components/shared/SkeletonShimmer';
 import { supabase } from '@/lib/supabase';
 import { useAccountStore } from '@/stores/account';
 import { usePriceStore } from '@/stores/prices';
@@ -116,14 +117,7 @@ export function TradeBook({ onWinClose }: { onWinClose?: (profit: number) => voi
   }, [trades, quotes]);
 
   if (!account) {
-    return (
-      <View style={emptyContainerStyle}>
-        <ActivityIndicator color={colors.primary} />
-        <Text style={{ ...typography.body, color: colors.textSecondary, marginTop: spacing.sm, textAlign: 'center' }}>
-          Loading account…
-        </Text>
-      </View>
-    );
+    return <TradeBookSkeleton />;
   }
 
   return (
@@ -165,9 +159,7 @@ export function TradeBook({ onWinClose }: { onWinClose?: (profit: number) => voi
 
       {/* Body */}
       {loading ? (
-        <View style={emptyContainerStyle}>
-          <ActivityIndicator color={colors.primary} />
-        </View>
+        <TradeBookSkeleton />
       ) : trades.length === 0 ? (
         <View style={emptyContainerStyle}>
           <Text style={{ ...typography.body, color: colors.textSecondary, textAlign: 'center' }}>
