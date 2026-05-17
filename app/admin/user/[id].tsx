@@ -457,7 +457,7 @@ export default function AdminUserDetail() {
         {/* Accounts */}
         <SectionHeader label={`Accounts (${accounts.length})`} />
         {accounts.length === 0
-          ? <Text style={{ ...typography.body, color: colors.textSecondary, fontSize: 13 }}>No accounts</Text>
+          ? <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 13, fontStyle: 'italic' }}>No trading accounts found for this user.</Text>
           : accounts.map((acc: any) => (
             <View key={acc.id} style={{ backgroundColor: colors.bgElevated, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md, marginBottom: spacing.sm }}>
               <InfoRow label="Login #" value={String(acc.login ?? '—')} mono />
@@ -487,7 +487,7 @@ export default function AdminUserDetail() {
         {/* KYC */}
         <SectionHeader label="KYC" />
         {kyc.length === 0
-          ? <Text style={{ ...typography.body, color: colors.textSecondary, fontSize: 13 }}>No KYC submissions</Text>
+          ? <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 13, fontStyle: 'italic' }}>User has not submitted KYC documents yet.</Text>
           : kyc.map((k: any) => (
             <View key={k.id} style={{ backgroundColor: colors.bgElevated, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.sm }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -506,7 +506,7 @@ export default function AdminUserDetail() {
         {/* Recent trades */}
         <SectionHeader label={`Recent Trades (${Math.min(trades.length, 50)})`} />
         {trades.length === 0
-          ? <Text style={{ ...typography.body, color: colors.textSecondary, fontSize: 13 }}>No trades</Text>
+          ? <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 13, fontStyle: 'italic' }}>No trades placed on this account yet.</Text>
           : (
             <View style={{ backgroundColor: colors.bgElevated, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' }}>
               {trades.slice(0, 20).map((t: any, i: number) => {
@@ -539,7 +539,7 @@ export default function AdminUserDetail() {
         {/* Recent transactions */}
         <SectionHeader label={`Transactions (${Math.min(transactions.length, 50)})`} />
         {transactions.length === 0
-          ? <Text style={{ ...typography.body, color: colors.textSecondary, fontSize: 13 }}>No transactions</Text>
+          ? <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 13, fontStyle: 'italic' }}>No deposits or withdrawals on this account yet.</Text>
           : (
             <View style={{ backgroundColor: colors.bgElevated, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, overflow: 'hidden', marginBottom: 20 }}>
               {transactions.slice(0, 20).map((tx: any, i: number) => {

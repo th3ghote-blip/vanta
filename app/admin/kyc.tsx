@@ -260,10 +260,19 @@ export default function AdminKyc() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         >
           {submissions.length === 0 && (
-            <View style={{ alignItems: 'center', paddingVertical: spacing.xxl }}>
+            <View style={{ alignItems: 'center', paddingVertical: spacing.xxl, gap: spacing.sm }}>
               <FileText size={40} color={colors.border} />
-              <Text style={{ ...typography.body, color: colors.textSecondary, marginTop: spacing.sm }}>
-                No {filter === 'all' ? '' : filter} submissions
+              <Text style={{ ...typography.bodyBold, color: colors.textSecondary, marginTop: spacing.sm }}>
+                No {filter === 'all' ? '' : filter + ' '}submissions
+              </Text>
+              <Text style={{ ...typography.body, color: colors.textMuted, textAlign: 'center', fontSize: 13 }}>
+                {filter === 'pending'
+                  ? 'KYC submissions appear here when users complete verification.'
+                  : filter === 'approved'
+                  ? 'No approved submissions yet.'
+                  : filter === 'rejected'
+                  ? 'No rejected submissions on record.'
+                  : 'No KYC submissions have been created yet.'}
               </Text>
             </View>
           )}

@@ -119,6 +119,9 @@ export function TradeBook({ onWinClose }: { onWinClose?: (profit: number) => voi
     return (
       <View style={emptyContainerStyle}>
         <ActivityIndicator color={colors.primary} />
+        <Text style={{ ...typography.body, color: colors.textSecondary, marginTop: spacing.sm, textAlign: 'center' }}>
+          Loading account…
+        </Text>
       </View>
     );
   }

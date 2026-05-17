@@ -235,10 +235,17 @@ export default function AdminTransactions() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         >
           {txs.length === 0 && (
-            <View style={{ alignItems: 'center', paddingVertical: spacing.xxl }}>
+            <View style={{ alignItems: 'center', paddingVertical: spacing.xxl, gap: spacing.sm }}>
               <CheckCircle2 size={40} color={colors.border} />
-              <Text style={{ ...typography.body, color: colors.textSecondary, marginTop: spacing.sm }}>
-                No {filter === 'all' ? '' : filter} transactions
+              <Text style={{ ...typography.bodyBold, color: colors.textSecondary, marginTop: spacing.sm }}>
+                No {filter === 'all' ? '' : filter + ' '}transactions
+              </Text>
+              <Text style={{ ...typography.body, color: colors.textMuted, textAlign: 'center', fontSize: 13 }}>
+                {filter === 'pending'
+                  ? 'Pending deposits and withdrawals appear here for approval.'
+                  : filter === 'rejected'
+                  ? 'No rejected transactions on record.'
+                  : 'When users deposit or withdraw, transactions will appear here.'}
               </Text>
             </View>
           )}
