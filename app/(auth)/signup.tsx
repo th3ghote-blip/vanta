@@ -87,7 +87,7 @@ export default function Signup() {
         />
 
         <Pressable
-          onPress={() => router.replace('/(tabs)/trade')}
+          onPress={() => router.replace('/onboarding')}
           style={{
             marginTop: spacing.xl,
             backgroundColor: colors.primary,

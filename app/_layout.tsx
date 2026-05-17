@@ -81,6 +81,7 @@ export default function RootLayout() {
               <Stack.Screen name="index" options={{ headerShown: false }} />
               <Stack.Screen name="(auth)" options={{ headerShown: false }} />
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="onboarding" options={{ headerShown: false }} />
               <Stack.Screen name="help" options={{ title: 'Help' }} />
               <Stack.Screen name="kyc" options={{ title: 'Identity Verification' }} />
             </Stack>
