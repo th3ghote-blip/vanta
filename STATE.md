@@ -1,5 +1,52 @@
 # STATE -- handoff notes for the next agent
 
+# STATE -- handoff notes for the next agent
+
+
+## 2026-05-17T00:00Z -- 15.1 Onboarding flow
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **15.1 Onboarding flow**
+**Commit:** `00e1a10`
+
+**What changed**
+- `app/onboarding.tsx` (new, 232 lines): 3-step horizontal swipeable onboarding screen.
+  Step 1 "Welcome to Vanta" (TrendingUp icon), Step 2 "Two ways to trade" (Zap icon — Pro vs Quick),
+  Step 3 "Your $10k demo" (DollarSign icon). Dot indicators animate between pages.
+  "Next" / "Let's trade" CTA plus "Skip" link. On finish or skip: sets
+  AsyncStorage key `vanta_onboarding_done=true` then router.replace('/(tabs)/trade').
+  On mount: if key already set, skips immediately to trade (handles repeat installs / re-logins).
+- `app/(auth)/signup.tsx`: changed post-credential-save navigation from
+  `router.replace('/(tabs)/trade')` to `router.replace('/onboarding')`.
+  Also stripped 2 pre-existing null bytes from end of file (were causing TS1127 errors).
+- `app/_layout.tsx`: added `<Stack.Screen name="onboarding" options={{ headerShown: false }} />`.
+  Rewrote via Python after Edit tool truncated the file (same truncation bug as always).
+
+**Verification**
+- tsc --noEmit client: exit 0 (silent)
+- tsc --noEmit server: exit 0 (silent)
+- Deploy NOT done (sandbox has no Railway/Vercel access)
+
+**Notes**
+- Onboarding is device-local (AsyncStorage). If user uninstalls and reinstalls they see it again — intentional.
+- The `_layout.tsx` truncation bug hit again on a 94-line file. Always use Python for any file that has
+  more than ~50 lines, even when editing just one line — Edit tool re-serialises the full file and truncates.
+
+**Recurring gotchas (CRITICAL -- still active)**
+1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
+2. `.git/HEAD.lock` + `.git/index.lock` + `.git/refs/heads/main.lock` are stale WSL locks.
+   Use GIT_INDEX_FILE=/tmp/vanta_main_idx, git commit-tree, write to .git/refs/heads/main.
+3. After every session start: GIT_INDEX_FILE=/tmp/vanta_main_idx git read-tree HEAD.
+4. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
+5. Colors import: use @/lib/theme (not @/lib/colors). bgBase does not exist -- use bgDeep.
+6. Supabase JS SDK v2.45 has no `listUserSessions` -- sessions.ts calls the REST API directly.
+7. Supabase select with joins returns GenericStringError unless you cast: `as unknown as TypedArray[]`.
+
+**Next agent:** pick **15.2 Empty states audit** — audit all screens for silent gray states and add
+helpful empty-state messages/CTAs. Frontend only, no migrations needed.
+
+---
+> Append, don't replace. Most recent at top. Each entry: date, agent, what changed, what's pending, gotchas.
 
 ## 2026-05-16T08:00Z -- 12.4 Risk dashboard
 

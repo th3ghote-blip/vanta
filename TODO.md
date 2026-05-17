@@ -442,7 +442,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 # Phase 15 — Polish
 
 ## 15.1 Onboarding flow for new users
-- [ ] **File:** `app/onboarding.tsx` (new) — shown once after first signup
+- [x] **File:** `app/onboarding.tsx` (new) — shown once after first signup
 - **What:** 3-step swipeable: "Welcome to Vanta", "Pro vs Quick mode", "Your $10k demo". Final tap → trade screen.
 - **Acceptance:** New signup → onboarding → "Get started" → trade screen. Subsequent signups skip.
 
