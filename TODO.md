@@ -25,7 +25,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 ### Then
 
 1. Read **`/c/Claude/vanta/STATE.md`** for context the previous agent left.
-2. Pick the topmost unchecked task whose dependencies are met.
+2. Pick the topmost unchecked task whose dependencies are met. **Skip any task tagged `PARKED` — it's externally gated and only resumes when the user explicitly says so.**
 3. Implement it fully (code + verification per the acceptance criteria).
 4. Deploy:
    - Backend: `cd /c/Claude/vanta/server && railway up --detach`
@@ -56,6 +56,190 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - Audit log of login attempts
 - Rate-limited auth endpoints
 - CORS locked to Vercel domain
+
+---
+
+# Current focus (revised 2026-05-18)
+
+The platform's surface area is wide (Phase 1–4, 6–7, 11–12, 15 are done) but it's **shallow on trading options** and **brittle on operations**. Until the trading core feels robust and offers multiple ways to trade, defer anything externally gated:
+
+- **PARKED until platform is robust:** Sumsub KYC (5.3), OANDA streaming (8.1), TestFlight/Play Store (9.3, 9.4), custom domain (10.x), email confirmation (10.6).
+
+**Work order from here:** Phase R (Robustness) first, then Phase T (Trading depth). Inside each phase, top-to-bottom.
+
+---
+
+# Phase R — Robustness & stability
+
+The agent's deploy gap (commits land but Railway/Vercel aren't shipped without me/user), the chronic git lock issue, and silent runtime errors are the biggest sources of friction. Fix those before adding surface area.
+
+## R.1 GitHub Actions auto-deploy (eliminate the deploy gap)
+- [ ] **Files:** `.github/workflows/deploy.yml` (new), README setup notes
+- **What:** Push to `main` → GitHub Action builds + deploys both backend (Railway via `railway up` with `RAILWAY_TOKEN` secret) and frontend (Vercel via `vercel deploy --prod` with `VERCEL_TOKEN`). Removes the 12+ hour gap between agent commits and live code.
+- **Gated on:** user creating a GitHub repo + PAT, plus tokens added as repo secrets. If user hasn't provided these, leave a note in STATE.md and skip — don't try to set up GitHub from inside the agent.
+- **Acceptance:** Push a commit, Actions tab shows build succeeds, vanta-jade.vercel.app serves new code within 5 min.
+
+## R.2 Stale-lock auto-cleanup at session start
+- [ ] **File:** `scripts/git-precheck.sh` (new)
+- **What:** Bash script that removes `.git/index.lock`, `.git/HEAD.lock`, `.git/refs/heads/*.lock` if present and older than 60 seconds. Update the "Precheck" section of this file to call it as step 0.
+- **Acceptance:** Run when locks exist → locks gone, `git status` works without error.
+
+## R.3 Sentry frontend
+- [ ] **Files:** install `sentry-expo`, init in `app/_layout.tsx`
+- **What:** Capture client errors, tag with login number, source map upload via EAS post-publish hook.
+- **Acceptance:** Trigger a thrown error in dev → appears in Sentry within 30s with sourcemap.
+
+## R.4 Sentry backend
+- [ ] **Files:** install `@sentry/node`, init in `server/src/index.ts`
+- **What:** Capture server exceptions, slow-request warnings >1s, tag with route + user id.
+- **Acceptance:** Throw in a route → appears in Sentry.
+
+## R.5 Order-open idempotency
+- [ ] **File:** `server/src/routes/orders.ts`
+- **What:** Add optional `client_request_id` (uuid) to OpenOrderSchema. Check `trades` for `(account_id, client_request_id)` already exists → return existing trade instead of opening a duplicate. Client sets the id when user clicks Buy/Sell so double-tap doesn't double-open.
+- **Migration:** add `client_request_id text` column to `trades` with a partial unique index per account.
+- **Acceptance:** POST /api/orders/open twice with the same `client_request_id` → same trade row both times, only one position opened.
+
+## R.6 Worker self-heal on upstream failures
+- [ ] **Files:** `server/src/feed/pricefeed.ts`, `workers/risk.ts`, `workers/rounds.ts`
+- **What:** Wrap every worker tick in `try/catch`, log + continue. Twelve Data 429 retry with exponential backoff. Coinbase WS reconnect with backoff (already partially in place — verify). Add a `/api/health/workers` endpoint returning last-tick timestamps so we can see which workers are stuck.
+- **Acceptance:** Kill the Twelve Data API key for 5 min → server keeps running, workers resume when key restored.
+
+## R.7 Better-Stack uptime monitoring
+- [ ] **What:** Sign up free tier (https://betterstack.com/sign-up), point at `/health` + `/api/quotes` every 3 min. Alert via email + (optional) Slack on downtime.
+- **Acceptance:** Take Railway down → email arrives within 5 min.
+
+## R.8 E2E smoke test in CI
+- [ ] **Files:** `e2e/smoke.spec.ts` (Playwright), `.github/workflows/e2e.yml`
+- **What:** Sign up → place a 0.01 BTC trade → close it → sign out. Runs on every push.
+- **Acceptance:** PR opens, CI runs the test green, fails if any step breaks.
+
+## R.9 Backend integration test suite
+- [ ] **Files:** `server/test/*.test.ts`, install `vitest`
+- **What:** Cover `/api/auth/*`, `/api/orders/*`, `/api/rounds/*`, `/api/robots/*` against a test Supabase project (or hermetic mock).
+- **Acceptance:** `cd server && npm test` passes; CI runs it.
+
+## R.10 Performance dashboard in admin
+- [ ] **Files:** `server/src/middleware/timing.ts`, `app/admin/perf.tsx`
+- **What:** Middleware that records p50/p95/p99 per route over rolling 5-min window. Admin page reads it.
+- **Acceptance:** Visit `/admin/perf` → see real numbers updating live.
+
+## R.11 Database backup verification
+- [ ] **File:** `scripts/verify-backup.py`
+- **What:** Daily cron via GitHub Actions: query Supabase Management API for latest backup timestamp, alert if >30h old.
+- **Acceptance:** Cron runs, alerts when delayed.
+
+## R.12 Legal pages (Terms / Privacy / Risk disclosure)
+- [ ] **Files:** `app/legal/terms.tsx`, `app/legal/privacy.tsx`, `components/RiskDisclosureModal.tsx`
+- **What:** Static markdown rendered. Risk disclosure shown as modal on first deposit (or first sign-in if you prefer). Generated from TermsFeed for Marshall Islands B-book broker template — review with a lawyer before launch.
+- **Acceptance:** Pages accessible from Profile → Help. Risk modal blocks first deposit until acknowledged.
+
+---
+
+# Phase T — Trading depth (multiple options)
+
+Today users can only place market orders (buy/sell at the live price) on Pro mode, or up/down bets on Quick mode. Real traders need pending orders, position management, and more product types.
+
+## T.1 Pending limit orders
+- [ ] **Files:** new `app/(tabs)/trade/limit.tsx` form, `server/src/routes/orders.ts` (open path), `workers/orders-trigger.ts` (new)
+- **Migration:** `trades.order_type` enum (`market` | `limit` | `stop` | `stop_limit`), `trades.trigger_price` numeric, `trades.status` adds `'pending'` value.
+- **What:** User can place a buy/sell at a specific price ("buy BTC at 70000"). Stored with `status='pending'`. Worker scans pending orders every 1s and converts to `'open'` when price crosses trigger.
+- **Acceptance:** Place buy-limit at $70k while BTC is $76k → shows as Pending → manually drop seed price to $69k → trade activates → balance reflects.
+
+## T.2 Stop orders
+- [ ] **Same files as T.1.**
+- **What:** Reverse of limit — buy-stop fills when price rises above trigger (breakout entry), sell-stop fills when price drops below trigger (breakdown entry). Same `trades.order_type='stop'`.
+- **Acceptance:** Sell-stop on BTC at $75k while price is $76k → fills when BTC dips below $75k.
+
+## T.3 Stop-limit orders
+- [ ] **Same files as T.1.**
+- **What:** Two-stage: trigger at price X → place limit order at price Y. `trades.order_type='stop_limit'`, both `trigger_price` and limit price stored.
+- **Acceptance:** Buy stop-limit, trigger $76k, limit $76.1k → triggers when price reaches $76k → fills only at $76.1k or better.
+
+## T.4 Trailing stops
+- [ ] **Files:** `server/src/workers/risk.ts` extension
+- **Migration:** `trades.trail_distance numeric`, `trades.trail_high_water numeric` (track best price reached).
+- **What:** On every tick, if profitable, ratchet the stop-loss up (long) or down (short) by `trail_distance` behind the high-water mark. Existing risk worker handles the stop trigger once it's set.
+- **Acceptance:** Open BTC buy at 75k with trail $500 → BTC rises to 78k → SL is now 77.5k → BTC dips below 77.5k → auto-close with profit.
+
+## T.5 Modify open positions (SL/TP after open)
+- [ ] **Files:** `server/src/routes/orders.ts` (new PATCH endpoint), `components/pro/PositionsTable.tsx` (edit button per row)
+- **What:** User can change SL and TP on an existing open trade without closing. Validate the new levels make sense (SL below current ask for longs, etc.).
+- **Acceptance:** Open trade with no SL → tap Edit → set SL → save → risk worker now respects new SL.
+
+## T.6 Partial close
+- [ ] **Files:** `server/src/routes/orders.ts` (extend `/close` to accept `closeVolume`), `components/pro/TradeBook.tsx` (slider/input for partial size)
+- **What:** Close X% of a position. Trade row stays open with reduced volume; a child closed trade row records the partial close P&L.
+- **Acceptance:** Open 0.1 BTC, partial-close 0.05 → original shows volume 0.05, history shows a closed trade for 0.05 with realized P&L.
+
+## T.7 Bracket orders (entry + SL + TP as one)
+- [ ] **Files:** `components/pro/OrderEntry.tsx` (already has SL/TP inputs — wire them in), server inserts all three legs atomically.
+- **Acceptance:** Place a market buy with SL and TP filled → 1 entry trade row, both SL and TP active on the risk worker. Closing the entry cancels both legs.
+
+## T.8 OCO orders (one-cancels-other)
+- [ ] **Files:** Migration: `trades.oco_group_id uuid`. Risk worker: when one leg of an OCO group fills/stops, cancel the others.
+- **What:** Place two pending orders linked; when one triggers, the other auto-cancels. Useful for "buy at breakout OR buy at pullback" setups.
+- **Acceptance:** Place BTC buy-stop at $78k + BTC buy-limit at $74k as an OCO → one triggers → other vanishes from Pending list.
+
+## T.9 Hedging mode (allow opposing positions on same symbol)
+- [ ] **Account setting:** `accounts.hedging_enabled boolean` (default false). UI toggle in Profile.
+- **What:** Default is netting — a buy on top of an existing sell reduces or flips the position. Hedging lets both exist simultaneously (MT4 default behavior).
+- **Acceptance:** With hedging on: open 0.1 BTC buy + 0.1 BTC sell → both rows in Open Positions, P&L offsets in real time.
+
+## T.10 Multiple accounts per user (demo + live tabs)
+- [ ] **Migration:** `accounts.is_primary boolean`. The user already has the schema for multiple accounts — just need UI to switch.
+- **Files:** Account header strip becomes a dropdown / segmented control.
+- **What:** Users can switch between accounts (e.g., demo and live) without signing out. New "Open additional account" button in Profile.
+- **Acceptance:** Click switcher → second account loads → balance, trades, robots all swap to the new account's data.
+
+## T.11 Position notional + leverage display
+- [ ] **Files:** `components/pro/OrderEntry.tsx`, position rows in TradeBook.
+- **What:** Show notional value and effective leverage as user types volume. "0.1 BTC × $76,000 = $7,600 notional · 95× leverage on $80 margin used".
+- **Acceptance:** Numbers update live as user types.
+
+## T.12 Symbol watchlist / favorites
+- [ ] **Files:** `app/(tabs)/trade/watchlist.tsx`, migration: `user_watchlist (user_id, symbol)` table.
+- **What:** Star a symbol → appears in your watchlist tab. Cross-device sync via Supabase.
+- **Acceptance:** Star BTCUSD → switch tabs → see it in your saved list with live price.
+
+## T.13 Pending orders dashboard
+- [ ] **Files:** `components/pro/TradeBook.tsx` — add "Pending" tab between Open and Closed.
+- **What:** Show all `status='pending'` orders for the account with trigger price, distance from current price, cancel button.
+- **Acceptance:** Place a limit order → tab → row visible with countdown to trigger.
+
+## T.14 Trade journal / annotations
+- [ ] **Migration:** `trades.notes text`
+- **Files:** Tap any trade in TradeBook → drawer with notes textarea + screenshot upload (Supabase Storage).
+- **What:** User can attach a reason + chart screenshot to any trade for review later.
+- **Acceptance:** Open trade → add note "RSI oversold reversal" → close → reopen TradeBook → note still attached.
+
+## T.15 Technical indicators on chart
+- [ ] **Files:** `components/pro/Chart.tsx` extension (TradingView Lightweight Charts already supports overlays)
+- **What:** Toggle for RSI, MACD, MA(20), MA(50), Bollinger Bands. Settings persist per user (`profiles.chart_prefs jsonb`).
+- **Acceptance:** Toggle RSI → indicator pane appears below price. Reload page → still on.
+
+## T.16 Drawing tools on chart
+- [ ] **What:** Trendline, horizontal line, fib retracement. Lightweight Charts has a drawings API. Persist via `chart_drawings` table per (user, symbol).
+- **Acceptance:** Draw trendline on BTC chart → switch symbol → come back → line still there.
+
+## T.17 Bigger symbol catalog — real-time crypto on Coinbase
+- [ ] **Files:** `server/src/feed/pricefeed.ts` — add 30+ more pairs Coinbase has but we don't carry yet.
+- **What:** Currently 47 cryptos via Coinbase. Add the next 30+ (ETH-EUR, BTC-EUR, IMX, GRT, FET, TAO, ONDO, KAS, etc.). Cap at ~80 to keep WS subscription size reasonable.
+- **Acceptance:** Picker shows 80+ symbols. All have live prices.
+
+## T.18 Copy trading (basic)
+- [ ] **Migration:** `copy_relationships (follower_id, leader_id, allocation_pct, started_at)`.
+- **What:** Robots tab → "Top Traders" leaderboard (ranked by 30-day P&L from public-opted-in users). Tap → "Copy" → for every trade the leader opens, mirror it at allocation_pct of your balance.
+- **Acceptance:** Two test accounts. A opts in as leader, opens BTC buy. B follows A → B sees a copied BTC buy auto-appear in their Open Positions.
+
+## T.19 Spread-betting / micro-lot mode
+- [ ] **What:** Account preference for "$ per pip" style sizing instead of lots. Cosmetic — converts under the hood — but matches the UK retail trader mental model.
+- **Acceptance:** Toggle preference → order entry shows "$10/pip" instead of "0.1 lots", math works out.
+
+## T.20 Quick Mode — more durations + asset categories
+- [ ] **Files:** `components/fun/QuickTradeScreen.tsx`
+- **What:** Add 5s, 30s, 30min, 4h, 24h durations (already have 60s/5min/15min). Add category filter (Crypto / Forex / Stocks tabs) the way Pro mode has.
+- **Acceptance:** Quick mode has 7 duration options and category tabs.
 
 ---
 
@@ -215,7 +399,8 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **What:** Admin queue of pending submissions. View each doc. Approve or reject with reason.
 - **Acceptance:** Approve → user's `kyc_submissions.status='approved'`, can withdraw.
 
-## 5.3 Sumsub integration (production-grade)
+## 5.3 Sumsub integration (production-grade) — PARKED
+- [ ] **PARKED** until first fiat deposit attempt. Phase 5.1 homegrown KYC flow + admin review is sufficient for the current user count. Sumsub costs ~$2/verification and requires a sales call.
 - [ ] **Files:** `lib/sumsub.ts`, replace homegrown flow in `app/kyc.tsx`
 - **What:** Sumsub Web SDK iframe. `/api/kyc/access-token` issues per-user tokens. Webhook receives outcome → update `kyc_submissions.status`.
 - **Note:** Requires Sumsub account. Skip until ready.
@@ -279,7 +464,8 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 
 # Phase 8 — Real-time forex (OANDA)
 
-## 8.1 OANDA streaming integration
+## 8.1 OANDA streaming integration — PARKED
+- [ ] **PARKED** until forex usage justifies the OANDA demo-account setup. Current Twelve Data chunked poll (every 20 min, 65s gap between chunks) covers 9 forex/metals/stocks symbols at acceptable freshness for B-book pricing.
 - [ ] **File:** `server/src/feed/pricefeed.ts`
 - [ ] **Env:** `OANDA_API_TOKEN`, `OANDA_ACCOUNT_ID`
 - **What:** Replace 20-min Twelve Data polling for forex/gold with OANDA v20 streaming API. Add: indices (SPX500, NAS100, US30, GER40, UK100, JP225), commodities (USOIL, UKOIL, XAGUSD).
@@ -310,39 +496,49 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **What:** Generate VANTA mark (V letter, electric blue on dark) at all sizes.
 - **Acceptance:** App icon + splash visible on builds.
 
-## 9.3 First TestFlight build
+## 9.3 First TestFlight build — PARKED
+- [ ] **PARKED** until launch decision. Requires Apple Developer account ($99/yr) which the user hasn't created. Web app + 9.2 icons are sufficient for the current testing phase.
 - [ ] **What:** `eas build --profile preview --platform ios`. Configure Apple Developer account ($99/yr). Upload to TestFlight. Add tester emails.
 - **Acceptance:** App opens on real iPhone via TestFlight.
 
-## 9.4 First Play Store internal build
+## 9.4 First Play Store internal build — PARKED
+- [ ] **PARKED** until launch decision. Same reason as 9.3 — needs Google Play account ($25 one-time) which the user hasn't set up.
 - [ ] **What:** `eas build --profile preview --platform android`. Configure Google Play Developer account ($25 one-time). Upload to Internal testing. Send install link.
 - **Acceptance:** App opens on real Android via internal testing.
 
 ---
 
-# Phase 10 — Domain & production
+# Phase 10 — Domain & production — ALL PARKED
 
-## 10.1 Buy domain
+> **PARKED:** All of Phase 10 is gated on the user buying a real domain. The current vanta-jade.vercel.app + vanta-server-production.up.railway.app URLs work fine for the testing phase. Revisit when the user has bought a domain and is ready to launch publicly.
+
+## 10.1 Buy domain — PARKED
+- [ ] **PARKED.** Needs user action — purchase `vanta.markets` (or alternative).
 - [ ] **Externally:** Buy `vanta.markets` (or alternative) at Cloudflare Registrar (~$30/yr for `.markets`).
 - **Acceptance:** Domain owned, control of DNS.
 
-## 10.2 Custom domain on Vercel
+## 10.2 Custom domain on Vercel — PARKED
+- [ ] **PARKED** — depends on 10.1.
 - [ ] **Steps:** `vercel domains add vanta.markets` → set DNS A/CNAME → update `app.json` scheme + bundle IDs → update CORS allowlist in `server/src/index.ts` → redeploy.
 - **Acceptance:** https://vanta.markets serves the app.
 
-## 10.3 Custom domain on Railway (api.vanta.markets)
+## 10.3 Custom domain on Railway (api.vanta.markets) — PARKED
+- [ ] **PARKED** — depends on 10.1.
 - [ ] **Steps:** Railway dashboard → Add custom domain `api.vanta.markets` → set DNS CNAME. Update Vercel env vars `EXPO_PUBLIC_API_URL` + `EXPO_PUBLIC_WS_URL`.
 - **Acceptance:** https://api.vanta.markets serves the API; app uses it.
 
-## 10.4 Verified Resend domain
+## 10.4 Verified Resend domain — PARKED
+- [ ] **PARKED** — depends on 10.1.
 - [ ] **Steps:** Add domain at https://resend.com/domains → set DNS records → verify → update Supabase Auth SMTP "Sender email" to `noreply@vanta.markets`.
 - **Acceptance:** Confirmation emails arrive from `noreply@vanta.markets`.
 
-## 10.5 Cloudflare in front
+## 10.5 Cloudflare in front — PARKED
+- [ ] **PARKED** — depends on 10.1.
 - [ ] **Steps:** Move DNS to Cloudflare → enable proxy on root + api → Bot Fight Mode → basic WAF rules.
 - **Acceptance:** `dig vanta.markets` shows Cloudflare IPs.
 
-## 10.6 Re-enable email confirmation in Supabase
+## 10.6 Re-enable email confirmation in Supabase — PARKED
+- [ ] **PARKED** — depends on 10.4 (Resend verified domain).
 - [ ] **Steps:** Once Resend domain verified, re-enable "Confirm email" in Supabase Auth → Email provider.
 - **Acceptance:** New signups receive confirmation email.
 

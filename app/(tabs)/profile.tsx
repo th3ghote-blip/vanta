@@ -2,30 +2,20 @@ import { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
-import { Shield, Bell, MessageSquare, Phone, HelpCircle, LogOut, ChevronRight, BadgeCheck, ShieldCheck, Trophy, Sun, Moon, Monitor, type LucideIcon } from 'lucide-react-native';
+import { Shield, Bell, MessageSquare, Phone, HelpCircle, LogOut, ChevronRight, BadgeCheck, ShieldCheck, Laptop, Trophy, Lock } from 'lucide-react-native';
 
 import { colors, radius, spacing, typography } from '@/lib/theme';
 import { useAuthStore } from '@/stores/auth';
 import { useAccountStore } from '@/stores/account';
-import { useThemeStore } from '@/stores/theme';
-import type { ThemePreference } from '@/stores/theme';
 import { api, getAchievements } from '@/lib/api';
 import type { Achievement, AchievementMeta } from '@/lib/api';
 import { listVerifiedFactors } from '@/lib/2fa';
 import { ModeSwitcher } from '@/components/shared/ModeSwitcher';
 import { EnvBanner } from '@/components/shared/EnvBanner';
 
-const THEME_OPTIONS: { value: ThemePreference; label: string; Icon: LucideIcon }[] = [
-  { value: 'auto',  label: 'Auto',  Icon: Monitor },
-  { value: 'dark',  label: 'Dark',  Icon: Moon },
-  { value: 'light', label: 'Light', Icon: Sun },
-];
-
 export default function Profile() {
   const { user, signOut } = useAuthStore();
   const account = useAccountStore((s) => s.account);
-  const themePreference = useThemeStore((s) => s.theme);
-  const setTheme = useThemeStore((s) => s.setTheme);
   const [isAdmin, setIsAdmin] = useState(false);
   const [copied, setCopied] = useState(false);
   const [has2FA, setHas2FA] = useState(false);
@@ -114,56 +104,6 @@ export default function Profile() {
           <ModeSwitcher />
         </View>
 
-        {/* Display — theme toggle */}
-        <View
-          style={{
-            backgroundColor: colors.bgElevated,
-            borderRadius: radius.lg,
-            padding: spacing.md,
-            borderWidth: 1,
-            borderColor: colors.border,
-          }}
-        >
-          <Text style={{ ...typography.bodyBold, color: colors.textPrimary, fontSize: 14, marginBottom: spacing.sm }}>
-            Display
-          </Text>
-          <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 12, marginBottom: spacing.md }}>
-            Theme
-          </Text>
-          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-            {THEME_OPTIONS.map(({ value, label, Icon }) => {
-              const active = themePreference === value;
-              return (
-                <Pressable
-                  key={value}
-                  onPress={() => setTheme(value)}
-                  style={{
-                    flex: 1,
-                    alignItems: 'center',
-                    paddingVertical: spacing.md,
-                    borderRadius: radius.md,
-                    borderWidth: 1.5,
-                    borderColor: active ? colors.primary : colors.border,
-                    backgroundColor: active ? colors.bgSurface : colors.bgDeep,
-                    gap: spacing.xs,
-                  }}
-                >
-                  <Icon color={active ? colors.primary : colors.textMuted} size={20} />
-                  <Text
-                    style={{
-                      ...typography.bodyBold,
-                      color: active ? colors.primary : colors.textMuted,
-                      fontSize: 12,
-                    }}
-                  >
-                    {label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-
         {/* Settings list */}
         <View
           style={{
@@ -205,6 +145,7 @@ export default function Profile() {
             />
           )}
         </View>
+
 
         {/* Achievements */}
         <View
