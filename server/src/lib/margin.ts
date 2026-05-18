@@ -76,29 +76,52 @@ export async function reserveMargin(
   const newFreeMargin = +(account.free_margin - amount).toFixed(2);
   const newMarginUsed = +(account.margin_used + amount).toFixed(2);
 
-  const { data, error } = await supabaseAdmin
-    .from('accounts')
-    .update({ free_margin: newFreeMargin, margin_used: newMarginUsed })
-    .eq('id', account.id)
-    .eq('margin_used', account.margin_used)
-    .gte('free_margin', amount)
-    .select('id')
-    .maybeSingle();
+  // Atomic reserve via RPC. Falls back to non-atomic update if the RPC isn't
+  // installed yet (migration 013_margin_rpc.sql). The RPC matches on
+  // `id` only (no CAS-on-margin_used), and re-validates `free_margin >= amount`
+  // inside the function so concurrent calls can't double-spend.
+  const { data: rpcData, error: rpcErr } = await supabaseAdmin.rpc('reserve_margin', {
+    p_account_id: account.id,
+    p_amount: amount,
+  });
 
-  if (error) {
-    log?.warn({ err: error, accountId: account.id, amount }, 'margin: reserve failed');
-    return { ok: false, reason: 'db_error' };
+  if (rpcErr) {
+    log?.warn({ err: rpcErr, accountId: account.id, amount }, 'margin: rpc reserve failed, falling back to update');
+    // Fallback for envs where the migration hasn't run yet
+    const { data, error } = await supabaseAdmin
+      .from('accounts')
+      .update({ free_margin: newFreeMargin, margin_used: newMarginUsed })
+      .eq('id', account.id)
+      .gte('free_margin', amount)
+      .select('id')
+      .maybeSingle();
+    if (error) return { ok: false, reason: 'db_error' };
+    if (!data) {
+      log?.warn(
+        { accountId: account.id, amount, seenFreeMargin: account.free_margin, seenMarginUsed: account.margin_used },
+        'margin: fallback update returned no row',
+      );
+      return { ok: false, reason: 'race' };
+    }
+    return { ok: true, newFreeMargin, newMarginUsed };
   }
-  if (!data) {
-    return { ok: false, reason: 'race' };
+
+  // RPC returns boolean: true on success, false if insufficient_margin
+  if (rpcData === false || rpcData === null) {
+    log?.warn(
+      { accountId: account.id, amount, seenFreeMargin: account.free_margin },
+      'margin: rpc returned false (insufficient at write time)',
+    );
+    return { ok: false, reason: 'insufficient' };
   }
   return { ok: true, newFreeMargin, newMarginUsed };
 }
 
 /**
+/**
  * Release `amount` of reserved margin (from `margin_used` back into
- * `free_margin`). Read-then-write; clamps to current `margin_used` so we
- * never go negative even under benign race.
+ * `free_margin`). Delegates to the `release_margin` Postgres RPC for atomicity.
+ * Falls back to a non-atomic read-then-write if the RPC is unavailable.
  */
 export async function releaseMargin(
   accountId: string,
@@ -107,29 +130,38 @@ export async function releaseMargin(
 ): Promise<void> {
   if (amount <= 0) return;
 
-  const { data: acc, error: readErr } = await supabaseAdmin
-    .from('accounts')
-    .select('id, free_margin, margin_used')
-    .eq('id', accountId)
-    .single();
+  const { error: rpcErr } = await supabaseAdmin.rpc('release_margin', {
+    p_account_id: accountId,
+    p_amount: amount,
+  });
 
-  if (readErr || !acc) {
-    log?.warn({ err: readErr, accountId, amount }, 'margin: release failed (read)');
-    return;
-  }
+  if (rpcErr) {
+    log?.warn({ err: rpcErr, accountId, amount }, 'margin: rpc release failed, falling back to update');
+    // Fallback for envs where the migration hasn't run yet
+    const { data: acc, error: readErr } = await supabaseAdmin
+      .from('accounts')
+      .select('id, free_margin, margin_used')
+      .eq('id', accountId)
+      .single();
 
-  const release = Math.min(amount, Number(acc.margin_used) || 0);
-  if (release <= 0) return;
+    if (readErr || !acc) {
+      log?.warn({ err: readErr, accountId, amount }, 'margin: fallback release failed (read)');
+      return;
+    }
 
-  const newMarginUsed = +((Number(acc.margin_used) || 0) - release).toFixed(2);
-  const newFreeMargin = +((Number(acc.free_margin) || 0) + release).toFixed(2);
+    const release = Math.min(amount, Number(acc.margin_used) || 0);
+    if (release <= 0) return;
 
-  const { error: updErr } = await supabaseAdmin
-    .from('accounts')
-    .update({ margin_used: newMarginUsed, free_margin: newFreeMargin })
-    .eq('id', accountId);
+    const newMarginUsed = +((Number(acc.margin_used) || 0) - release).toFixed(2);
+    const newFreeMargin = +((Number(acc.free_margin) || 0) + release).toFixed(2);
 
-  if (updErr) {
-    log?.warn({ err: updErr, accountId, amount }, 'margin: release failed (update)');
+    const { error: updErr } = await supabaseAdmin
+      .from('accounts')
+      .update({ margin_used: newMarginUsed, free_margin: newFreeMargin })
+      .eq('id', accountId);
+
+    if (updErr) {
+      log?.warn({ err: updErr, accountId, amount }, 'margin: fallback release failed (update)');
+    }
   }
 }
