@@ -4,13 +4,14 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { View } from 'react-native';
+import { View, Appearance, useColorScheme } from 'react-native';
 import { useFonts } from 'expo-font';
 
-import { colors } from '@/lib/theme';
+import { colors, resolveScheme } from '@/lib/theme';
 import { useAuthStore } from '@/stores/auth';
 import { useModeStore } from '@/stores/mode';
 import { useAccountStore } from '@/stores/account';
+import { useThemeStore } from '@/stores/theme';
 import { connectLiveQuotes, disconnectLiveQuotes } from '@/lib/liveQuotes';
 import {
   registerForPushNotificationsAsync,
@@ -57,6 +58,9 @@ export default function RootLayout() {
   const hydrateMode = useModeStore((s) => s.hydrate);
   const fetchAccount = useAccountStore((s) => s.fetch);
   const clearAccount = useAccountStore((s) => s.clear);
+  const hydrateTheme = useThemeStore((s) => s.hydrate);
+  const themePreference = useThemeStore((s) => s.theme);
+  const systemScheme = useColorScheme();
 
   // Load custom fonts. On web the fonts stream in from the CDN; on native they
   // are cached after the first load. The app renders immediately — fonts swap in
@@ -69,12 +73,24 @@ export default function RootLayout() {
   useEffect(() => {
     const unsubscribe = initAuth();
     hydrateMode();
+    hydrateTheme();
     connectLiveQuotes();
     return () => {
       unsubscribe();
       disconnectLiveQuotes();
     };
-  }, [initAuth, hydrateMode]);
+  }, [initAuth, hydrateMode, hydrateTheme]);
+
+  // Apply Appearance override whenever the theme preference changes.
+  useEffect(() => {
+    const scheme = resolveScheme(themePreference, systemScheme ?? 'dark');
+    // 'auto' → pass null so the OS controls color scheme
+    if (themePreference === 'auto') {
+      Appearance.setColorScheme(null);
+    } else {
+      Appearance.setColorScheme(scheme);
+    }
+  }, [themePreference, systemScheme]);
 
   // Refetch account + manage push token whenever auth state changes.
   useEffect(() => {
@@ -98,17 +114,22 @@ export default function RootLayout() {
     }
   }, [session, fetchAccount, clearAccount]);
 
+  // Derive resolved scheme for StatusBar and background
+  const resolvedScheme = resolveScheme(themePreference, systemScheme ?? 'dark');
+  const bgColor = resolvedScheme === 'light' ? '#EEF1F8' : colors.bgDeep;
+  const statusBarStyle = resolvedScheme === 'light' ? 'dark' : 'light';
+
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bgDeep }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: bgColor }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
-          <View style={{ flex: 1, backgroundColor: colors.bgDeep }}>
-            <StatusBar style="light" />
+          <View style={{ flex: 1, backgroundColor: bgColor }}>
+            <StatusBar style={statusBarStyle} />
             <Stack
               screenOptions={{
-                headerStyle: { backgroundColor: colors.bgDeep },
-                headerTintColor: colors.textPrimary,
-                contentStyle: { backgroundColor: colors.bgDeep },
+                headerStyle: { backgroundColor: bgColor },
+                headerTintColor: resolvedScheme === 'light' ? '#0A0E1A' : colors.textPrimary,
+                contentStyle: { backgroundColor: bgColor },
                 headerShadowVisible: false,
               }}
             >

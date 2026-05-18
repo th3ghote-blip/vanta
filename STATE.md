@@ -1,5 +1,70 @@
 # STATE -- handoff notes for the next agent
 
+## 2026-05-18T00:00Z -- 15.5 Light theme toggle
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **15.5 Light theme toggle**
+**Commit:** `3cdf564`
+
+**Pre-run housekeeping**
+Found `server/src/lib/supabase.ts` truncated (file-truncation bug from a prior unrelated run).
+Restored to HEAD via `git show HEAD:... > /tmp/... && python3 shutil.copy(...)`.
+No commit needed — file now matched HEAD, working tree was clean before starting the TODO item.
+
+**What changed**
+- `stores/theme.ts` (new, 36 lines): Zustand store for theme preference.
+  State: `theme: 'auto' | 'dark' | 'light'`, `hydrated: boolean`.
+  `setTheme()` updates store + writes to AsyncStorage key `vanta:theme`.
+  `hydrate()` reads AsyncStorage on startup, defaults to 'dark'.
+- `lib/theme.ts`: added `ColorTokens` interface (structural, not literal),
+  `lightColors` palette, `useThemeColors()` hook (resolves 'auto' via
+  `useColorScheme`), `resolveScheme()` helper for non-hook contexts.
+  Static `colors` export kept as `darkColors` for backward compat.
+- `app/_layout.tsx`: imports `useThemeStore` + `resolveScheme`.
+  Hydrates theme on mount. Effect watches `themePreference` + `systemScheme`
+  and calls `Appearance.setColorScheme()` (null for 'auto', 'light'/'dark'
+  otherwise). Root `backgroundColor` and `StatusBar` style react to resolved
+  scheme.
+- `app/(tabs)/profile.tsx`: new **Display** section above Settings.
+  3-button toggle (Auto / Dark / Light) using Monitor / Moon / Sun icons.
+  Active button highlighted with `colors.primary` border + tint.
+  Imports `useThemeStore` and `ThemePreference` type.
+
+**Verification**
+- tsc --noEmit client: exit 0
+- tsc --noEmit server: exit 0
+- Deploy NOT done (sandbox has no Railway/Vercel access)
+
+**Notes**
+- Existing screens still use the static `colors` (dark) import — they won't
+  change appearance in light mode until individually updated to use
+  `useThemeColors()`. The toggle wires up the foundation (store, tokens,
+  Appearance override, StatusBar) and the profile UI. Progressive migration
+  of individual screens is future work.
+- Light palette: bgDeep=#EEF1F8, bgElevated=#FFFFFF, bgSurface=#F5F7FC,
+  primary=#2563EB (slightly darker blue for contrast on white), profit/loss
+  shifted for WCAG readability on light bg.
+
+**Recurring gotchas (CRITICAL -- still active)**
+1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
+2. `.git/HEAD.lock` + `.git/index.lock` + `.git/refs/heads/main.lock` are stale WSL locks.
+   Use GIT_INDEX_FILE=/tmp/vanta_<unique> git read-tree HEAD, then commit-tree, write to .git/refs/heads/main.
+3. After every session start: pick a fresh GIT_INDEX_FILE tmp path (previous session's may error).
+4. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
+5. Colors import: use @/lib/theme (not @/lib/colors). bgBase does not exist -- use bgDeep.
+6. Supabase JS SDK v2.45 has no `listUserSessions` -- sessions.ts calls the REST API directly.
+7. Supabase select with joins returns GenericStringError unless you cast: `as unknown as TypedArray[]`.
+8. `colors.primaryDim` does not exist -- just use `colors.primary`.
+9. git write-tree / commit-tree: always redirect warnings to /dev/null (2>/dev/null) when
+   capturing SHA into a variable, otherwise warning text contaminates the variable.
+   Never write the raw output of commit-tree to .git/refs/heads/main without checking it's a clean 40-char SHA.
+
+**Next agent:** All Phase 15 items are now complete. Pick from Phase 13 (Monitoring):
+**13.1 Sentry integration (frontend)** — add `sentry-expo` or `@sentry/react-native`,
+capture client errors, tag with login number.
+
+---
+
 
 ## 2026-05-18T00:00Z -- Repair: atomic margin RPC (prior run cleanup)
 
