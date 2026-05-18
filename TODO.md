@@ -461,7 +461,7 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** App feels like a $50M product, not a hackathon.
 
 ## 15.5 Light theme toggle
-- [ ] **What:** Profile → Display → Theme (Auto / Dark / Light). New theme tokens for light mode.
+- [x] **What:** Profile → Display → Theme (Auto / Dark / Light). New theme tokens for light mode.
 - **Acceptance:** Toggle works, persists across reloads.
 
 ---
