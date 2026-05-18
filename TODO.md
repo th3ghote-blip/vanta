@@ -12,6 +12,7 @@
 
 ```bash
 cd /c/Claude/vanta
+bash scripts/git-precheck.sh        # step 0: remove stale WSL lock files, verify branch=main
 git status                          # must say "nothing to commit, working tree clean"
 git branch --show-current           # must say "main"
 npx --no-install tsc --noEmit       # client TypeScript — must be silent
@@ -80,7 +81,7 @@ The agent's deploy gap (commits land but Railway/Vercel aren't shipped without m
 - **Acceptance:** Push a commit, Actions tab shows build succeeds, vanta-jade.vercel.app serves new code within 5 min.
 
 ## R.2 Stale-lock auto-cleanup at session start
-- [ ] **File:** `scripts/git-precheck.sh` (new)
+- [x] **File:** `scripts/git-precheck.sh` (new)
 - **What:** Bash script that removes `.git/index.lock`, `.git/HEAD.lock`, `.git/refs/heads/*.lock` if present and older than 60 seconds. Update the "Precheck" section of this file to call it as step 0.
 - **Acceptance:** Run when locks exist → locks gone, `git status` works without error.
 
