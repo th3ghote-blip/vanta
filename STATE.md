@@ -1,5 +1,60 @@
 # STATE -- handoff notes for the next agent
 
+
+## 2026-05-18T00:00Z -- Repair: atomic margin RPC (prior run cleanup)
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** *(housekeeping — not a TODO item)*
+**Commit:** `69bc465`
+
+**What happened**
+A prior agent run attempted to refactor `server/src/lib/margin.ts` to use atomic
+Postgres RPCs but hit the file truncation bug and did not commit. The working tree
+had:
+- `server/src/lib/margin.ts` — truncated mid-function (releaseMargin cut off at line 121)
+- `supabase/migrations/013_margin_rpc.sql` — new file, complete and correct
+- `.env.example` — corrupted (content stripped to `# `)
+- `package-lock.json` — truncated (last 26 lines removed)
+
+**What this run did**
+1. Completed the truncated `releaseMargin` function in `margin.ts` using Python
+   (matching the RPC + fallback pattern already present in `reserveMargin`).
+2. Restored `.env.example` and `package-lock.json` to HEAD via `git show`.
+3. Verified tsc --noEmit client: exit 0, server: exit 0.
+4. Committed `margin.ts` + `013_margin_rpc.sql`.
+
+**What changed (summary)**
+- `server/src/lib/margin.ts`: both `reserveMargin` and `releaseMargin` now call
+  Postgres RPCs (`reserve_margin` / `release_margin`) for atomic margin accounting.
+  Both fall back to the prior non-atomic update if the migration hasn't been applied.
+- `supabase/migrations/013_margin_rpc.sql`: `reserve_margin(uuid, numeric) → bool`
+  and `release_margin(uuid, numeric) → void`. Apply via `scripts/apply-migration.py`.
+
+**Migration needed**
+Apply `013_margin_rpc.sql` to live DB:
+`SUPABASE_PAT=<pat> python scripts/apply-migration.py supabase/migrations/013_margin_rpc.sql`
+Until applied, margin reservation falls back to the old non-atomic path (safe but racy).
+
+**Deploy NOT done** (sandbox has no Railway access).
+
+**Recurring gotchas (CRITICAL -- still active)**
+1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
+2. `.git/HEAD.lock` + `.git/index.lock` + `.git/refs/heads/main.lock` are stale WSL locks.
+   Use GIT_INDEX_FILE=/tmp/vanta_<unique> git read-tree HEAD, then commit-tree, write to .git/refs/heads/main.
+3. After every session start: pick a fresh GIT_INDEX_FILE tmp path (previous session's may error).
+4. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
+5. Colors import: use @/lib/theme (not @/lib/colors). bgBase does not exist -- use bgDeep.
+6. Supabase JS SDK v2.45 has no `listUserSessions` -- sessions.ts calls the REST API directly.
+7. Supabase select with joins returns GenericStringError unless you cast: `as unknown as TypedArray[]`.
+8. `colors.primaryDim` does not exist -- just use `colors.primary`.
+
+**Next agent:** pick **15.5 Light theme toggle** — Profile → Display → Theme (Auto / Dark / Light),
+new theme tokens for light mode, persists across reloads. Frontend only, no migrations.
+
+---
+> Append, don't replace. Most recent at top. Each entry: date, agent, what changed, what's pending, gotchas.
+
+
 ## 2026-05-18T00:00Z -- 15.4 Brand polish
 
 **Agent:** scheduled cowork auto-work pass
