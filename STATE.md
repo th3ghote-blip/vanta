@@ -1,5 +1,64 @@
 # STATE -- handoff notes for the next agent
 
+## 2026-05-18T00:00Z -- 15.4 Brand polish
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **15.4 Brand polish**
+**Commit:** `7364907`
+
+**What changed**
+- `components/shared/VantaLogo.tsx` (new, 93 lines): SVG logo component.
+  - V mark rendered with react-native-svg `<Path>` shapes + `<LinearGradient>`
+    (primaryGlow → primary, top to bottom) + `<Circle>` apex dot at V tip.
+  - Props: `height` (default 32), `showWordmark` (default true), `tint` override.
+  - Wordmark is a native `<Text>` so it inherits the loaded font stack.
+- `app/index.tsx`: replaced text "VANTA" with `<VantaLogo height={52} />`.
+  Fixed magic spacing numbers to use `spacing.sm` / `spacing.xxl` tokens.
+- `app/(auth)/login.tsx`: replaced both VANTA Text blocks (main login + TOTP
+  step) with `<VantaLogo height={44} />`.
+- `app/(auth)/signup.tsx`: replaced all VANTA Text blocks (credential display +
+  main signup form) with VantaLogo.
+- `app/_layout.tsx`: added `useFonts` from `expo-font`. Font map loads Inter and
+  JetBrains Mono from Google Fonts CDN URIs — no npm packages required at
+  runtime (works on web immediately; native caches after first load).
+  Comment in file explains how to switch to bundled `@expo-google-fonts` packages
+  for faster cold start / full offline support.
+- `package.json`: added `@expo-google-fonts/inter ^0.2.3`,
+  `@expo-google-fonts/jetbrains-mono ^0.2.3`, `expo-font ~13.0.0` as
+  dependencies. Run `npm install` on the real machine to bundle fonts.
+
+**Verification**
+- tsc --noEmit client: exit 0 (silent)
+- tsc --noEmit server: exit 0 (silent)
+- Deploy NOT done (sandbox has no Railway/Vercel access)
+
+**Notes**
+- The font CDN URIs are woff2 (Latin subset). If non-Latin characters are needed,
+  swap for the full unicode-range URI from Google Fonts.
+- `fontsLoaded` from useFonts is intentionally unused as a gate — the app renders
+  immediately and fonts swap in (SWAP behaviour). No loading screen delay added.
+- Spacing audit: identified magic numbers (padding: 3, paddingVertical: 15, etc.)
+  in deposit.tsx, kyc.tsx, change-password.tsx, profile.tsx, robots.tsx,
+  admin/index.tsx — these are mostly small indicator/dot padding that is
+  intentionally sub-token. Not changed to avoid visual regressions.
+
+**Recurring gotchas (CRITICAL -- still active)**
+1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
+2. `.git/HEAD.lock` + `.git/index.lock` + `.git/refs/heads/main.lock` are stale WSL locks.
+   Use GIT_INDEX_FILE=/tmp/vanta_<unique> git read-tree HEAD, then commit-tree, write to .git/refs/heads/main.
+3. After every session start: pick a fresh GIT_INDEX_FILE tmp path (previous session's may error).
+4. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
+5. Colors import: use @/lib/theme (not @/lib/colors). bgBase does not exist -- use bgDeep.
+6. Supabase JS SDK v2.45 has no `listUserSessions` -- sessions.ts calls the REST API directly.
+7. Supabase select with joins returns GenericStringError unless you cast: `as unknown as TypedArray[]`.
+8. `colors.primaryDim` does not exist -- just use `colors.primary`.
+
+**Next agent:** pick **15.5 Light theme toggle** — Profile → Display → Theme (Auto / Dark / Light),
+new theme tokens for light mode, persists across reloads. Frontend only, no migrations.
+
+---
+> Append, don't replace. Most recent at top. Each entry: date, agent, what changed, what's pending, gotchas.
+
 ## 2026-05-18T00:00Z -- 15.3 Loading skeletons
 
 **Agent:** scheduled cowork auto-work pass
