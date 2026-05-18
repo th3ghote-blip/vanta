@@ -5,6 +5,7 @@ import * as Clipboard from 'expo-clipboard';
 import { Copy, Check, AlertTriangle } from 'lucide-react-native';
 
 import { colors, radius, spacing, typography } from '@/lib/theme';
+import { VantaLogo } from '@/components/shared/VantaLogo';
 import { useAuthStore } from '@/stores/auth';
 
 export default function Signup() {
@@ -38,17 +39,7 @@ export default function Signup() {
       <ScrollView
         contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: spacing.xl, backgroundColor: colors.bgDeep }}
       >
-        <Text
-          style={{
-            ...typography.display,
-            fontSize: 32,
-            color: colors.primary,
-            letterSpacing: 4,
-            marginBottom: spacing.sm,
-          }}
-        >
-          VANTA
-        </Text>
+        <VantaLogo height={38} />
         <Text style={{ ...typography.heading, fontSize: 22, color: colors.textPrimary, marginBottom: spacing.lg }}>
           Account created
         </Text>
@@ -112,9 +103,7 @@ export default function Signup() {
     <ScrollView
       contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: spacing.xl, backgroundColor: colors.bgDeep }}
     >
-      <Text style={{ ...typography.display, fontSize: 40, color: colors.primary, letterSpacing: 4, marginBottom: spacing.sm }}>
-        VANTA
-      </Text>
+      <VantaLogo height={44} />
       <Text style={{ ...typography.body, color: colors.textSecondary, marginBottom: spacing.xxl }}>
         Create a new account. We'll generate a login number and password — like MT4. Demo balance starts at $10,000.
       </Text>

@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { View } from 'react-native';
+import { useFonts } from 'expo-font';
 
 import { colors } from '@/lib/theme';
 import { useAuthStore } from '@/stores/auth';
@@ -22,12 +23,45 @@ const queryClient = new QueryClient({
   },
 });
 
+/**
+ * Custom font map.
+ * Fonts are fetched from Google Fonts CDN at runtime — no extra npm packages needed.
+ * The theme (lib/theme.ts) already references these family names in typography tokens.
+ *
+ * To switch to bundled fonts (faster cold start, works fully offline):
+ *   npm install @expo-google-fonts/inter @expo-google-fonts/jetbrains-mono
+ *   Then replace the URI strings below with the imported TTF assets, e.g.:
+ *     import { Inter_400Regular, Inter_700Bold } from '@expo-google-fonts/inter';
+ *     'Inter_400Regular': Inter_400Regular,
+ */
+const FONT_MAP: Record<string, string> = {
+  // Inter — UI text
+  Inter_400Regular:
+    'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hiJ-Ek-_EeA.woff2',
+  Inter_500Medium:
+    'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuI6fAZ9hiJ-Ek-_EeA.woff2',
+  Inter_600SemiBold:
+    'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuGKYAZ9hiJ-Ek-_EeA.woff2',
+  Inter_700Bold:
+    'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuFuYAZ9hiJ-Ek-_EeA.woff2',
+  // JetBrains Mono — numbers, prices, trade IDs
+  JetBrainsMono_400Regular:
+    'https://fonts.gstatic.com/s/jetbrainsmono/v18/tDbY2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKxTOlOV.woff2',
+  JetBrainsMono_600SemiBold:
+    'https://fonts.gstatic.com/s/jetbrainsmono/v18/tDbY2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8-axTOlOV.woff2',
+};
+
 export default function RootLayout() {
   const initAuth = useAuthStore((s) => s.init);
   const session = useAuthStore((s) => s.session);
   const hydrateMode = useModeStore((s) => s.hydrate);
   const fetchAccount = useAccountStore((s) => s.fetch);
   const clearAccount = useAccountStore((s) => s.clear);
+
+  // Load custom fonts. On web the fonts stream in from the CDN; on native they
+  // are cached after the first load. The app renders immediately — fonts swap in
+  // once ready (FontDisplay.SWAP behaviour) so there is no hard loading gate.
+  const [fontsLoaded] = useFonts(FONT_MAP);
 
   // Track the previous user id so we know when a sign-out occurs.
   const prevUserIdRef = useRef<string | null>(null);

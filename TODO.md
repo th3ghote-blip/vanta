@@ -455,8 +455,8 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 - **Acceptance:** Loading states feel intentional, not janky.
 
 ## 15.4 Brand polish
-- [ ] **Files:** `app/_layout.tsx` (font loading), `assets/logo.svg` (proper logo)
-- [ ] **Install:** `@expo-google-fonts/inter`, `@expo-google-fonts/jetbrains-mono`
+- [x] **Files:** `app/_layout.tsx` (font loading), `assets/logo.svg` (proper logo)
+- [x] **Install:** `@expo-google-fonts/inter`, `@expo-google-fonts/jetbrains-mono`
 - **What:** Load custom fonts properly, replace text-based "VANTA" wordmark with SVG logo, audit spacing consistency.
 - **Acceptance:** App feels like a $50M product, not a hackathon.
 

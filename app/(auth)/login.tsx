@@ -3,6 +3,7 @@ import { View, Text, TextInput, Pressable, ActivityIndicator } from 'react-nativ
 import { Link, router } from 'expo-router';
 
 import { colors, radius, spacing, typography } from '@/lib/theme';
+import { VantaLogo } from '@/components/shared/VantaLogo';
 import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/lib/supabase';
 import { challengeAndVerify } from '@/lib/2fa';
@@ -75,9 +76,7 @@ export default function Login() {
   if (step === 'totp') {
     return (
       <View style={{ flex: 1, padding: spacing.xl, justifyContent: 'center', backgroundColor: colors.bgDeep }}>
-        <Text style={{ ...typography.display, fontSize: 40, color: colors.primary, letterSpacing: 4, marginBottom: spacing.sm }}>
-          VANTA
-        </Text>
+        <VantaLogo height={44} />
         <Text style={{ ...typography.bodyBold, color: colors.textPrimary, fontSize: 20, marginBottom: spacing.xs }}>
           Two-Factor Authentication
         </Text>
@@ -138,9 +137,7 @@ export default function Login() {
 
   return (
     <View style={{ flex: 1, padding: spacing.xl, justifyContent: 'center', backgroundColor: colors.bgDeep }}>
-      <Text style={{ ...typography.display, fontSize: 40, color: colors.primary, letterSpacing: 4, marginBottom: spacing.sm }}>
-        VANTA
-      </Text>
+      <VantaLogo height={44} />
       <Text style={{ ...typography.body, color: colors.textSecondary, marginBottom: spacing.xxl }}>
         Welcome back. Sign in with your account number.
       </Text>
