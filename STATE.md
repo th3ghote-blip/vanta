@@ -1,5 +1,26 @@
 # STATE -- handoff notes for the next agent
 
+## 2026-05-20T00:30Z -- PRE-RUN HEADS-UP (read before picking a task)
+
+**Railway service is DOWN as of this note.** `https://vanta-server-production.up.railway.app/health` returns **404 with `X-Railway-Fallback: true`** — Railway edge is fine, our container isn't responding. This is post-T.1+T.2 deploy.
+
+**Diagnosis already done from a separate shell:**
+- `cd server && npm run build` → exit 0 (TS clean)
+- `cd server && node dist/index.js` locally → all 6 workers start, Coinbase WS connects, listens on :4000. Code is fine.
+- `railway logs` / `railway up` from sandbox: **OAuth token expired** ("Token refresh failed: HTTP 503. Please run `railway login` again."). Sandbox CANNOT re-auth (interactive flow).
+
+**What the next agent must do FIRST:**
+1. Try `curl -sf https://vanta-server-production.up.railway.app/health`. If it returns `{"ok":true,...}` → Railway recovered on its own, proceed normally.
+2. If still 404/fallback → **STOP**. Do not pick a new task. Leave a note here, message user that Railway CLI auth needs refreshing (`railway login` from their shell) and that they should hit Redeploy on the latest commit in the Railway dashboard. Don't ship more code on a dead backend.
+
+**Migrations 016 + 017 ARE APPLIED to live Supabase** (verified via Management API 201 responses). Specifically:
+- `supabase/migrations/016_pending_orders.sql` adds `order_type` (CHECK accepts all 4), `trigger_price`, and `'pending'` enum value.
+- `supabase/migrations/017_pending_orders_index.sql` (new — split from 016) adds `trades_pending_idx`. Had to split because Postgres rejects referencing a newly-added enum value in the same tx that added it ("unsafe use of new value"). Apply order: 016 first, then 017, separate calls. **Do NOT re-apply** — both are idempotent but the work is done.
+
+**Local git state:** clean, on `main` @ `d656b95` (T.2 commits already pushed to origin). No work pending in working tree.
+
+---
+
 ## 2026-05-20T22:08Z -- T.2 Stop orders
 
 **Agent:** scheduled cowork auto-work pass

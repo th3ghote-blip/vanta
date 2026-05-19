@@ -19,3 +19,6 @@ server/node_modules/
 
 .vercel
 git_vanta_idx*
+
+# vitest temp files
+**/vitest.config.*.timestamp-*.mjs

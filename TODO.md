@@ -60,13 +60,44 @@ If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start
 
 ---
 
-# Current focus (revised 2026-05-18)
+# Current focus (revised 2026-05-20)
 
 The platform's surface area is wide (Phase 1–4, 6–7, 11–12, 15 are done) but it's **shallow on trading options** and **brittle on operations**. Until the trading core feels robust and offers multiple ways to trade, defer anything externally gated:
 
 - **PARKED until platform is robust:** Sumsub KYC (5.3), OANDA streaming (8.1), TestFlight/Play Store (9.3, 9.4), custom domain (10.x), email confirmation (10.6).
 
 **Work order from here:** Phase R (Robustness) first, then Phase T (Trading depth). Inside each phase, top-to-bottom.
+
+## Status snapshot — 2026-05-20
+
+- **Phase R:** 8/12 done. Remaining 4 are all externally gated:
+  - R.1 GH Actions auto-deploy — needs `RAILWAY_TOKEN` + `VERCEL_TOKEN` in GitHub repo secrets (user action).
+  - R.7 Better-Stack uptime — needs user signup at betterstack.com.
+  - R.8 E2E smoke test — Playwright + CI; best done after R.1 lands.
+  - R.11 DB backup verification — needs GH Actions cron (depends on R.1).
+- **Phase T:** 3/20 done — T.1 limit, T.2 stop, T.13 pending dashboard (side effect of T.1).
+
+## Next pick for the cowork agent
+
+**READ `STATE.md` FIRST.** The most recent entry flags a Railway outage that must be cleared before any code ship. If `/health` is still 404, do not start a task — leave a note and exit.
+
+Once backend is green, pick in this order:
+
+1. **T.11 Position notional + leverage display** — pure frontend, no migration, no backend deploy needed. Highest UX/effort ratio. Safe pick even if Railway is flaky.
+2. **T.5 Modify open positions (SL/TP after open)** — server PATCH endpoint + edit button. No migration. Requires backend deploy to be live.
+3. **T.3 Stop-limit orders** — needs new migration adding `trades.limit_price numeric(18,5)`. Then remove the 501 guard in `orders.ts` for `stop_limit`, extend `shouldFill()` (two-stage: trigger trips → limit fills when price crosses limit). Number the migration **018** (016 + 017 are taken).
+
+If picking T.3: apply the migration in **its own transaction**. The same enum-cannot-be-used-in-same-tx trap doesn't apply to a simple column add, so 018 can be a single file.
+
+## Migrations already applied to live DB
+
+- `013_margin_rpc.sql` ✅
+- `014_write_policies.sql` ✅
+- `015_order_idempotency.sql` ✅
+- `016_pending_orders.sql` ✅ (split — see below)
+- `017_pending_orders_index.sql` ✅ (the partial index — had to be a separate tx because Postgres rejects referencing a newly-added enum value in the same tx that added it)
+
+**Next migration number: 018.** Do not re-apply 013–017.
 
 ---
 
