@@ -194,7 +194,7 @@ describe('POST /api/orders/open', () => {
     await app.close();
   });
 
-  it('returns 501 not_implemented for stop orders (T.2 placeholder)', async () => {
+  it('T.2: opens buy-stop pending order (trigger above current ask)', async () => {
     const u = seed.user({ id: 'user-1' });
     seed.account({ id: ACCT, user_id: u.id, free_margin: 10_000, leverage: 100 });
     const app = await buildApp();
@@ -208,7 +208,80 @@ describe('POST /api/orders/open', () => {
         side: 'buy',
         volume: 0.01,
         orderType: 'stop',
-        triggerPrice: 1.2,
+        triggerPrice: 1.3, // above current ask 1.1001 — valid breakout entry
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const { trade } = res.json();
+    expect(trade.status).toBe('pending');
+    expect(trade.order_type).toBe('stop');
+    expect(Number(trade.trigger_price)).toBe(1.3);
+    expect(trade.open_price).toBeNull();
+    await app.close();
+  });
+
+  it('T.2: rejects buy-stop with trigger below current ask (400 invalid_trigger_price)', async () => {
+    const u = seed.user({ id: 'user-1' });
+    seed.account({ id: ACCT, user_id: u.id, free_margin: 10_000, leverage: 100 });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orders/open',
+      headers: authHeaders(u.id),
+      payload: {
+        accountId: ACCT,
+        symbol: 'EURUSD',
+        side: 'buy',
+        volume: 0.01,
+        orderType: 'stop',
+        triggerPrice: 1.05, // BELOW current ask 1.1001 — wrong direction for stop
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe('invalid_trigger_price');
+    await app.close();
+  });
+
+  it('T.2: opens sell-stop pending order (trigger below current bid)', async () => {
+    const u = seed.user({ id: 'user-1' });
+    seed.account({ id: ACCT, user_id: u.id, free_margin: 10_000, leverage: 100 });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orders/open',
+      headers: authHeaders(u.id),
+      payload: {
+        accountId: ACCT,
+        symbol: 'EURUSD',
+        side: 'sell',
+        volume: 0.01,
+        orderType: 'stop',
+        triggerPrice: 0.95, // below current bid 1.1000 — valid breakdown entry
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const { trade } = res.json();
+    expect(trade.status).toBe('pending');
+    expect(trade.order_type).toBe('stop');
+    expect(Number(trade.trigger_price)).toBe(0.95);
+    await app.close();
+  });
+
+  it('T.2: stop_limit still returns 501 not_implemented', async () => {
+    const u = seed.user({ id: 'user-1' });
+    seed.account({ id: ACCT, user_id: u.id, free_margin: 10_000, leverage: 100 });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orders/open',
+      headers: authHeaders(u.id),
+      payload: {
+        accountId: ACCT,
+        symbol: 'EURUSD',
+        side: 'buy',
+        volume: 0.01,
+        orderType: 'stop_limit',
+        triggerPrice: 1.3,
       },
     });
     expect(res.statusCode).toBe(501);

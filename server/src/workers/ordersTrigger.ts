@@ -5,7 +5,7 @@ import { getQuote } from '../lib/quoteCache.js';
 import { recordTick } from '../lib/workerHealth.js';
 
 /**
- * Orders-trigger worker — T.1 (limit orders).
+ * Orders-trigger worker — T.1 (limit orders) + T.2 (stop orders).
  *
  * Every 1s:
  *   1. Pull all pending orders (status='pending'). For now we only convert
@@ -41,10 +41,20 @@ interface PendingOrder {
 
 function shouldFill(o: PendingOrder, bid: number, ask: number): boolean {
   if (o.order_type === 'limit') {
+    // Limit: patient entry — fill when price comes to you.
+    // buy-limit  fills when ask drops to/below trigger (buy the dip)
+    // sell-limit fills when bid rises to/above trigger (sell the rip)
     if (o.side === 'buy') return ask <= o.trigger_price;
     return bid >= o.trigger_price;
   }
-  // T.2 / T.3 will extend this. Until then, never fill.
+  if (o.order_type === 'stop') {
+    // Stop: breakout/breakdown entry — fill when price moves through you.
+    // buy-stop  fills when ask rises to/above trigger (upside breakout)
+    // sell-stop fills when bid drops to/below trigger (downside breakdown)
+    if (o.side === 'buy') return ask >= o.trigger_price;
+    return bid <= o.trigger_price;
+  }
+  // T.3 stop_limit will extend this.
   return false;
 }
 
@@ -55,7 +65,7 @@ async function tick(app: FastifyInstance): Promise<void> {
       'id, account_id, symbol, side, volume, order_type, trigger_price, stop_loss, take_profit',
     )
     .eq('status', 'pending')
-    .in('order_type', ['limit']);
+    .in('order_type', ['limit', 'stop']);
 
   if (error) {
     app.log.warn({ err: error }, 'ordersTrigger: select pending failed');

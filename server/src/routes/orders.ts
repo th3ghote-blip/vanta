@@ -42,9 +42,9 @@ export async function ordersRoutes(app: FastifyInstance) {
     if (!parsed.success) return reply.code(400).send({ error: 'invalid_input', issues: parsed.error.issues });
     const body = parsed.data;
 
-    // T.1 — stop / stop_limit accepted at schema level (migration 016) but
-    // logic lands in T.2 / T.3. Surface a clear 501 so the client knows.
-    if (body.orderType === 'stop' || body.orderType === 'stop_limit') {
+    // T.1 — stop_limit accepted at schema level (migration 016) but
+    // two-stage logic lands in T.3. Stop orders are live (T.2).
+    if (body.orderType === 'stop_limit') {
       return reply.code(501).send({ error: 'not_implemented', orderType: body.orderType });
     }
 
@@ -88,7 +88,7 @@ export async function ordersRoutes(app: FastifyInstance) {
         });
       }
 
-      // Directional validation for limits (T.2 stop / T.3 stop_limit extend this).
+      // Directional validation for limits and stops.
       if (body.orderType === 'limit') {
         if (body.side === 'buy' && body.triggerPrice >= quote.ask) {
           return reply.code(400).send({
@@ -102,6 +102,28 @@ export async function ordersRoutes(app: FastifyInstance) {
           return reply.code(400).send({
             error: 'invalid_trigger_price',
             message: 'sell-limit trigger must be above current bid',
+            triggerPrice: body.triggerPrice,
+            bid: quote.bid,
+          });
+        }
+      }
+
+      // T.2 — stop orders: breakout/breakdown entries. Trigger is placed
+      // ABOVE current price for buy-stop (enter on upside break) and BELOW
+      // for sell-stop (enter on downside break). The opposite of limit.
+      if (body.orderType === 'stop') {
+        if (body.side === 'buy' && body.triggerPrice <= quote.ask) {
+          return reply.code(400).send({
+            error: 'invalid_trigger_price',
+            message: 'buy-stop trigger must be above current ask (breakout entry)',
+            triggerPrice: body.triggerPrice,
+            ask: quote.ask,
+          });
+        }
+        if (body.side === 'sell' && body.triggerPrice >= quote.bid) {
+          return reply.code(400).send({
+            error: 'invalid_trigger_price',
+            message: 'sell-stop trigger must be below current bid (breakdown entry)',
             triggerPrice: body.triggerPrice,
             bid: quote.bid,
           });
