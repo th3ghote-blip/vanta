@@ -13,13 +13,17 @@
     "server": "cd server && npm run dev"
   },
   "dependencies": {
+    "@expo-google-fonts/inter": "^0.2.3",
+    "@expo-google-fonts/jetbrains-mono": "^0.2.3",
     "@react-native-async-storage/async-storage": "^1.23.1",
+    "@sentry/react-native": "^8.11.1",
     "@supabase/supabase-js": "^2.45.0",
     "@tanstack/react-query": "^5.59.0",
     "expo": "~52.0.0",
     "expo-camera": "^55.0.18",
     "expo-clipboard": "^55.0.13",
     "expo-constants": "~17.0.0",
+    "expo-font": "~13.0.0",
     "expo-haptics": "~14.0.0",
     "expo-image": "~2.0.0",
     "expo-image-picker": "^55.0.20",
@@ -45,10 +49,7 @@
     "react-native-url-polyfill": "^2.0.0",
     "react-native-web": "~0.19.13",
     "react-native-webview": "13.12.0",
-    "zustand": "^5.0.0",
-    "@expo-google-fonts/inter": "^0.2.3",
-    "@expo-google-fonts/jetbrains-mono": "^0.2.3",
-    "expo-font": "~13.0.0"
+    "zustand": "^5.0.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.0",

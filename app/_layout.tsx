@@ -6,8 +6,28 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { View, Appearance, useColorScheme } from 'react-native';
 import { useFonts } from 'expo-font';
+import * as Sentry from '@sentry/react-native';
 
 import { colors, resolveScheme } from '@/lib/theme';
+
+// ── Sentry: capture client errors + performance traces.
+// DSN is public-safe (just an identifier). Disabled in dev to avoid noise.
+const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN;
+if (SENTRY_DSN) {
+  Sentry.init({
+    dsn: SENTRY_DSN,
+    environment: process.env.EXPO_PUBLIC_ENV ?? 'production',
+    enabled: !__DEV__,
+    tracesSampleRate: 0.1,
+    // Keep PII out of the wire — login number is enough to triage
+    sendDefaultPii: false,
+    // Drop noisy/expected errors
+    ignoreErrors: [
+      'Network request failed',
+      'AbortError',
+    ],
+  });
+}
 import { useAuthStore } from '@/stores/auth';
 import { useModeStore } from '@/stores/mode';
 import { useAccountStore } from '@/stores/account';
@@ -52,7 +72,7 @@ const FONT_MAP: Record<string, string> = {
     'https://fonts.gstatic.com/s/jetbrainsmono/v18/tDbY2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8-axTOlOV.woff2',
 };
 
-export default function RootLayout() {
+function RootLayout() {
   const initAuth = useAuthStore((s) => s.init);
   const session = useAuthStore((s) => s.session);
   const hydrateMode = useModeStore((s) => s.hydrate);
@@ -102,6 +122,8 @@ export default function RootLayout() {
         // Register (or re-register) push token for this user.
         // Fire-and-forget - failures are logged internally and must not crash the app.
         registerForPushNotificationsAsync(userId).catch(() => {});
+        // Tag Sentry events with this user so errors are triageable per-account.
+        if (SENTRY_DSN) Sentry.setUser({ id: userId });
       }
     } else {
       // User signed out - clear push token so this device stops receiving pushes.
@@ -110,6 +132,7 @@ export default function RootLayout() {
         unregisterPushToken(prevId).catch(() => {});
         prevUserIdRef.current = null;
       }
+      if (SENTRY_DSN) Sentry.setUser(null);
       clearAccount();
     }
   }, [session, fetchAccount, clearAccount]);
@@ -146,3 +169,6 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+// Wrap so Sentry can auto-track navigation, render errors, and unhandled promises.
+export default SENTRY_DSN ? Sentry.wrap(RootLayout) : RootLayout;
