@@ -72,6 +72,8 @@ export const api = {
     stopLoss?: number;
     takeProfit?: number;
     reason?: 'mobile' | 'web' | 'desktop' | 'robot';
+    /** R.5 — idempotency key. Generate once per tap; reuse on retry. */
+    clientRequestId?: string;
   }) => request<{ trade: any }>('/api/orders/open', { method: 'POST', body: JSON.stringify(input) }),
 
   closeOrder: (tradeId: number) =>

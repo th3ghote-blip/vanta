@@ -25,6 +25,20 @@ function fmtUsd(v: unknown): string {
 }
 
 /**
+ * R.5 — Generate a UUID v4-compatible request ID.
+ * Works on web (crypto.randomUUID) and React Native (Math.random fallback).
+ */
+function generateRequestId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0;
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
+/**
  * Map a thrown error from `api.openOrder` to a sentence the user can act on.
  * Server error codes (see `server/src/routes/orders.ts`):
  *   insufficient_margin => details.required, details.available
@@ -105,6 +119,10 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
       return;
     }
 
+    // R.5 — generate a fresh idempotency key for this tap so double-taps
+    // (e.g. lag-induced second press) don't open two positions.
+    const clientRequestId = generateRequestId();
+
     setBusy(side);
     if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
 
@@ -117,6 +135,7 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
         stopLoss: stopLoss ? Number(stopLoss) : undefined,
         takeProfit: takeProfit ? Number(takeProfit) : undefined,
         reason: Platform.OS === 'web' ? 'web' : 'mobile',
+        clientRequestId,
       });
       // Refresh account so balance/margin reflects new position
       fetchAccount();

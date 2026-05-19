@@ -16,6 +16,9 @@ const OpenOrderSchema = z.object({
   stopLoss: z.number().optional(),
   takeProfit: z.number().optional(),
   reason: z.enum(['mobile', 'web', 'desktop', 'robot']).default('mobile'),
+  // R.5 — idempotency: client sets this to a fresh UUID before each tap;
+  // a duplicate request with the same id returns the existing trade.
+  clientRequestId: z.string().uuid().optional(),
 });
 
 const CloseOrderSchema = z.object({
@@ -40,6 +43,18 @@ export async function ordersRoutes(app: FastifyInstance) {
 
     if (accErr || !account || account.user_id !== userId) {
       return reply.code(403).send({ error: 'forbidden' });
+    }
+
+    // R.5 — idempotency: if caller supplied a client_request_id and we already
+    // have a trade for (account_id, client_request_id), return it immediately.
+    if (body.clientRequestId) {
+      const { data: existing } = await supabaseAdmin
+        .from('trades')
+        .select()
+        .eq('account_id', body.accountId)
+        .eq('client_request_id', body.clientRequestId)
+        .maybeSingle();
+      if (existing) return { trade: existing };
     }
 
     const quote = getQuote(body.symbol);
@@ -98,6 +113,7 @@ export async function ordersRoutes(app: FastifyInstance) {
         stop_loss: body.stopLoss,
         take_profit: body.takeProfit,
         reason: body.reason,
+        client_request_id: body.clientRequestId ?? null,
       })
       .select()
       .single();
