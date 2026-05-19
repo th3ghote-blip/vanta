@@ -86,12 +86,14 @@ The agent's deploy gap (commits land but Railway/Vercel aren't shipped without m
 - **Acceptance:** Run when locks exist → locks gone, `git status` works without error.
 
 ## R.3 Sentry frontend
-- [ ] **Files:** install `sentry-expo`, init in `app/_layout.tsx`
+- [x] **Files:** install `sentry-expo`, init in `app/_layout.tsx`
+> 2026-05-19 — committed `b17cdf8` + web-crash fix `2ebf1b7`. Verified in Sentry dashboard: the `setColorScheme is not a function` web error was captured 3 times before being fixed. Native instrumentation auto-tags user id on sign-in.
 - **What:** Capture client errors, tag with login number, source map upload via EAS post-publish hook.
 - **Acceptance:** Trigger a thrown error in dev → appears in Sentry within 30s with sourcemap.
 
 ## R.4 Sentry backend
-- [ ] **Files:** install `@sentry/node`, init in `server/src/index.ts`
+- [x] **Files:** install `@sentry/node`, init in `server/src/index.ts`
+> 2026-05-19 — committed `de7d919`. Same DSN as frontend (single Sentry project, runtime tag distinguishes them). Verified by hitting test endpoints — `Error` and info `captureMessage` both landed in dashboard. Test endpoints since removed during housekeeping.
 - **What:** Capture server exceptions, slow-request warnings >1s, tag with route + user id.
 - **Acceptance:** Throw in a route → appears in Sentry.
 
