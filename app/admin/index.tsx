@@ -19,6 +19,7 @@ import {
   ChevronRight,
   Activity,
   DollarSign,
+  Zap,
 } from 'lucide-react-native';
 
 import { api } from '@/lib/api';
@@ -304,6 +305,11 @@ export default function AdminDashboard() {
             icon={<ShieldCheck size={18} color={colors.primary} />}
             label="KYC Review"
             onPress={() => router.push('/admin/kyc')}
+          />
+          <NavRow
+            icon={<Zap size={18} color={colors.warning} />}
+            label="Performance"
+            onPress={() => router.push('/admin/perf' as any)}
           />
         </View>
       </ScrollView>
