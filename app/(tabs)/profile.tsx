@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
-import { Shield, Bell, MessageSquare, Phone, HelpCircle, LogOut, ChevronRight, BadgeCheck, ShieldCheck, Trophy, Sun, Moon, Monitor, type LucideIcon } from 'lucide-react-native';
+import { Shield, Bell, MessageSquare, Phone, HelpCircle, LogOut, ChevronRight, BadgeCheck, ShieldCheck, Trophy, Sun, Moon, Monitor, FileText, type LucideIcon } from 'lucide-react-native';
 
 import { colors, radius, spacing, typography } from '@/lib/theme';
 import { useAuthStore } from '@/stores/auth';
@@ -194,7 +194,9 @@ export default function Profile() {
             sublabel={has2FA ? 'Enabled' : 'Add extra sign-in security'}
             onPress={() => router.push('/2fa-setup')}
           />
-          <Row icon={<HelpCircle color={colors.textSecondary} size={20} />} label="Help Center" onPress={() => router.push('/help')} last={!isAdmin} />
+          <Row icon={<HelpCircle color={colors.textSecondary} size={20} />} label="Help Center" onPress={() => router.push('/help')} />
+          <Row icon={<FileText color={colors.textSecondary} size={20} />} label="Terms of Service" onPress={() => router.push('/legal/terms')} />
+          <Row icon={<FileText color={colors.textSecondary} size={20} />} label="Privacy Policy" onPress={() => router.push('/legal/privacy')} last={!isAdmin} />
           {isAdmin && (
             <Row
               icon={<ShieldCheck color={colors.primary} size={20} />}

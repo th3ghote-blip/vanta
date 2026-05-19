@@ -7,7 +7,7 @@
  * - Card: "coming soon" placeholder
  * "I've sent $X" creates a pending transactions row via POST /api/transactions/deposit.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -29,6 +29,7 @@ import {
 
 import { colors, radius, spacing, typography } from '@/lib/theme';
 import { api } from '@/lib/api';
+import { RiskDisclosureModal, hasAcknowledgedRisk } from '@/components/RiskDisclosureModal';
 import { useAccountStore } from '@/stores/account';
 
 // ── Demo deposit addresses (per coin — same for all demo accounts) ──────────
@@ -71,6 +72,15 @@ export default function DepositScreen() {
   const [amount, setAmount] = useState('');
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [showRisk, setShowRisk] = useState(false);
+  const [riskAcked, setRiskAcked] = useState(false);
+
+  useEffect(() => {
+    hasAcknowledgedRisk().then((acked) => {
+      if (!acked) setShowRisk(true);
+      else setRiskAcked(true);
+    });
+  }, []);
 
   const selectedOption = CRYPTO_OPTIONS.find((o) => o.key === selectedCoin)!;
 
@@ -93,6 +103,16 @@ export default function DepositScreen() {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (showRisk) {
+    return (
+      <RiskDisclosureModal
+        visible={showRisk}
+        onAccept={() => { setShowRisk(false); setRiskAcked(true); }}
+        onDecline={() => router.back()}
+      />
+    );
   }
 
   if (success) {
