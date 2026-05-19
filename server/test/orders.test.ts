@@ -141,6 +141,81 @@ describe('POST /api/orders/open', () => {
     await app.close();
   });
 
+  // ── T.1 — pending limit orders ────────────────────────────────────────
+  it('opens a buy-limit at status=pending with margin reserved at trigger price', async () => {
+    const u = seed.user({ id: 'user-1' });
+    seed.account({ id: ACCT, user_id: u.id, free_margin: 10_000, margin_used: 0, leverage: 100 });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orders/open',
+      headers: authHeaders(u.id),
+      payload: {
+        accountId: ACCT,
+        symbol: 'EURUSD',
+        side: 'buy',
+        volume: 0.1,
+        orderType: 'limit',
+        triggerPrice: 1.05, // below current ask (1.1001)
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const { trade } = res.json();
+    expect(trade.status).toBe('pending');
+    expect(trade.order_type).toBe('limit');
+    expect(Number(trade.trigger_price)).toBe(1.05);
+    expect(trade.open_price).toBeNull();
+    const acct = getTable('accounts')[0];
+    // Margin reserved against trigger price.
+    expect(acct.margin_used).toBeGreaterThan(0);
+    expect(acct.free_margin).toBeLessThan(10_000);
+    await app.close();
+  });
+
+  it('rejects buy-limit with trigger above current ask (400 invalid_trigger_price)', async () => {
+    const u = seed.user({ id: 'user-1' });
+    seed.account({ id: ACCT, user_id: u.id, free_margin: 10_000, leverage: 100 });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orders/open',
+      headers: authHeaders(u.id),
+      payload: {
+        accountId: ACCT,
+        symbol: 'EURUSD',
+        side: 'buy',
+        volume: 0.01,
+        orderType: 'limit',
+        triggerPrice: 1.5, // ABOVE current ask 1.1001
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe('invalid_trigger_price');
+    await app.close();
+  });
+
+  it('returns 501 not_implemented for stop orders (T.2 placeholder)', async () => {
+    const u = seed.user({ id: 'user-1' });
+    seed.account({ id: ACCT, user_id: u.id, free_margin: 10_000, leverage: 100 });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orders/open',
+      headers: authHeaders(u.id),
+      payload: {
+        accountId: ACCT,
+        symbol: 'EURUSD',
+        side: 'buy',
+        volume: 0.01,
+        orderType: 'stop',
+        triggerPrice: 1.2,
+      },
+    });
+    expect(res.statusCode).toBe(501);
+    expect(res.json().error).toBe('not_implemented');
+    await app.close();
+  });
+
   it('is idempotent: same clientRequestId returns the same trade row, only one position opens', async () => {
     const u = seed.user({ id: 'user-1' });
     seed.account({ id: ACCT, user_id: u.id, free_margin: 10_000, leverage: 100 });
@@ -258,6 +333,93 @@ describe('POST /api/orders/close', () => {
       payload: {},
     });
     expect(res.statusCode).toBe(400);
+    await app.close();
+  });
+});
+
+describe('DELETE /api/orders/pending/:id', () => {
+  beforeEach(() => {
+    resetDb();
+    setQuote({ symbol: 'EURUSD', bid: 1.0999, ask: 1.1001, ts: Date.now() });
+  });
+
+  it('cancels a pending order: status -> cancelled, margin released', async () => {
+    const u = seed.user({ id: 'user-1' });
+    const acct = seed.account({
+      id: ACCT,
+      user_id: u.id,
+      free_margin: 9_895,
+      margin_used: 105,
+      leverage: 100,
+    });
+    const t = seed.trade({
+      id: 99,
+      account_id: acct.id,
+      symbol: 'EURUSD',
+      side: 'buy',
+      volume: 0.1,
+      open_price: 0 as any,
+      status: 'pending' as any,
+    });
+    // Mock trade insert doesn't carry trigger_price by default; set it for the
+    // release-margin math.
+    (t as any).trigger_price = 1.05;
+    (t as any).order_type = 'limit';
+
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/api/orders/pending/${t.id}`,
+      headers: authHeaders(u.id),
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.tradeId).toBe(99);
+    expect(body.released).toBeGreaterThan(0);
+    const updated = getTable('trades').find((x) => x.id === 99)! as any;
+    expect(updated.status).toBe('cancelled');
+    const acctAfter = getTable('accounts')[0];
+    expect(acctAfter.margin_used).toBeLessThan(105);
+    await app.close();
+  });
+
+  it('returns 400 not_pending when called on an open trade', async () => {
+    const u = seed.user({ id: 'user-1' });
+    const acct = seed.account({ id: ACCT, user_id: u.id });
+    const t = seed.trade({ id: 12, account_id: acct.id, status: 'open' });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/api/orders/pending/${t.id}`,
+      headers: authHeaders(u.id),
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe('not_pending');
+    await app.close();
+  });
+
+  it('returns 403 when cancelling another user\'s pending order', async () => {
+    const owner = seed.user({ id: 'user-1' });
+    const intruder = seed.user({ id: 'user-2' });
+    const acct = seed.account({ id: ACCT, user_id: owner.id });
+    const t = seed.trade({ id: 13, account_id: acct.id, status: 'pending' as any });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/api/orders/pending/${t.id}`,
+      headers: authHeaders(intruder.id),
+    });
+    expect(res.statusCode).toBe(403);
+    await app.close();
+  });
+
+  it('returns 401 without auth', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'DELETE',
+      url: '/api/orders/pending/1',
+    });
+    expect(res.statusCode).toBe(401);
     await app.close();
   });
 });

@@ -144,10 +144,10 @@ The agent's deploy gap (commits land but Railway/Vercel aren't shipped without m
 Today users can only place market orders (buy/sell at the live price) on Pro mode, or up/down bets on Quick mode. Real traders need pending orders, position management, and more product types.
 
 ## T.1 Pending limit orders
-- [ ] **Files:** new `app/(tabs)/trade/limit.tsx` form, `server/src/routes/orders.ts` (open path), `workers/orders-trigger.ts` (new)
-- **Migration:** `trades.order_type` enum (`market` | `limit` | `stop` | `stop_limit`), `trades.trigger_price` numeric, `trades.status` adds `'pending'` value.
-- **What:** User can place a buy/sell at a specific price ("buy BTC at 70000"). Stored with `status='pending'`. Worker scans pending orders every 1s and converts to `'open'` when price crosses trigger.
-- **Acceptance:** Place buy-limit at $70k while BTC is $76k → shows as Pending → manually drop seed price to $69k → trade activates → balance reflects.
+- [x] **Files:** `components/pro/OrderEntry.tsx` (Market/Limit segmented + trigger price input), `server/src/routes/orders.ts` (open path + new DELETE `/pending/:id`), `server/src/workers/ordersTrigger.ts` (new), `components/pro/TradeBook.tsx` (new Pending tab + cancel).
+- **Migration applied:** `supabase/migrations/016_pending_orders.sql` — `trades.order_type` text + CHECK constraint accepting all 4 values (`market`/`limit`/`stop`/`stop_limit`) so T.2/T.3 won't need new migrations; `trades.trigger_price numeric`; `'pending'` added to `trade_status` enum; partial index `trades_pending_idx` on `(status, order_type) WHERE status='pending'`.
+- **What:** User toggles Limit on the order entry, enters a trigger price. Server validates direction (buy-limit below ask / sell-limit above bid), reserves margin upfront, inserts `status='pending'` row. Orders-trigger worker scans every 1s and flips to `status='open'` at the trigger price (B-book counterparty rule). Cancel releases margin + sets `status='cancelled'`. **T.13 (pending orders dashboard) is satisfied as a side effect — the Pending tab in TradeBook is the dashboard.** Stop/stop_limit accepted at schema level but return 501 until T.2/T.3 land.
+- **Done:** 2026-05-19 — commit pending.
 
 ## T.2 Stop orders
 - [ ] **Same files as T.1.**
@@ -206,9 +206,9 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** Star BTCUSD → switch tabs → see it in your saved list with live price.
 
 ## T.13 Pending orders dashboard
-- [ ] **Files:** `components/pro/TradeBook.tsx` — add "Pending" tab between Open and Closed.
-- **What:** Show all `status='pending'` orders for the account with trigger price, distance from current price, cancel button.
-- **Acceptance:** Place a limit order → tab → row visible with countdown to trigger.
+- [x] **Files:** `components/pro/TradeBook.tsx` — Pending tab between Open and Closed (shipped as side effect of T.1).
+- **What:** Shows all `status='pending'` orders for the account with trigger price, side+type label, distance from current price, cancel button (calls `DELETE /api/orders/pending/:id`).
+- **Done:** 2026-05-19 — same commit as T.1.
 
 ## T.14 Trade journal / annotations
 - [ ] **Migration:** `trades.notes text`

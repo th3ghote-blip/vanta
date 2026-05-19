@@ -70,6 +70,12 @@ function describeOrderError(err: unknown, symbol: string): string {
       case 'margin_reserve_failed':
       case 'insert_failed':
         return `Server couldn't open the trade. Try again in a moment.`;
+      case 'invalid_trigger_price':
+        return err.details?.message
+          ? `Trigger price: ${err.details.message}.`
+          : `Trigger price is invalid.`;
+      case 'not_implemented':
+        return `That order type isn't available yet.`;
       default:
         // Unknown code or http_<status> fallback — show the code so support can repro.
         return `Order failed (${err.code}).`;
@@ -80,10 +86,14 @@ function describeOrderError(err: unknown, symbol: string): string {
   return msg ? `Order failed: ${msg}` : 'Order failed.';
 }
 
+type OrderKind = 'market' | 'limit';
+
 export function OrderEntry({ symbol, onFirstTrade }: Props) {
   const [volume, setVolume] = useState(() => defaultVolumeFor(symbol));
   const [stopLoss, setStopLoss] = useState('');
   const [takeProfit, setTakeProfit] = useState('');
+  const [orderKind, setOrderKind] = useState<OrderKind>('market');
+  const [triggerPrice, setTriggerPrice] = useState('');
   const [busy, setBusy] = useState<'buy' | 'sell' | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
 
@@ -119,6 +129,27 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
       return;
     }
 
+    // T.1 — limit-order client-side validation. Server re-validates so this is
+    // just an early friendly message.
+    let triggerNum: number | undefined;
+    if (orderKind === 'limit') {
+      triggerNum = Number(triggerPrice);
+      if (!Number.isFinite(triggerNum) || triggerNum <= 0) {
+        setLastError('Trigger price must be a positive number.');
+        return;
+      }
+      if (quote) {
+        if (side === 'buy' && triggerNum >= quote.ask) {
+          setLastError(`Buy-limit must be below current ask (${quote.ask}).`);
+          return;
+        }
+        if (side === 'sell' && triggerNum <= quote.bid) {
+          setLastError(`Sell-limit must be above current bid (${quote.bid}).`);
+          return;
+        }
+      }
+    }
+
     // R.5 — generate a fresh idempotency key for this tap so double-taps
     // (e.g. lag-induced second press) don't open two positions.
     const clientRequestId = generateRequestId();
@@ -136,6 +167,8 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
         takeProfit: takeProfit ? Number(takeProfit) : undefined,
         reason: Platform.OS === 'web' ? 'web' : 'mobile',
         clientRequestId,
+        orderType: orderKind,
+        triggerPrice: triggerNum,
       });
       // Refresh account so balance/margin reflects new position
       fetchAccount();
@@ -184,7 +217,33 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
         )}
       </View>
 
+      {/* T.1 — Market / Limit selector */}
+      <View
+        style={{
+          flexDirection: 'row',
+          backgroundColor: colors.bgSurface,
+          borderRadius: radius.pill,
+          padding: 3,
+          borderWidth: 1,
+          borderColor: colors.border,
+          alignSelf: 'flex-start',
+        }}
+      >
+        <KindButton label="Market" active={orderKind === 'market'} onPress={() => setOrderKind('market')} />
+        <KindButton label="Limit" active={orderKind === 'limit'} onPress={() => setOrderKind('limit')} />
+      </View>
+
       <Field label="Volume (lots)" value={volume} onChangeText={handleVolumeChange} />
+
+      {orderKind === 'limit' && (
+        <Field
+          label="Trigger price"
+          value={triggerPrice}
+          onChangeText={setTriggerPrice}
+          placeholder={quote ? String(quote.bid) : '—'}
+        />
+      )}
+
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>
         <View style={{ flex: 1 }}>
           <Field label="Stop Loss" value={stopLoss} onChangeText={setStopLoss} placeholder="—" />
@@ -200,13 +259,21 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
 
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>
         <ActionButton
-          label={`Sell ${quote ? quote.bid : ''}`}
+          label={
+            orderKind === 'limit'
+              ? `Sell-limit ${triggerPrice || '@'}`
+              : `Sell ${quote ? quote.bid : ''}`
+          }
           color={colors.loss}
           busy={busy === 'sell'}
           onPress={() => submit('sell')}
         />
         <ActionButton
-          label={`Buy ${quote ? quote.ask : ''}`}
+          label={
+            orderKind === 'limit'
+              ? `Buy-limit ${triggerPrice || '@'}`
+              : `Buy ${quote ? quote.ask : ''}`
+          }
           color={colors.profit}
           busy={busy === 'buy'}
           onPress={() => submit('buy')}
@@ -251,6 +318,38 @@ function Field({
         }}
       />
     </View>
+  );
+}
+
+function KindButton({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        paddingHorizontal: spacing.md,
+        paddingVertical: 6,
+        borderRadius: radius.pill,
+        backgroundColor: active ? colors.primary : 'transparent',
+      }}
+    >
+      <Text
+        style={{
+          ...typography.bodyBold,
+          color: active ? '#fff' : colors.textSecondary,
+          fontSize: 12,
+        }}
+      >
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 

@@ -16,19 +16,22 @@ interface Trade {
   symbol: string;
   side: 'buy' | 'sell';
   volume: number;
-  open_price: number;
+  open_price: number | null;
   current_price: number | null;
   close_price: number | null;
   stop_loss: number | null;
   take_profit: number | null;
   profit: number;
-  status: 'open' | 'closed' | 'cancelled';
+  status: 'open' | 'closed' | 'cancelled' | 'pending';
   reason: string;
   open_time: string;
   close_time: string | null;
+  // T.1 — pending limit orders
+  order_type?: 'market' | 'limit' | 'stop' | 'stop_limit';
+  trigger_price?: number | null;
 }
 
-type Tab = 'open' | 'closed' | 'all';
+type Tab = 'open' | 'pending' | 'closed' | 'all';
 
 export function TradeBook({ onWinClose }: { onWinClose?: (profit: number) => void } = {}) {
   const account = useAccountStore((s) => s.account);
@@ -52,6 +55,7 @@ export function TradeBook({ onWinClose }: { onWinClose?: (profit: number) => voi
       .limit(200);
 
     if (tab === 'open') q = q.eq('status', 'open');
+    else if (tab === 'pending') q = q.eq('status', 'pending');
     else if (tab === 'closed') q = q.eq('status', 'closed');
 
     const { data, error } = await q;
@@ -83,7 +87,7 @@ export function TradeBook({ onWinClose }: { onWinClose?: (profit: number) => voi
     // Snapshot the profit before the close so we can celebrate wins
     const trade = trades.find((t) => t.id === tradeId);
     let snapshotProfit = 0;
-    if (trade) {
+    if (trade && trade.open_price != null) {
       const q = quotes[trade.symbol];
       const livePrice = q
         ? trade.side === 'buy' ? q.bid : q.ask
@@ -91,7 +95,11 @@ export function TradeBook({ onWinClose }: { onWinClose?: (profit: number) => voi
       snapshotProfit = calculatePnL(trade.side, trade.volume, trade.open_price, livePrice, trade.symbol);
     }
     try {
-      await api.closeOrder(tradeId);
+      if (trade?.status === 'pending') {
+        await api.cancelPendingOrder(tradeId);
+      } else {
+        await api.closeOrder(tradeId);
+      }
       fetchAccount();
       if (snapshotProfit > 0 && onWinClose) {
         onWinClose(snapshotProfit);
@@ -105,6 +113,8 @@ export function TradeBook({ onWinClose }: { onWinClose?: (profit: number) => voi
     const closed = trades.filter((t) => t.status === 'closed').length;
     const totalPnL = trades.reduce((sum, t) => {
       if (t.status === 'closed') return sum + Number(t.profit);
+      // Pending orders have no fill price yet — no P&L to count.
+      if (t.status === 'pending' || t.open_price == null) return sum;
       const q = quotes[t.symbol];
       const live = q ? (t.side === 'buy' ? q.bid : q.ask) : t.open_price;
       return sum + calculatePnL(t.side, t.volume, t.open_price, live, t.symbol);
@@ -142,6 +152,7 @@ export function TradeBook({ onWinClose }: { onWinClose?: (profit: number) => voi
           }}
         >
           <TabButton label="Open" active={tab === 'open'} onPress={() => setTab('open')} />
+          <TabButton label="Pending" active={tab === 'pending'} onPress={() => setTab('pending')} />
           <TabButton label="Closed" active={tab === 'closed'} onPress={() => setTab('closed')} />
           <TabButton label="All" active={tab === 'all'} onPress={() => setTab('all')} />
         </View>
@@ -165,9 +176,11 @@ export function TradeBook({ onWinClose }: { onWinClose?: (profit: number) => voi
           <Text style={{ ...typography.body, color: colors.textSecondary, textAlign: 'center' }}>
             {tab === 'open'
               ? 'No open positions. Use Buy or Sell above to open one.'
-              : tab === 'closed'
-                ? "You haven't closed any trades yet."
-                : 'No trades yet. Place your first trade above.'}
+              : tab === 'pending'
+                ? 'No pending orders. Switch the New Order to Limit to queue one.'
+                : tab === 'closed'
+                  ? "You haven't closed any trades yet."
+                  : 'No trades yet. Place your first trade above.'}
           </Text>
         </View>
       ) : (
@@ -203,7 +216,7 @@ export function TradeBook({ onWinClose }: { onWinClose?: (profit: number) => voi
                 key={t.id}
                 trade={t}
                 quote={quotes[t.symbol]}
-                onClose={t.status === 'open' ? close : undefined}
+                onClose={t.status === 'open' || t.status === 'pending' ? close : undefined}
                 closing={closing === t.id}
               />
             ))}
@@ -226,14 +239,23 @@ function TradeRow({
   closing: boolean;
 }) {
   const isOpen = trade.status === 'open';
+  const isPending = trade.status === 'pending';
+  const openPrice = trade.open_price ?? trade.trigger_price ?? 0;
   const livePrice = isOpen
     ? quote
       ? trade.side === 'buy' ? quote.bid : quote.ask
-      : trade.open_price
-    : trade.close_price ?? trade.open_price;
+      : openPrice
+    : trade.close_price ?? openPrice;
+
+  // For pending orders show the gap to current price instead of P&L.
+  const liveMid = quote ? (quote.bid + quote.ask) / 2 : null;
+  const triggerGap =
+    isPending && trade.trigger_price != null && liveMid != null
+      ? trade.trigger_price - liveMid
+      : null;
 
   const profit = isOpen
-    ? calculatePnL(trade.side, trade.volume, trade.open_price, livePrice, trade.symbol)
+    ? calculatePnL(trade.side, trade.volume, openPrice, livePrice, trade.symbol)
     : Number(trade.profit);
   const positive = profit >= 0;
   const SideIcon = trade.side === 'buy' ? ArrowUpRight : ArrowDownRight;
@@ -267,34 +289,51 @@ function TradeRow({
             {trade.symbol}
           </Text>
           <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 11 }}>
-            {trade.side.toUpperCase()} · {trade.volume} · {timeAgo(trade.open_time)}
+            {trade.side.toUpperCase()}
+            {isPending && trade.order_type ? ` ${trade.order_type.toUpperCase()}` : ''}
+            {' · '}{trade.volume} · {timeAgo(trade.open_time)}
           </Text>
         </View>
       </View>
 
       <View style={{ flex: 1, alignItems: 'flex-end' }}>
         <Text style={{ ...typography.mono, color: colors.textPrimary, fontSize: 12 }}>
-          {trade.open_price}
+          {isPending ? trade.trigger_price ?? '—' : trade.open_price ?? '—'}
         </Text>
         <Text style={{ ...typography.mono, color: colors.textMuted, fontSize: 11 }}>
-          → {livePrice}
+          → {isPending ? (liveMid != null ? liveMid.toFixed(5) : '—') : livePrice}
         </Text>
       </View>
 
       <View style={{ flex: 0.9, alignItems: 'flex-end' }}>
-        <Text
-          style={{
-            ...typography.monoBold,
-            color: positive ? colors.profit : colors.loss,
-            fontSize: 14,
-          }}
-        >
-          {positive ? '+' : ''}{profit.toFixed(2)}
-        </Text>
-        {!isOpen && (
-          <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 10 }}>
-            CLOSED
-          </Text>
+        {isPending ? (
+          <>
+            <Text style={{ ...typography.monoBold, color: colors.textSecondary, fontSize: 12 }}>
+              {triggerGap != null
+                ? `${triggerGap > 0 ? '+' : ''}${triggerGap.toFixed(5)}`
+                : '—'}
+            </Text>
+            <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 10 }}>
+              AWAY
+            </Text>
+          </>
+        ) : (
+          <>
+            <Text
+              style={{
+                ...typography.monoBold,
+                color: positive ? colors.profit : colors.loss,
+                fontSize: 14,
+              }}
+            >
+              {positive ? '+' : ''}{profit.toFixed(2)}
+            </Text>
+            {!isOpen && (
+              <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 10 }}>
+                {trade.status === 'cancelled' ? 'CANCELLED' : 'CLOSED'}
+              </Text>
+            )}
+          </>
         )}
       </View>
 

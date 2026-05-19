@@ -44,6 +44,7 @@ import { startRobotEngine } from './ai/robotEngine.js';
 import { startRiskWorker } from './workers/risk.js';
 import { startRoundsWorker } from './workers/rounds.js';
 import { startPriceAlertsWorker } from './workers/priceAlerts.js';
+import { startOrdersTriggerWorker } from './workers/ordersTrigger.js';
 
 const PORT = Number(process.env.PORT ?? 4000);
 const HOST = process.env.HOST ?? '0.0.0.0';
@@ -124,6 +125,7 @@ startRobotEngine(app);
 startRiskWorker(app);
 startRoundsWorker(app);
 startPriceAlertsWorker(app);
+startOrdersTriggerWorker(app);
 
 
 app

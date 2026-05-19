@@ -74,12 +74,23 @@ export const api = {
     reason?: 'mobile' | 'web' | 'desktop' | 'robot';
     /** R.5 — idempotency key. Generate once per tap; reuse on retry. */
     clientRequestId?: string;
+    /** T.1 — order type. Defaults to 'market' server-side. */
+    orderType?: 'market' | 'limit' | 'stop' | 'stop_limit';
+    /** T.1 — required for non-market orders. */
+    triggerPrice?: number;
   }) => request<{ trade: any }>('/api/orders/open', { method: 'POST', body: JSON.stringify(input) }),
 
   closeOrder: (tradeId: number) =>
     request<{ tradeId: number; profit: number; closePrice: number }>(
       '/api/orders/close',
       { method: 'POST', body: JSON.stringify({ tradeId }) },
+    ),
+
+  /** T.1 — cancel a pending (un-filled) order; releases reserved margin. */
+  cancelPendingOrder: (tradeId: number) =>
+    request<{ tradeId: number; released: number }>(
+      `/api/orders/pending/${tradeId}`,
+      { method: 'DELETE' },
     ),
 
   openRound: (input: {

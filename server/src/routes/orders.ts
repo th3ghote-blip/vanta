@@ -19,10 +19,18 @@ const OpenOrderSchema = z.object({
   // R.5 — idempotency: client sets this to a fresh UUID before each tap;
   // a duplicate request with the same id returns the existing trade.
   clientRequestId: z.string().uuid().optional(),
+  // T.1 — pending orders. Default 'market' = current behavior. Migration 016
+  // accepts all 4 values upfront so T.2 / T.3 don't need new migrations.
+  orderType: z.enum(['market', 'limit', 'stop', 'stop_limit']).default('market'),
+  triggerPrice: z.number().positive().optional(),
 });
 
 const CloseOrderSchema = z.object({
   tradeId: z.number().int().positive(),
+});
+
+const CancelPendingParamsSchema = z.object({
+  id: z.coerce.number().int().positive(),
 });
 
 export async function ordersRoutes(app: FastifyInstance) {
@@ -33,6 +41,12 @@ export async function ordersRoutes(app: FastifyInstance) {
     const parsed = OpenOrderSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid_input', issues: parsed.error.issues });
     const body = parsed.data;
+
+    // T.1 — stop / stop_limit accepted at schema level (migration 016) but
+    // logic lands in T.2 / T.3. Surface a clear 501 so the client knows.
+    if (body.orderType === 'stop' || body.orderType === 'stop_limit') {
+      return reply.code(501).send({ error: 'not_implemented', orderType: body.orderType });
+    }
 
     // Verify account ownership and pull margin-relevant fields.
     const { data: account, error: accErr } = await supabaseAdmin
@@ -60,12 +74,51 @@ export async function ordersRoutes(app: FastifyInstance) {
     const quote = getQuote(body.symbol);
     if (!quote) return reply.code(400).send({ error: 'no_quote', symbol: body.symbol });
 
-    const openPrice = body.side === 'buy' ? quote.ask : quote.bid;
+    // T.1 — branch: market vs limit. For limit orders we validate the trigger
+    // makes directional sense against the current quote, reserve margin, and
+    // insert a status='pending' row. The orders-trigger worker flips it to
+    // 'open' once the price crosses the trigger.
+    const isPending = body.orderType !== 'market';
 
-    // Phase 1.2 — margin requirement.
+    if (isPending) {
+      if (body.triggerPrice == null) {
+        return reply.code(400).send({
+          error: 'invalid_trigger_price',
+          message: 'triggerPrice is required for non-market orders',
+        });
+      }
+
+      // Directional validation for limits (T.2 stop / T.3 stop_limit extend this).
+      if (body.orderType === 'limit') {
+        if (body.side === 'buy' && body.triggerPrice >= quote.ask) {
+          return reply.code(400).send({
+            error: 'invalid_trigger_price',
+            message: 'buy-limit trigger must be below current ask',
+            triggerPrice: body.triggerPrice,
+            ask: quote.ask,
+          });
+        }
+        if (body.side === 'sell' && body.triggerPrice <= quote.bid) {
+          return reply.code(400).send({
+            error: 'invalid_trigger_price',
+            message: 'sell-limit trigger must be above current bid',
+            triggerPrice: body.triggerPrice,
+            bid: quote.bid,
+          });
+        }
+      }
+    }
+
+    // Margin requirement: for pending orders we estimate at the trigger price
+    // (a stricter reservation than market would be — fine, the position will
+    // open exactly at that price). For market we use the live quote side.
+    const referencePrice = isPending
+      ? (body.triggerPrice as number)
+      : (body.side === 'buy' ? quote.ask : quote.bid);
+
     const required = +requiredMargin(
       body.volume,
-      openPrice,
+      referencePrice,
       body.symbol,
       Number(account.leverage) || 1,
     ).toFixed(2);
@@ -101,20 +154,32 @@ export async function ordersRoutes(app: FastifyInstance) {
       return reply.code(500).send({ error: 'margin_reserve_failed' });
     }
 
+    const insertRow: Record<string, any> = {
+      account_id: body.accountId,
+      symbol: body.symbol,
+      side: body.side,
+      volume: body.volume,
+      stop_loss: body.stopLoss,
+      take_profit: body.takeProfit,
+      reason: body.reason,
+      client_request_id: body.clientRequestId ?? null,
+      order_type: body.orderType,
+      trigger_price: isPending ? body.triggerPrice : null,
+    };
+    if (isPending) {
+      insertRow.status = 'pending';
+      // open_price stays null until the trigger worker fills it.
+      insertRow.open_price = null;
+      insertRow.current_price = null;
+    } else {
+      const openPrice = body.side === 'buy' ? quote.ask : quote.bid;
+      insertRow.open_price = openPrice;
+      insertRow.current_price = openPrice;
+    }
+
     const { data: trade, error: tradeErr } = await supabaseAdmin
       .from('trades')
-      .insert({
-        account_id: body.accountId,
-        symbol: body.symbol,
-        side: body.side,
-        volume: body.volume,
-        open_price: openPrice,
-        current_price: openPrice,
-        stop_loss: body.stopLoss,
-        take_profit: body.takeProfit,
-        reason: body.reason,
-        client_request_id: body.clientRequestId ?? null,
-      })
+      .insert(insertRow)
       .select()
       .single();
 
@@ -129,8 +194,11 @@ export async function ordersRoutes(app: FastifyInstance) {
       return reply.code(500).send({ error: 'insert_failed' });
     }
 
-    // Phase 11.3 — achievement check: first_trade (fire-and-forget)
-    void checkFirstTrade(userId).catch(() => {});
+    // Phase 11.3 — achievement check: first_trade (fire-and-forget). Only for
+    // immediate-fill market orders; pending orders count once they fill.
+    if (!isPending) {
+      void checkFirstTrade(userId).catch(() => {});
+    }
 
     return { trade };
   });
@@ -207,5 +275,64 @@ export async function ordersRoutes(app: FastifyInstance) {
     ]).catch(() => {});
 
     return { tradeId, profit, closePrice };
+  });
+
+  // T.1 — cancel a pending order. Releases the margin reservation and marks
+  // the row 'cancelled' (note: existing enum uses British spelling; we keep
+  // that label and reserve 'closed' for filled-then-closed lifecycle.)
+  app.delete('/pending/:id', async (req, reply) => {
+    const userId = await authUser(req.headers.authorization);
+    if (!userId) return reply.code(401).send({ error: 'unauthorized' });
+
+    const parsed = CancelPendingParamsSchema.safeParse(req.params);
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid_input' });
+    const { id } = parsed.data;
+
+    const { data: trade, error } = await supabaseAdmin
+      .from('trades')
+      .select('*, accounts!inner(user_id, leverage)')
+      .eq('id', id)
+      .single();
+
+    if (error || !trade || (trade as any).accounts.user_id !== userId) {
+      return reply.code(403).send({ error: 'forbidden' });
+    }
+
+    if (trade.status !== 'pending') {
+      return reply.code(400).send({ error: 'not_pending', status: trade.status });
+    }
+
+    // Compute the margin to release. trigger_price is the price we reserved
+    // against on submit; fall back to open_price if for some reason a market
+    // row leaked into this endpoint (defensive — shouldn't happen).
+    const refPrice = Number((trade as any).trigger_price ?? trade.open_price ?? 0);
+    const accLeverage = Number((trade as any).accounts?.leverage) || 1;
+    const release = +requiredMargin(
+      Number(trade.volume),
+      refPrice,
+      trade.symbol,
+      accLeverage,
+    ).toFixed(2);
+
+    const { error: updErr } = await supabaseAdmin
+      .from('trades')
+      .update({
+        status: 'cancelled',
+        close_time: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .eq('status', 'pending'); // CAS guard against trigger worker race
+
+    if (updErr) {
+      return reply.code(500).send({ error: 'cancel_failed' });
+    }
+
+    try {
+      await releaseMargin(trade.account_id, release, app.log);
+    } catch (e) {
+      app.log.error({ err: e, tradeId: id, release }, 'failed to release margin on pending cancel');
+    }
+
+    return { tradeId: id, released: release };
   });
 }

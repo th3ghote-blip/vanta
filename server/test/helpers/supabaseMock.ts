@@ -31,7 +31,7 @@ export interface DbTrade {
   volume: number;
   open_price: number;
   current_price: number;
-  status: 'open' | 'closed';
+  status: 'open' | 'closed' | 'pending' | 'cancelled';
   close_price?: number;
   close_time?: string;
   profit?: number;
@@ -39,6 +39,8 @@ export interface DbTrade {
   take_profit?: number | null;
   reason?: string;
   client_request_id?: string | null;
+  order_type?: 'market' | 'limit' | 'stop' | 'stop_limit';
+  trigger_price?: number | null;
 }
 export interface DbRound {
   id: number;
