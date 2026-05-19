@@ -96,7 +96,7 @@ The agent's deploy gap (commits land but Railway/Vercel aren't shipped without m
 - **Acceptance:** Throw in a route → appears in Sentry.
 
 ## R.5 Order-open idempotency
-- [ ] **File:** `server/src/routes/orders.ts`
+- [x] **File:** `server/src/routes/orders.ts`
 - **What:** Add optional `client_request_id` (uuid) to OpenOrderSchema. Check `trades` for `(account_id, client_request_id)` already exists → return existing trade instead of opening a duplicate. Client sets the id when user clicks Buy/Sell so double-tap doesn't double-open.
 - **Migration:** add `client_request_id text` column to `trades` with a partial unique index per account.
 - **Acceptance:** POST /api/orders/open twice with the same `client_request_id` → same trade row both times, only one position opened.

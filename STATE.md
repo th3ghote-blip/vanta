@@ -1,41 +1,39 @@
 # STATE -- handoff notes for the next agent
 
-## 2026-05-19T00:00Z -- R.2 Stale-lock auto-cleanup
+## 2026-05-19T00:00Z -- R.5 Order-open idempotency
 
 **Agent:** scheduled cowork auto-work pass
-**TODO item picked:** **R.2 Stale-lock auto-cleanup at session start**
-**Commit:** `a5138a5`
-
-**Pre-run housekeeping**
-Found TODO.md truncated in working tree (file truncation bug from a prior unrelated run).
-Restored to HEAD via `git show HEAD:TODO.md > /tmp/todo_restore.md` + Python shutil.copy.
-Working tree was then clean before starting the TODO item.
+**TODO item picked:** **R.5 Order-open idempotency**
+**Commit:** `b39109d`
 
 **What changed**
-- `scripts/git-precheck.sh` (new, 58 lines): Bash script that removes stale git lock files
-  at session start.
-  - Checks `.git/index.lock`, `.git/HEAD.lock`, `.git/MERGE_HEAD.lock`,
-    `.git/CHERRY_PICK_HEAD.lock`, and all `.git/refs/heads/*.lock` files.
-  - Only removes locks older than 60 seconds (avoids killing live git processes).
-  - If `rm -f` fails (WSL permission issue), warns and continues — does NOT abort.
-    Reports the `GIT_INDEX_FILE=/tmp/vanta_idx_$$` workaround for stuck locks.
-  - Verifies `branch == main` (exits 1 if not).
-  - Reports working-tree cleanliness using the GIT_INDEX_FILE workaround if needed.
-- `TODO.md`: Precheck section updated — `bash scripts/git-precheck.sh` is now step 0.
-  R.2 marked `[x]`.
+- `supabase/migrations/015_order_idempotency.sql` (new): adds `client_request_id text`
+  column to `trades`; partial unique index `trades_account_client_request_uidx` on
+  `(account_id, client_request_id) WHERE client_request_id IS NOT NULL`.
+  Apply with: `SUPABASE_PAT=<pat> python scripts/apply-migration.py supabase/migrations/015_order_idempotency.sql`
+- `server/src/routes/orders.ts`: `clientRequestId: z.string().uuid().optional()` added
+  to `OpenOrderSchema`. Pre-insert idempotency check: if `client_request_id` supplied
+  and a matching `(account_id, client_request_id)` row already exists, returns the
+  existing trade immediately without touching margin or inserting. Column included in
+  insert as `client_request_id: body.clientRequestId ?? null`.
+- `lib/api.ts`: `clientRequestId?: string` added to `openOrder` input type.
+- `components/pro/OrderEntry.tsx`: `generateRequestId()` helper added (uses
+  `crypto.randomUUID` with a Math.random UUID v4 fallback for React Native);
+  a fresh ID is generated per tap and passed as `clientRequestId` — server deduplicates
+  double-taps at DB level.
 
 **Verification**
-- `bash scripts/git-precheck.sh` runs cleanly, detects the known WSL-stuck
-  `.git/index.lock` (age ~8h), warns about it without failing, reports correct branch.
 - tsc --noEmit client: exit 0
 - tsc --noEmit server: exit 0
+- Migration NOT applied (sandbox has no Supabase access)
 - Deploy NOT done (sandbox has no Railway/Vercel access)
 
 **Notes**
-- The `.git/index.lock` on this machine is permanently stuck (WSL permission denied).
-  The script can't fix it and says so. The `GIT_INDEX_FILE` workaround remains the
-  correct approach for all git operations in this sandbox.
-- Script exits 1 only on wrong branch; all other issues are warnings.
+- Until `015_order_idempotency.sql` is applied the column doesn't exist; the server
+  insert will silently ignore the extra field (Supabase ignores unknown columns), so
+  the app won't break — it just won't be idempotent yet. Apply the migration first.
+- Idempotency only covers the open path. Close is inherently idempotent (status='closed'
+  check blocks re-close).
 
 **Recurring gotchas (CRITICAL -- still active)**
 1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
@@ -51,12 +49,10 @@ Working tree was then clean before starting the TODO item.
    capturing SHA into a variable, otherwise warning text contaminates the variable.
    Never write the raw output of commit-tree to .git/refs/heads/main without checking it's a clean 40-char SHA.
 
-**Next agent:** R.1 is gated (needs user to create GitHub repo + add RAILWAY_TOKEN/VERCEL_TOKEN
-as repo secrets — no credentials available in sandbox). Skip R.1, pick **R.3 Sentry frontend**
-(install sentry-expo, init in app/_layout.tsx, capture client errors, tag with login number)
-OR **R.5 Order-open idempotency** (add client_request_id to trades, partial unique index).
-R.3 requires `sentry-expo` install + DSN env var from user — may also be gated.
-Consider R.5 (pure code change, no external accounts needed) if R.3 is blocked.
+**Next agent:** R.1 still gated (needs GitHub repo + secrets from user). R.3/R.4 (Sentry)
+need a DSN env var — gated unless user provides one. Pick **R.6 Worker self-heal on upstream
+failures** (pricefeed.ts + risk.ts + rounds.ts try/catch + /api/health/workers endpoint) — pure
+code change, no external accounts needed.
 
 ---
 
