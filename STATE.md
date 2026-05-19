@@ -1,5 +1,65 @@
 # STATE -- handoff notes for the next agent
 
+## 2026-05-19T15:00Z -- R.12 Legal pages
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **R.12 Legal pages (Terms / Privacy / Risk disclosure)**
+**Commit:** `f4fbc99`
+
+**Pre-run housekeeping**
+TODO.md was truncated (last 7 lines missing — file truncation bug again). Restored from HEAD
+via Python before starting work. Working tree was clean after restore.
+
+**What changed**
+- `app/legal/terms.tsx` (new, 174 lines): 12-section Terms of Service. Marshall Islands
+  B-book broker template. Accessible via Profile → Help → Terms of Service (`/legal/terms`).
+- `app/legal/privacy.tsx` (new, 160 lines): 12-section Privacy Policy covering data
+  collection, legal basis, retention, rights, security, cookies, push, children, contact.
+  Accessible via Profile → Help → Privacy Policy (`/legal/privacy`).
+- `components/RiskDisclosureModal.tsx` (new, 249 lines): bottom-sheet modal that gate-keeps
+  first deposit. Lists 6 numbered risk points. Accept button only activates after user scrolls
+  to bottom. On accept: writes `vanta:risk_ack = '1'` to AsyncStorage so it only shows once.
+  On decline: navigates back. Exports `hasAcknowledgedRisk()` and `acknowledgeRisk()` helpers.
+- `app/(tabs)/profile.tsx`: added `FileText` icon import + two new `<Row>` entries (Terms of
+  Service → `/legal/terms`, Privacy Policy → `/legal/privacy`) under the Help section.
+- `app/deposit.tsx`: imports `RiskDisclosureModal` + `hasAcknowledgedRisk`. On mount checks
+  AsyncStorage; if not yet acked shows the modal full-screen before the deposit flow.
+
+**Verification**
+- tsc --noEmit client: exit 0 (silent)
+- tsc --noEmit server: exit 0 (silent)
+- Deploy NOT done (sandbox has no Railway/Vercel access)
+
+**Notes**
+- Risk modal requires scroll-to-bottom before accept — intentional UX friction for compliance.
+- Legal text is boilerplate; review with a lawyer before launch (as noted in TODO.md).
+- `spacing.xs` is accessed with a nullish fallback (`spacing.xs ?? 6`) in legal pages in case
+  the token doesn't exist; all other tokens are confirmed present.
+
+**Recurring gotchas (CRITICAL -- still active)**
+1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
+   TODO.md was truncated AGAIN this run — the bug also affects Edit tool on open files.
+2. `.git/HEAD.lock` + `.git/index.lock` are stale WSL locks.
+   Use GIT_INDEX_FILE=/tmp/vanta_<unique> git read-tree HEAD, then commit-tree, write to .git/refs/heads/main.
+3. After every session start: pick a fresh GIT_INDEX_FILE tmp path.
+4. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
+5. Colors import: use @/lib/theme (not @/lib/colors). bgBase does not exist -- use bgDeep.
+   Color tokens: textPrimary, textSecondary, textMuted. No typography.caption or typography.h3.
+6. Supabase JS SDK v2.45 has no `listUserSessions` -- sessions.ts calls the REST API directly.
+7. Supabase select with joins returns GenericStringError unless you cast: `as unknown as TypedArray[]`.
+8. `colors.primaryDim` does not exist -- just use `colors.primary`.
+9. git write-tree / commit-tree: always redirect warnings to /dev/null (2>/dev/null) when
+   capturing SHA. Never write raw output to .git/refs/heads/main without verifying 40-char SHA.
+
+**Next agent:** Phase R is now mostly done (R.1 gated on GitHub, R.7 needs sign-up,
+R.8/R.9/R.11 need CI). Best pure-code picks from Phase T (Trading depth):
+- **T.1 Pending limit orders** (new limit.tsx form + orders trigger worker + migration) — highest value
+- **T.11 Position notional + leverage display** — small, frontend-only, high trader UX value
+- **T.5 Modify open positions (SL/TP after open)** — PATCH endpoint + edit button per row
+
+---
+
+
 ## 2026-05-19T14:15Z -- R.10 Performance dashboard in admin
 
 **Agent:** scheduled cowork auto-work pass

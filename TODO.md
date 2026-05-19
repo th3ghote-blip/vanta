@@ -133,7 +133,7 @@ The agent's deploy gap (commits land but Railway/Vercel aren't shipped without m
 - **Acceptance:** Cron runs, alerts when delayed.
 
 ## R.12 Legal pages (Terms / Privacy / Risk disclosure)
-- [ ] **Files:** `app/legal/terms.tsx`, `app/legal/privacy.tsx`, `components/RiskDisclosureModal.tsx`
+- [x] **Files:** `app/legal/terms.tsx`, `app/legal/privacy.tsx`, `components/RiskDisclosureModal.tsx`
 - **What:** Static markdown rendered. Risk disclosure shown as modal on first deposit (or first sign-in if you prefer). Generated from TermsFeed for Marshall Islands B-book broker template — review with a lawyer before launch.
 - **Acceptance:** Pages accessible from Profile → Help. Risk modal blocks first deposit until acknowledged.
 
