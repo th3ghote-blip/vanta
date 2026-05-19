@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import WebSocket from 'ws';
 import { setQuote, getAllQuotes, getQuote, type Quote } from '../lib/quoteCache.js';
+import { recordTick } from '../lib/workerHealth.js';
 
 const TD_KEY = process.env.TWELVE_DATA_API_KEY ?? '';
 
@@ -121,6 +122,7 @@ function startCoinbase(app: FastifyInstance) {
   let ws: WebSocket;
   let firstMessageLogged = false;
   let updates = 0;
+  let reconnectDelay = 3_000; // ms; doubles on each disconnect, resets on first message
 
   const connect = () => {
     ws = new WebSocket(url);
@@ -140,10 +142,11 @@ function startCoinbase(app: FastifyInstance) {
       try {
         const m = JSON.parse(raw.toString());
 
-        // Log the first message for sanity check
+        // Log the first message for sanity check and reset backoff
         if (!firstMessageLogged) {
           app.log.info({ channel: m.channel, eventCount: m.events?.length }, 'coinbase: first message');
           firstMessageLogged = true;
+          reconnectDelay = 3_000; // reset backoff on successful connection
         }
 
         // Errors / subscription issues
@@ -174,6 +177,7 @@ function startCoinbase(app: FastifyInstance) {
               ts: Date.now(),
             });
             updates++;
+            recordTick('coinbase');
           }
         }
       } catch (err) {
@@ -182,10 +186,12 @@ function startCoinbase(app: FastifyInstance) {
     });
 
     ws.on('close', () => {
-      app.log.warn(`coinbase: closed (${updates} ticks received), reconnecting in 3s`);
+      app.log.warn(`coinbase: closed (${updates} ticks received), reconnecting in ${reconnectDelay / 1000}s`);
       updates = 0;
       firstMessageLogged = false;
-      setTimeout(connect, 3000);
+      const delay = reconnectDelay;
+      reconnectDelay = Math.min(reconnectDelay * 2, 60_000); // exponential backoff, cap 60s
+      setTimeout(connect, delay);
     });
 
     ws.on('error', (err) => app.log.warn({ err: err.message }, 'coinbase: error'));
@@ -223,7 +229,16 @@ async function fetchTdChunk(symbols: string[], app: FastifyInstance): Promise<nu
   const tdSymbols = symbols.map((s) => TD_SYMBOL[s]).join(',');
   const url = `https://api.twelvedata.com/price?symbol=${encodeURIComponent(tdSymbols)}&apikey=${TD_KEY}`;
   try {
-    const res = await fetch(url);
+    let res = await fetch(url);
+    // Retry on 429 with exponential backoff (up to 3 attempts)
+    if (res.status === 429) {
+      for (let attempt = 1; attempt <= 3 && res.status === 429; attempt++) {
+        const waitMs = 1000 * Math.pow(2, attempt); // 2s, 4s, 8s
+        app.log.warn(`twelvedata: 429 rate-limit on chunk ${symbols.join(',')}, retry ${attempt} in ${waitMs}ms`);
+        await new Promise((r) => setTimeout(r, waitMs));
+        res = await fetch(url);
+      }
+    }
     if (!res.ok) {
       app.log.warn(`twelvedata HTTP ${res.status} for chunk ${symbols.join(',')}`);
       return 0;
@@ -251,6 +266,7 @@ async function fetchTdChunk(symbols: string[], app: FastifyInstance): Promise<nu
       });
       updated++;
     }
+    if (updated > 0) recordTick('twelvedata');
     return updated;
   } catch (err) {
     app.log.warn({ err: (err as Error).message }, 'twelvedata chunk error');

@@ -5,6 +5,7 @@ import { getMid, getQuote } from '../lib/quoteCache.js';
 import { calculatePnL } from '../lib/contracts.js';
 import { requiredMargin, releaseMargin } from '../lib/margin.js';
 import { sendPushChecked } from '../lib/push.js';
+import { recordTick } from '../lib/workerHealth.js';
 
 /**
  * Risk worker — Phase 1.1
@@ -272,6 +273,7 @@ export function startRiskWorker(app: FastifyInstance): NodeJS.Timeout {
     running = true;
     try {
       await tick(app);
+      recordTick('risk');
     } catch (err) {
       app.log.error({ err }, 'risk: tick threw');
     } finally {

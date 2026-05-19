@@ -17,6 +17,7 @@ import { alertsRoutes } from './routes/alerts.js';
 import { sessionsRoutes } from './routes/sessions.js';
 import { achievementsRoutes } from './routes/achievements.js';
 import { startPriceFeed } from './feed/pricefeed.js';
+import { getWorkerHealth } from './lib/workerHealth.js';
 import { startRobotEngine } from './ai/robotEngine.js';
 import { startRiskWorker } from './workers/risk.js';
 import { startRoundsWorker } from './workers/rounds.js';
@@ -54,6 +55,12 @@ await app.register(rateLimit, {
 await app.register(websocket);
 
 app.get('/health', async () => ({ ok: true, ts: Date.now() }));
+
+app.get('/api/health/workers', async () => ({
+  ok: true,
+  ts: Date.now(),
+  workers: getWorkerHealth(),
+}));
 
 await app.register(authRoutes, { prefix: '/api/auth' });
 await app.register(accountRoutes, { prefix: '/api/account' });

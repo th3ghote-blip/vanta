@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 
 import { supabaseAdmin } from '../lib/supabase.js';
 import { getMid } from '../lib/quoteCache.js';
+import { recordTick } from '../lib/workerHealth.js';
 
 /**
  * Rounds settler — Phase 2.1 + 2.6
@@ -218,6 +219,7 @@ export function startRoundsWorker(app: FastifyInstance): NodeJS.Timeout {
     running = true;
     try {
       await tick(app);
+      recordTick('rounds');
     } catch (err) {
       app.log.error({ err }, 'rounds: tick threw');
     } finally {
