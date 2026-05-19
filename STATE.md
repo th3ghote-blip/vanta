@@ -1,5 +1,83 @@
 # STATE -- handoff notes for the next agent
 
+## 2026-05-19T23:30Z -- R.9 Backend integration test suite
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **R.9 Backend integration test suite**
+**Commit:** `2d508b9`
+
+**What changed**
+- Installed `vitest@^2.1.9` in `server/` (devDep).
+- `server/vitest.config.ts`: minimal config, node env, `pool: 'forks'`,
+  `singleFork: true` (mock module state must not leak across files).
+- `server/test/helpers/supabaseMock.ts` (~340 lines): in-memory mock
+  implementing the supabase-js v2 surface routes touch — `from(t).select/
+  insert/update/delete().eq/gte/order/limit/single/maybeSingle()`, `rpc()`
+  for `reserve_margin` / `release_margin` / `apply_trade_pnl`, and the
+  `auth.getUser/signInWithPassword/admin.createUser/updateUserById` paths.
+  Exports `resetDb()`, `seed.{user,account,profile,trade}`, `issueToken()`,
+  and a stand-in `authUser()` that matches tokens emitted by signInWithPassword.
+- `server/test/helpers/app.ts`: `buildApp()` constructs Fastify with the
+  same auth/orders/rounds/robots route registrations as `server/src/index.ts`
+  but skips `listen()`, workers, Sentry, CORS, rate-limit.
+- 4 test files, **32 tests** total — all green in ~700ms:
+  - `auth.test.ts` (11): register happy/contactEmail/bad-email; login success+
+    streak (new / consecutive day / reset on gap) / 401 wrong pw / 401 unknown
+    login; change-password 401 / happy / min-length 400.
+  - `orders.test.ts` (11): open happy / no-quote 400 / insufficient-margin 400 /
+    bad payload 400 / cross-user 403 / **idempotent same-clientRequestId**;
+    close happy releases margin / closing already-closed 403 / 401 / bad payload.
+  - `rounds.test.ts` (5): open happy stake-deduct / insufficient-balance / 401 /
+    cross-user 403 / no-quote refunds stake.
+  - `robots.test.ts` (5): `/compile` happy (mocked Anthropic) / non-JSON 422 /
+    401 / prompt-too-short 400 / SDK throws → 500.
+- `server/package.json` scripts: added `"test": "vitest run"` and
+  `"test:watch": "vitest"`.
+
+**Verification**
+- `npm run --prefix server test` → 32 passed (0 failed) in 660ms
+- `npm run --prefix server typecheck` → silent (exit 0)
+- No env vars required at runtime; tests set fake `SUPABASE_URL` /
+  `SUPABASE_SERVICE_ROLE_KEY` / `ANTHROPIC_API_KEY` in `beforeAll`.
+
+**Notes / gotchas for next agent**
+- **Mock query-builder quirk:** supabase-js lets you chain `.select()` after
+  `.insert(...)` / `.update(...)` to get the rows back. The mock honours this
+  by treating a `.select()` *after* a mutation as a no-op modifier — it does
+  NOT switch the mode back to a plain select. If you add a route that does
+  `from(t).select(...).insert(...)` (mutation second), you'd need to extend
+  the mock.
+- **Embed handling:** routes use `"*, accounts!inner(user_id, leverage)"`
+  string in select. The mock detects the `accounts!inner` substring and
+  attaches a synthetic `accounts: {...}` field on each row. Works for
+  `trades` and `robots` tables only — extend if you add a new joined route.
+- **`tsconfig.json` rootDir is `src/`**, so `tsc --noEmit` does NOT scan
+  test files (vitest compiles them via vite-node at runtime). That's by
+  design — tests stay out of the production build output. If CI wants to
+  typecheck tests too, add a second `tsconfig.test.json` with broader include.
+- Tests run with **`singleFork: true`** because vitest's hoisted `vi.mock()`
+  module-stubbing for `../lib/supabase.js` would otherwise duplicate the
+  in-memory store across worker processes and break `resetDb()` semantics.
+- **No route bugs found.** All happy paths and error branches match expectations.
+
+**Recurring gotchas (CRITICAL -- still active)**
+1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
+2. `.git/HEAD.lock` + `.git/index.lock` are stale WSL locks.
+3. After every session start: pick a fresh GIT_INDEX_FILE tmp path.
+4. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
+5. Colors import: use @/lib/theme (not @/lib/colors). bgBase does not exist -- use bgDeep.
+6. Supabase JS SDK v2.45 has no `listUserSessions` -- sessions.ts calls the REST API directly.
+7. Supabase select with joins returns GenericStringError unless you cast: `as unknown as TypedArray[]`.
+8. `colors.primaryDim` does not exist -- just use `colors.primary`.
+
+**Next agent:** Best remaining items in Phase R: R.7 (Better-Stack — needs sign-up),
+R.8 (E2E smoke test in CI — Playwright + GH Actions), R.11 (DB backup verification —
+GH Actions cron + Supabase Management API). For pure-code work move to Phase T:
+**T.1 Pending limit orders**, **T.5 Modify open positions (SL/TP after open)**,
+**T.11 Position notional + leverage display**.
+
+---
+
 ## 2026-05-19T15:00Z -- R.12 Legal pages
 
 **Agent:** scheduled cowork auto-work pass

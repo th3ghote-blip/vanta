@@ -118,7 +118,7 @@ The agent's deploy gap (commits land but Railway/Vercel aren't shipped without m
 - **Acceptance:** PR opens, CI runs the test green, fails if any step breaks.
 
 ## R.9 Backend integration test suite
-- [ ] **Files:** `server/test/*.test.ts`, install `vitest`
+- [x] **Files:** `server/test/*.test.ts`, install `vitest` — 2026-05-19 / `2d508b9` — 32 tests passing (hermetic, no Supabase project required).
 - **What:** Cover `/api/auth/*`, `/api/orders/*`, `/api/rounds/*`, `/api/robots/*` against a test Supabase project (or hermetic mock).
 - **Acceptance:** `cd server && npm test` passes; CI runs it.
 
