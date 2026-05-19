@@ -150,7 +150,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Done:** 2026-05-19 — commit pending.
 
 ## T.2 Stop orders
-- [ ] **Same files as T.1.**
+- [x] **Same files as T.1.**
 - **What:** Reverse of limit — buy-stop fills when price rises above trigger (breakout entry), sell-stop fills when price drops below trigger (breakdown entry). Same `trades.order_type='stop'`.
 - **Acceptance:** Sell-stop on BTC at $75k while price is $76k → fills when BTC dips below $75k.
 

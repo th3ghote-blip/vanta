@@ -1,5 +1,57 @@
 # STATE -- handoff notes for the next agent
 
+## 2026-05-20T22:08Z -- T.2 Stop orders
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **T.2 Stop orders**
+**Commit:** `8045bc3`
+
+**Pre-run housekeeping**
+Working tree had truncated files (file truncation bug — same pattern as prior runs).
+Restored all 9 modified files from HEAD via Python before starting work.
+Working tree was clean after restore.
+
+**What changed**
+- `server/src/routes/orders.ts`: Narrowed the 501 guard from `stop || stop_limit`
+  to `stop_limit` only. Added stop direction validation inside the `isPending` block:
+  buy-stop trigger must be > current ask (breakout entry); sell-stop trigger must be
+  < current bid (breakdown entry). Opposite of limit orders — intentional.
+- `server/src/workers/ordersTrigger.ts`: Extended `shouldFill()` with stop logic:
+  buy-stop fills when `ask >= trigger_price` (price rose to/above trigger);
+  sell-stop fills when `bid <= trigger_price` (price fell to/below trigger).
+  Updated `.in('order_type', ['limit'])` → `.in('order_type', ['limit', 'stop'])` so
+  stop orders are polled each tick.
+- `server/test/orders.test.ts`: Replaced single placeholder 501 test with 4 real tests:
+  buy-stop happy path (creates pending row), buy-stop bad trigger 400,
+  sell-stop happy path, stop_limit still 501. **42 tests total (was 39)**.
+
+**Verification**
+- `npm run --prefix server test` → **42 passed (was 39, +3) in 2.26s** ✅
+- `npx --no-install tsc --noEmit` (client) → exit 0 ✅
+- `cd server && npx --no-install tsc --noEmit` (server) → exit 0 ✅
+- Deploy: sandbox has no Railway/Vercel access — deploy manually or wait for CI.
+
+**Notes / gotchas for next agent**
+- **Stop fill logic**: buy-stop fills on `ask >= trigger`, sell-stop on `bid <= trigger`.
+  This is correct for B-book: the user entered a breakout order above price, we fill
+  them at exactly their trigger price when ask taps it.
+- **No new migration**: 016 already allows 'stop' in the CHECK constraint. The only
+  code change is in routes + worker + tests.
+- **stop_limit still 501**: T.3 needs a second price field (`limit_price`). That
+  requires a migration for the `limit_price` column on `trades`. See STATE.md note
+  from T.1 run for details.
+
+**Next agent:** **T.3 Stop-limit orders** is the natural next pick — it needs:
+  1. A migration adding `trades.limit_price numeric(18,5)`.
+  2. Remove the 501 guard for `stop_limit` in `orders.ts`.
+  3. Add two-stage validation: trigger above/below price (stop side), limit at or
+     better than trigger (limit side).
+  4. Extend `shouldFill()` and the trigger worker: first stage trips the stop, then
+     it inserts a new limit order (or fills immediately if limit is already crossed).
+  OR skip to **T.5 Modify open positions (SL/TP after open)** — simpler, no migration
+  to the live DB needed (just a PATCH endpoint + edit button).
+
+
 ## 2026-05-19T23:40Z -- T.1 Pending limit orders (also satisfies T.13)
 
 **Agent:** scheduled cowork auto-work pass
