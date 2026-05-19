@@ -1,6 +1,71 @@
 # STATE -- handoff notes for the next agent
 
-## 2026-05-19T10:10Z -- R.6 Worker self-heal on upstream failures
+## 2026-05-19T14:15Z -- R.10 Performance dashboard in admin
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **R.10 Performance dashboard in admin**
+**Commit:** `479b18d` (code) + `5a4c767` (TODO.md)
+
+**Pre-run housekeeping**
+Prior agent run (Sentry attempt) hit the file-truncation bug and left 7 files
+truncated (server/src/index.ts, package.json, server/package.json, both lock files,
+app/_layout.tsx, .env.example). Restored all from HEAD via `git show HEAD:<path>`.
+Working tree was clean before R.10 work began. Note: R.3 + R.4 Sentry integration
+was already committed by an earlier session (commits b17cdf8 + de7d919) — those
+items should be marked [x] in TODO.md (still showing [ ] due to an index lock
+preventing a prior commit of that mark). Next agent should check and fix.
+
+**What changed**
+- `server/src/middleware/timing.ts` (new, 82 lines): rolling 5-min timing registry.
+  `recordTiming(route, ms)` stores samples per-route. `getTimingStats()` returns
+  `{route, count, p50, p95, p99, min, max}[]` sorted by p95 descending.
+  Prunes stale entries (>5 min) on each record call; hard cap 2,000 samples/route.
+- `server/src/index.ts`: imports `recordTiming` + registers `onResponse` Fastify hook
+  that calls `recordTiming(route, reply.elapsedTime)` for every non-health request.
+- `server/src/routes/admin.ts`: `GET /api/admin/perf` (admin-auth gated) returns
+  `{window_minutes:5, generated_at, routes:[...]}`.
+- `app/admin/perf.tsx` (new, ~290 lines): admin screen. Polls `/api/admin/perf`
+  every 10s (auto-interval + pull-to-refresh). Table: route | reqs | p50 | p95 | p99 | max.
+  Latency cells color-coded green (<100ms) / amber (100-500ms) / red (>500ms).
+  Empty state if no traffic yet. Uses correct theme tokens (textPrimary, textSecondary, etc).
+- `app/admin/index.tsx`: added "Performance" NavRow (Zap icon) → `/admin/perf`.
+
+**Verification**
+- tsc --noEmit client: exit 0
+- tsc --noEmit server: exit 0
+- Deploy NOT done (sandbox has no Railway/Vercel access)
+
+**Notes**
+- The `/api/admin/perf` endpoint uses a dynamic `import('../middleware/timing.js')` to
+  avoid circular dependency issues. Works fine in ESM.
+- The timing hook skips `/health` and `/api/health/workers` to avoid noise in the stats.
+- TODO.md still shows R.3 and R.4 as unchecked even though both are committed. Next
+  agent should mark them [x] as a housekeeping step (or pick the next unchecked item
+  that is actually undone: R.7 Better-Stack, R.8 E2E, R.9 integration tests, R.11 backup
+  verification, R.12 legal pages).
+
+**Recurring gotchas (CRITICAL -- still active)**
+1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
+2. `.git/HEAD.lock` + `.git/index.lock` + `.git/refs/heads/main.lock` are stale WSL locks.
+   Use GIT_INDEX_FILE=/tmp/vanta_<unique> git read-tree HEAD, then commit-tree, write to .git/refs/heads/main.
+3. After every session start: pick a fresh GIT_INDEX_FILE tmp path (previous session's may error).
+4. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
+5. Colors import: use @/lib/theme (not @/lib/colors). bgBase does not exist -- use bgDeep.
+   Color tokens: textPrimary (not text), textSecondary, textMuted. No typography.caption or
+   typography.h3 -- use inline or compose from existing tokens.
+6. Supabase JS SDK v2.45 has no `listUserSessions` -- sessions.ts calls the REST API directly.
+7. Supabase select with joins returns GenericStringError unless you cast: `as unknown as TypedArray[]`.
+8. `colors.primaryDim` does not exist -- just use `colors.primary`.
+9. git write-tree / commit-tree: always redirect warnings to /dev/null (2>/dev/null) when
+   capturing SHA into a variable, otherwise warning text contaminates the variable.
+   Never write the raw output of commit-tree to .git/refs/heads/main without checking it's a clean 40-char SHA.
+
+**Next agent:** R.12 Legal pages (Terms / Privacy / Risk disclosure) is the best pure-code
+pick — no external accounts. Or fix the R.3/R.4 TODO checkbox housekeeping first.
+
+---
+
+2026-05-19T10:10Z -- R.6 Worker self-heal on upstream failures
 
 **Agent:** scheduled cowork auto-work pass
 **TODO item picked:** **R.6 Worker self-heal on upstream failures**
