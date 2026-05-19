@@ -761,4 +761,21 @@ export async function adminRoutes(app: FastifyInstance) {
     });
   });
 
+  /**
+   * GET /api/admin/perf
+   * Returns p50/p95/p99 latency per route over the last 5 minutes.
+   * Admin-only.
+   */
+  app.get('/perf', async (req, reply) => {
+    const adminId = await authAdmin(req.headers.authorization);
+    if (!adminId) return reply.code(403).send({ error: 'forbidden' });
+
+    const { getTimingStats } = await import('../middleware/timing.js');
+    return reply.send({
+      window_minutes: 5,
+      generated_at: new Date().toISOString(),
+      routes: getTimingStats(),
+    });
+  });
+
 }

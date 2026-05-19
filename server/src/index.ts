@@ -39,6 +39,7 @@ import { sessionsRoutes } from './routes/sessions.js';
 import { achievementsRoutes } from './routes/achievements.js';
 import { startPriceFeed } from './feed/pricefeed.js';
 import { getWorkerHealth } from './lib/workerHealth.js';
+import { recordTiming } from './middleware/timing.js';
 import { startRobotEngine } from './ai/robotEngine.js';
 import { startRiskWorker } from './workers/risk.js';
 import { startRoundsWorker } from './workers/rounds.js';
@@ -85,6 +86,17 @@ await app.register(rateLimit, {
 });
 
 await app.register(websocket);
+
+// Timing middleware: record p50/p95/p99 per route over rolling 5-min window.
+// Uses Fastify's built-in start time so overhead is ~0 per request.
+app.addHook('onResponse', (req, reply, done) => {
+  const route = req.routeOptions?.url ?? req.url;
+  // Skip health-check noise from the timing stats
+  if (route && route !== '/health' && route !== '/api/health/workers') {
+    recordTiming(route, reply.elapsedTime);
+  }
+  done();
+});
 
 app.get('/health', async () => ({ ok: true, ts: Date.now() }));
 
