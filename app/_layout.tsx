@@ -4,28 +4,43 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { View, Appearance, useColorScheme } from 'react-native';
+import { Platform, View, Appearance, useColorScheme } from 'react-native';
 import { useFonts } from 'expo-font';
-import * as Sentry from '@sentry/react-native';
 
 import { colors, resolveScheme } from '@/lib/theme';
 
 // ── Sentry: capture client errors + performance traces.
 // DSN is public-safe (just an identifier). Disabled in dev to avoid noise.
+//
+// `@sentry/react-native` only works on iOS/Android — it tries to access
+// native modules at import time and crashes web bundles. We import it
+// dynamically here so web stays bundle-safe; the wrap + setUser fall back
+// to identity / no-ops on web. (TODO: wire up @sentry/browser separately
+// for true web error tracking — for now web errors are uninstrumented.)
+type SentryShape = {
+  init: (opts: any) => void;
+  setUser: (u: any) => void;
+  wrap: <T>(component: T) => T;
+};
+
 const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN;
-if (SENTRY_DSN) {
+let Sentry: SentryShape = {
+  init: () => {},
+  setUser: () => {},
+  wrap: (c) => c,
+};
+
+if (Platform.OS !== 'web' && SENTRY_DSN) {
+  // Native-only require — never evaluated in the web bundle.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  Sentry = require('@sentry/react-native');
   Sentry.init({
     dsn: SENTRY_DSN,
     environment: process.env.EXPO_PUBLIC_ENV ?? 'production',
     enabled: !__DEV__,
     tracesSampleRate: 0.1,
-    // Keep PII out of the wire — login number is enough to triage
     sendDefaultPii: false,
-    // Drop noisy/expected errors
-    ignoreErrors: [
-      'Network request failed',
-      'AbortError',
-    ],
+    ignoreErrors: ['Network request failed', 'AbortError'],
   });
 }
 import { useAuthStore } from '@/stores/auth';
@@ -122,8 +137,8 @@ function RootLayout() {
         // Register (or re-register) push token for this user.
         // Fire-and-forget - failures are logged internally and must not crash the app.
         registerForPushNotificationsAsync(userId).catch(() => {});
-        // Tag Sentry events with this user so errors are triageable per-account.
-        if (SENTRY_DSN) Sentry.setUser({ id: userId });
+        // Tag Sentry events with this user (no-op on web).
+        Sentry.setUser({ id: userId });
       }
     } else {
       // User signed out - clear push token so this device stops receiving pushes.
@@ -132,7 +147,7 @@ function RootLayout() {
         unregisterPushToken(prevId).catch(() => {});
         prevUserIdRef.current = null;
       }
-      if (SENTRY_DSN) Sentry.setUser(null);
+      Sentry.setUser(null);
       clearAccount();
     }
   }, [session, fetchAccount, clearAccount]);
@@ -170,5 +185,5 @@ function RootLayout() {
   );
 }
 
-// Wrap so Sentry can auto-track navigation, render errors, and unhandled promises.
-export default SENTRY_DSN ? Sentry.wrap(RootLayout) : RootLayout;
+// On native, Sentry.wrap installs an error boundary. On web it's identity.
+export default Sentry.wrap(RootLayout);
