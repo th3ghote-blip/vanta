@@ -117,9 +117,14 @@ function RootLayout() {
   }, [initAuth, hydrateMode, hydrateTheme]);
 
   // Apply Appearance override whenever the theme preference changes.
+  // Appearance.setColorScheme only exists on native (iOS/Android) — on web
+  // it's undefined and would crash the bundle (TypeError on every render).
+  // Web theme switching is handled by re-rendering with the new color tokens.
   useEffect(() => {
+    if (Platform.OS === 'web' || typeof Appearance.setColorScheme !== 'function') {
+      return;
+    }
     const scheme = resolveScheme(themePreference, systemScheme ?? 'dark');
-    // 'auto' → pass null so the OS controls color scheme
     if (themePreference === 'auto') {
       Appearance.setColorScheme(null);
     } else {
