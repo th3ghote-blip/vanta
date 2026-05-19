@@ -1,4 +1,25 @@
 import 'dotenv/config';
+
+// ── Sentry: must be imported before everything else so the SDK can
+// instrument modules at load time. Reads SENTRY_DSN from env; if unset,
+// init is a no-op and the SDK stays dormant.
+import * as Sentry from '@sentry/node';
+const SENTRY_DSN = process.env.SENTRY_DSN;
+if (SENTRY_DSN) {
+  Sentry.init({
+    dsn: SENTRY_DSN,
+    environment: process.env.RAILWAY_ENVIRONMENT ?? 'production',
+    tracesSampleRate: 0.1,
+    sendDefaultPii: false,
+    // Don't capture expected 4xx errors from our own routes
+    ignoreErrors: [
+      /HTTP 40[0-9]/,
+      /AbortError/,
+      /ECONNRESET/,
+    ],
+  });
+}
+
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
@@ -27,6 +48,17 @@ const PORT = Number(process.env.PORT ?? 4000);
 const HOST = process.env.HOST ?? '0.0.0.0';
 
 const app = Fastify({ logger: { level: 'info' } });
+
+// Capture every uncaught error to Sentry. Fastify's built-in error handler
+// still runs (200/4xx/5xx behavior unchanged) — this just forks errors out.
+app.setErrorHandler((err, req, reply) => {
+  if (SENTRY_DSN && (reply.statusCode >= 500 || !reply.statusCode)) {
+    Sentry.captureException(err, {
+      tags: { route: req.routeOptions?.url ?? req.url, method: req.method },
+    });
+  }
+  reply.send(err);
+});
 
 // CORS: lock to known Vercel + local-dev origins. Add custom domain here later.
 const ALLOWED_ORIGINS = new Set([
