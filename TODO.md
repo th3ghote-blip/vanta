@@ -102,7 +102,7 @@ The agent's deploy gap (commits land but Railway/Vercel aren't shipped without m
 - **Acceptance:** POST /api/orders/open twice with the same `client_request_id` → same trade row both times, only one position opened.
 
 ## R.6 Worker self-heal on upstream failures
-- [ ] **Files:** `server/src/feed/pricefeed.ts`, `workers/risk.ts`, `workers/rounds.ts`
+- [x] **Files:** `server/src/feed/pricefeed.ts`, `workers/risk.ts`, `workers/rounds.ts`
 - **What:** Wrap every worker tick in `try/catch`, log + continue. Twelve Data 429 retry with exponential backoff. Coinbase WS reconnect with backoff (already partially in place — verify). Add a `/api/health/workers` endpoint returning last-tick timestamps so we can see which workers are stuck.
 - **Acceptance:** Kill the Twelve Data API key for 5 min → server keeps running, workers resume when key restored.
 

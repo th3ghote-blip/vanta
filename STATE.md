@@ -1,5 +1,59 @@
 # STATE -- handoff notes for the next agent
 
+## 2026-05-19T10:10Z -- R.6 Worker self-heal on upstream failures
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **R.6 Worker self-heal on upstream failures**
+**Commit:** `6d76970`
+
+**What changed**
+- `server/src/lib/workerHealth.ts` (new, 36 lines): shared tick-timestamp registry.
+  `recordTick(name)` updates a per-worker timestamp. `getWorkerHealth()` returns a map
+  of `{lastTickMs, lastTickAgo, ok}` per worker; a worker is "ok" if it ticked within 30s.
+- `server/src/feed/pricefeed.ts`:
+  * Coinbase WS reconnect: exponential backoff (3s → 6s → 12s … cap 60s). Resets to 3s
+    on first successful message received.
+  * Twelve Data 429 handling: up to 3 retries with 2s/4s/8s waits before abandoning the
+    chunk. Server keeps running; resumes on next 20-min poll cycle.
+  * `recordTick('coinbase')` called on every price update; `recordTick('twelvedata')` on
+    every chunk that refreshes ≥1 symbol.
+- `server/src/workers/risk.ts`: `recordTick('risk')` after each successful tick.
+- `server/src/workers/rounds.ts`: `recordTick('rounds')` after each successful tick.
+- `server/src/index.ts`: `GET /api/health/workers` returns `{ok, ts, workers:{...}}`.
+
+**Verification**
+- tsc --noEmit server: exit 0
+- tsc --noEmit client: exit 0
+- Deploy NOT done (sandbox has no Railway/Vercel access)
+
+**Notes**
+- Phantom index (WSL locks) is active again — working tree shows stale staged deletions
+  but `git show --stat HEAD` confirms commit `6d76970` is correct and contains all 5 files.
+  Next run: git-precheck.sh will clear it (locks are WSL-owned, clear on Windows restart).
+- The /api/health/workers endpoint is unauthenticated (like /health) — add admin auth
+  later if the server is ever public-facing.
+
+**Recurring gotchas (CRITICAL -- still active)**
+1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
+2. `.git/HEAD.lock` + `.git/index.lock` + `.git/refs/heads/main.lock` are stale WSL locks.
+   Use GIT_INDEX_FILE=/tmp/vanta_<unique> git read-tree HEAD, then commit-tree, write to .git/refs/heads/main.
+3. After every session start: pick a fresh GIT_INDEX_FILE tmp path (previous session's may error).
+4. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
+5. Colors import: use @/lib/theme (not @/lib/colors). bgBase does not exist -- use bgDeep.
+6. Supabase JS SDK v2.45 has no `listUserSessions` -- sessions.ts calls the REST API directly.
+7. Supabase select with joins returns GenericStringError unless you cast: `as unknown as TypedArray[]`.
+8. `colors.primaryDim` does not exist -- just use `colors.primary`.
+9. git write-tree / commit-tree: always redirect warnings to /dev/null (2>/dev/null) when
+   capturing SHA into a variable, otherwise warning text contaminates the variable.
+   Never write the raw output of commit-tree to .git/refs/heads/main without checking it's a clean 40-char SHA.
+
+**Next agent:** R.1 still gated (needs GitHub repo + secrets from user). R.3/R.4 (Sentry)
+need a DSN env var. R.7 (Better Stack) requires sign-up. Pick **R.8 E2E smoke test** or
+**R.10 Performance dashboard in admin** — both are pure code, no external accounts needed.
+R.10 (timing middleware + admin/perf.tsx) is likely the highest-value next pick.
+
+---
+
 ## 2026-05-19T00:00Z -- R.5 Order-open idempotency
 
 **Agent:** scheduled cowork auto-work pass
@@ -231,59 +285,3 @@ new theme tokens for light mode, persists across reloads. Frontend only, no migr
 
 **Next agent:** pick **15.5 Light theme toggle** — Profile → Display → Theme (Auto / Dark / Light),
 new theme tokens for light mode, persists across reloads. Frontend only, no migrations.
-
----
-> Append, don't replace. Most recent at top. Each entry: date, agent, what changed, what's pending, gotchas.
-
-## 2026-05-18T00:00Z -- 15.3 Loading skeletons
-
-**Agent:** scheduled cowork auto-work pass
-**TODO item picked:** **15.3 Loading skeletons**
-
-**What changed**
-- `components/shared/SkeletonShimmer.tsx` (new, 260 lines): core shimmer skeleton system.
-  - `Skeleton` — base shimmer box: configurable width/height/borderRadius, animated
-    LinearGradient sweep (expo-linear-gradient + Animated, useNativeDriver:true).
-  - `PortfolioSkeleton` — full-screen placeholder matching portfolio layout:
-    account header strip, balance card with equity/change row, action buttons, 4 activity rows.
-  - `TradeBookSkeleton` — inline placeholder: tab bar, stats row, 3 trade card rows.
-  - `RobotsSkeleton` — inline placeholder: 3 robot card rows with icon/name/badge/stats.
-- `app/(tabs)/portfolio.tsx`: replaced centered ActivityIndicator + "Loading account…"
-  full-screen block with `<PortfolioSkeleton />`.
-- `components/pro/TradeBook.tsx`: replaced two ActivityIndicator loading states
-  (account loading + trades loading) with `<TradeBookSkeleton />`.
-  The third ActivityIndicator (close-button spinner when `closing=true`) is intentional
-  button feedback — left as-is.
-- `app/(tabs)/robots.tsx`: replaced `<ActivityIndicator>` when loading robots list
-  with `<RobotsSkeleton />`.
-
-**Verification**
-- tsc --noEmit client: exit 0 (silent)
-- tsc --noEmit server: exit 0 (silent)
-- Deploy NOT done (sandbox has no Railway/Vercel access)
-
-**Notes**
-- The shimmer uses `useNativeDriver: true` (transform translateX) so it's GPU-accelerated.
-- `DimensionValue` imported from react-native to type the `width` prop correctly.
-- Chart.tsx loading state (ActivityIndicator inside a fixed-height WebView container) was
-  intentionally left as-is — it's in a bounded box and a skeleton there would add no value.
-- PriceAlertModal and QuickTradeScreen ActivityIndicators are button-state spinners — left alone.
-
-**Recurring gotchas (CRITICAL -- still active)**
-1. File truncation bug: NEVER use Write/Edit tool for files >~50 lines. ALWAYS use Python via bash.
-2. `.git/HEAD.lock` + `.git/index.lock` + `.git/refs/heads/main.lock` are stale WSL locks.
-   Use GIT_INDEX_FILE=/tmp/vanta_<unique> git read-tree HEAD, then commit-tree, write to .git/refs/heads/main.
-3. After every session start: pick a fresh GIT_INDEX_FILE tmp path (previous session's may error).
-4. Sandbox network is isolated -- no Railway/Vercel/Supabase live access.
-5. Colors import: use @/lib/theme (not @/lib/colors). bgBase does not exist -- use bgDeep.
-6. Supabase JS SDK v2.45 has no `listUserSessions` -- sessions.ts calls the REST API directly.
-7. Supabase select with joins returns GenericStringError unless you cast: `as unknown as TypedArray[]`.
-8. `colors.primaryDim` does not exist -- just use `colors.primary`.
-
-**Next agent:** pick **15.4 Brand polish** — load custom fonts (@expo-google-fonts/inter,
-@expo-google-fonts/jetbrains-mono), replace text-based "VANTA" wordmark with SVG logo,
-audit spacing consistency. Frontend only, no migrations.
-
----
-> Append, don't replace. Most recent at top. Each entry: date, agent, what changed, what's pending, gotchas.
-
