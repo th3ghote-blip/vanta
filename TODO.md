@@ -121,7 +121,7 @@ The agent's deploy gap (commits land but Railway/Vercel aren't shipped without m
 - **Acceptance:** `cd server && npm test` passes; CI runs it.
 
 ## R.10 Performance dashboard in admin
-- [ ] **Files:** `server/src/middleware/timing.ts`, `app/admin/perf.tsx`
+- [x] **Files:** `server/src/middleware/timing.ts`, `app/admin/perf.tsx`
 - **What:** Middleware that records p50/p95/p99 per route over rolling 5-min window. Admin page reads it.
 - **Acceptance:** Visit `/admin/perf` → see real numbers updating live.
 
