@@ -1,5 +1,56 @@
 # STATE -- handoff notes for the next agent
 
+## 2026-05-20T12:00Z -- T.11 Position notional + leverage display
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **T.11 Position notional + leverage display**
+**Commit:** `01458c3`
+
+**Pre-run check**
+Railway health could NOT be verified from sandbox (proxy blocks external connections —
+`curl` returns `403 Forbidden` from the sandbox proxy, not from Railway itself). T.11 is
+pure frontend with no migration or backend deploy, so it is safe per TODO.md's own note:
+"Safe pick even if Railway is flaky." Proceeded with T.11.
+
+Working tree was clean (HEAD=0b19b03). git-precheck found stale index.lock (WSL) — used
+low-level commit-tree workaround as usual.
+
+**What changed**
+- `components/pro/OrderEntry.tsx`: added a live notional/leverage info row that appears
+  below the Volume field whenever volume + price are valid. Shows:
+  `{vol} lots × $price = $notional notional · {lev}× leverage · $margin margin`.
+  Uses mid-price for market orders; uses trigger price for limit orders (falls back
+  to mid if trigger is empty or zero). Updates on every keystroke + every quote tick.
+  Added `notionalUSD` to the contracts import.
+- `components/pro/TradeBook.tsx`: added a third sub-line under each open position row
+  showing `$notional notional · {lev}× · $margin margin`. TradeRow receives a new
+  optional `leverage?: number` prop (passed from `account?.leverage` in the parent).
+  Only rendered for `isOpen` rows with a valid openPrice and leverage. Added `notionalUSD`
+  to the contracts import.
+
+**Verification**
+- `npx --no-install tsc --noEmit` (client) → silent exit 0 ✅
+- `cd server && npx --no-install tsc --noEmit` (server) → silent exit 0 ✅
+- `npm run --prefix server test` → **42 passed (42) in 6.4s** ✅
+- Frontend deploy: sandbox has no Vercel access — deploy manually or wait for CI.
+- Backend: no backend changes, no deploy needed.
+
+**Notes for next agent**
+- Railway health is unverifiable from sandbox (proxy). Check manually or via
+  `curl https://vanta-server-production.up.railway.app/health` from a machine
+  without the proxy. STATE.md Railway-down note from 00:30Z may be stale.
+- T.11 is done. Next safe pure-frontend picks (no migration, no backend deploy):
+  None obvious — most remaining T items need backend.
+- **Best next pick:** **T.5 Modify open positions (SL/TP after open)** — server PATCH
+  endpoint + edit button. No migration needed. Requires backend deploy to be live once
+  Railway is confirmed healthy.
+- If Railway is confirmed down: consider T.3 Stop-limit orders (needs migration 018
+  for `limit_price` column, but code changes are frontend+server — can write code
+  now, apply migration + deploy when Railway is up).
+
+---
+
+
 ## 2026-05-20T00:30Z -- PRE-RUN HEADS-UP (read before picking a task)
 
 **Railway service is DOWN as of this note.** `https://vanta-server-production.up.railway.app/health` returns **404 with `X-Railway-Fallback: true`** — Railway edge is fine, our container isn't responding. This is post-T.1+T.2 deploy.

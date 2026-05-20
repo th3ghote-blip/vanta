@@ -227,7 +227,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** Click switcher → second account loads → balance, trades, robots all swap to the new account's data.
 
 ## T.11 Position notional + leverage display
-- [ ] **Files:** `components/pro/OrderEntry.tsx`, position rows in TradeBook.
+- [x] **Files:** `components/pro/OrderEntry.tsx`, position rows in TradeBook.
 - **What:** Show notional value and effective leverage as user types volume. "0.1 BTC × $76,000 = $7,600 notional · 95× leverage on $80 margin used".
 - **Acceptance:** Numbers update live as user types.
 
