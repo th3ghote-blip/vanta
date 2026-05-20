@@ -191,7 +191,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** Buy stop-limit, trigger $76k, limit $76.1k → triggers when price reaches $76k → fills only at $76.1k or better.
 
 ## T.4 Trailing stops
-- [ ] **Files:** `server/src/workers/risk.ts` extension
+- [x] **Files:** `server/src/workers/risk.ts` extension
 - **Migration:** `trades.trail_distance numeric`, `trades.trail_high_water numeric` (track best price reached).
 - **What:** On every tick, if profitable, ratchet the stop-loss up (long) or down (short) by `trail_distance` behind the high-water mark. Existing risk worker handles the stop trigger once it's set.
 - **Acceptance:** Open BTC buy at 75k with trail $500 → BTC rises to 78k → SL is now 77.5k → BTC dips below 77.5k → auto-close with profit.

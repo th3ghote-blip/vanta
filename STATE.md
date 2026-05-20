@@ -1,5 +1,63 @@
 # STATE -- handoff notes for the next agent
 
+## 2026-05-21T22:12Z -- T.4 Trailing stops
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **T.4 Trailing stops**
+**Commit:** `089bf58`
+
+**Pre-run check**
+Working tree had stale WSL index (MM on multiple files, D on 018_stop_limit.sql).
+`git diff HEAD --stat` confirmed only the migration file was a real diff (identical content
+on disk vs HEAD — stale index artefact). Used GIT_INDEX_FILE=/tmp/vanta_idx_t4 throughout.
+Client tsc: exit 0. Server tsc: exit 0. Tests: 53 passed before starting.
+
+**What changed**
+- `supabase/migrations/019_trailing_stops.sql` (new): adds `trail_distance numeric(18,5)`
+  and `trail_high_water numeric(18,5)` to trades. Nullable; existing rows unaffected.
+  **NOT applied to live DB** — apply before backend deploy:
+  `SUPABASE_PAT=... python scripts/apply-migration.py supabase/migrations/019_trailing_stops.sql`
+- `server/src/workers/risk.ts`: new `updateTrailingStop()` function. Called before the
+  SL check for every open trade with trail_distance set. For buys: ratchets
+  trail_high_water = max(prev_hw, mid), then stop_loss = hw - trail_distance (never lowers
+  an existing SL). For sells: hw = min(prev_hw, mid), stop_loss = hw + trail_distance (never
+  raises an existing SL). Uses CAS `.eq('status','open')` guard against race with close.
+  Also added trail_distance/trail_high_water to the OpenTrade interface and SELECT query.
+  Push notification title now says "trailing stop-loss hit" when trail_distance is set.
+- `server/src/routes/orders.ts`: `trailDistance` added to `OpenOrderSchema` (positive,
+  optional). Stored as `trail_distance` on insertRow for market orders only; set to null
+  for all pending order types (limit/stop/stop_limit).
+- `lib/api.ts`: `openOrder` input type gains `trailDistance?: number`.
+- `components/pro/OrderEntry.tsx`: "Trail Distance (price units, optional)" field added
+  below SL/TP in the market order UI. Passed to api.openOrder as trailDistance.
+- `server/test/orders.test.ts`: +4 T.4 tests covering: buy market with trail stored,
+  limit order ignores trail, omitting trail leaves column null, zero trail_distance rejected.
+- `server/test/helpers/supabaseMock.ts`: DbTrade interface gains trail_distance and
+  trail_high_water optional fields.
+
+**Verification**
+- `npx --no-install tsc --noEmit` (client) -> exit 0 (silent) OK
+- `cd server && npx --no-install tsc --noEmit` (server) -> exit 0 (silent) OK
+- `npm run --prefix server test` -> **57 passed (was 53, +4) in 1.94s** OK
+- Frontend deploy: sandbox has no Vercel access -- deploy manually or wait for CI.
+- Backend deploy: sandbox has no Railway access -- apply migration 019 first, then deploy.
+
+**Notes for next agent**
+- **Apply migration 019 before backend deploy.** Adds two nullable columns; no existing
+  data is affected. trail_high_water is null until the risk worker ticks on an open trade.
+- Railway health unverifiable from sandbox (proxy blocks outbound).
+- **Edit tool causes corruption on files with multi-byte chars.** ALWAYS use Python for
+  all file modifications.
+- T.4 done. Next safe picks:
+  1. **T.6 Partial close** -- extend `/close` to accept `closeVolume`, add slider in TradeBook.
+     No migration needed (child trade row approach can reuse existing schema).
+  2. **T.12 Symbol watchlist** -- migration `user_watchlist(user_id, symbol)` + star UI in picker.
+  3. **T.7 Bracket orders** -- entry + SL + TP placed atomically; SL/TP inputs already wired in
+     OrderEntry so this is mostly a server-side atomic insert.
+
+---
+
+
 ## 2026-05-20T18:12Z -- T.3 Stop-limit orders
 
 **Agent:** scheduled cowork auto-work pass
