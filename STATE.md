@@ -1,5 +1,62 @@
 # STATE -- handoff notes for the next agent
 
+## 2026-05-20T14:15Z -- T.5 Modify open positions (SL/TP after open)
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **T.5 Modify open positions (SL/TP after open)**
+**Commit:** `08bde59`
+
+**Pre-run check**
+Railway health unverifiable from sandbox (proxy blocks external connections —
+same as every prior run). T.5 is backend + frontend with no migration, so
+code can be written and tested locally; deploy must be done manually or via CI.
+Working tree matched HEAD (stale WSL index only). Proceeded.
+
+**What changed**
+- `server/src/routes/orders.ts`: new `PATCH /api/orders/modify/:id` endpoint.
+  Body: `{ stopLoss?: number | null, takeProfit?: number | null }`. At least one
+  must be present. Validates: auth, ownership, status='open'. Directional check
+  vs live quote if available (buy SL < ask, buy TP > ask, sell SL > bid,
+  sell TP < bid). CAS `.eq('status','open')` guard against race with risk worker.
+  Returns error codes `invalid_sl` / `invalid_tp` on bad levels.
+- `lib/api.ts`: added `api.modifyOrder(tradeId, input)` PATCH wrapper.
+  Used Python to insert (Edit tool caused file corruption on prior attempt —
+  sizes matched but content was junk due to multi-byte chars in comments).
+- `components/pro/TradeBook.tsx`: open position rows now show a Pencil edit button
+  alongside the X close button. Tapping it expands an inline sub-row below the
+  main row with SL + TP TextInput fields (pre-filled from current values), a
+  blue "Save SL / TP" button (calls modifyOrder, refreshes TradeBook on success,
+  surfaces error text on invalid levels), and a cancel X. When SL/TP are set and
+  the row is not in edit mode, they are shown as a small sub-line under the symbol.
+  Action column widened from 32 → 64 to fit both buttons; header spacer updated.
+- `server/test/orders.test.ts`: +7 tests for PATCH /modify/:id (set SL+TP,
+  clear via null, invalid_sl, invalid_tp, cross-user 403, closed-trade 403, 401).
+
+**Verification**
+- `npx --no-install tsc --noEmit` (client) → silent exit 0 ✅
+- `cd server && npx --no-install tsc --noEmit` (server) → silent exit 0 ✅
+- `npm run --prefix server test` → **49 passed (was 42, +7) in 6.8s** ✅
+- Frontend deploy: sandbox has no Vercel access — deploy manually or wait for CI.
+- Backend deploy: sandbox has no Railway access — deploy manually or wait for CI.
+  No migration needed (no schema change).
+
+**Notes for next agent**
+- Railway health still unverifiable from sandbox. The 00:30Z outage note in older
+  STATE.md entries may be stale — check manually if Railway deploy is needed.
+- **Edit tool causes corruption on files with multi-byte chars** (e.g. `─` in
+  comment separators). ALWAYS use Python for all file modifications, even small ones.
+- T.5 done. Next safe picks:
+  1. **T.3 Stop-limit orders** — needs migration 018 adding `trades.limit_price numeric(18,5)`,
+     then remove the 501 guard in `orders.ts`, extend `shouldFill()` in `ordersTrigger.ts`
+     (two-stage: stop trips → limit order inserted/filled). Migration must be applied to
+     live Supabase before backend deploy.
+  2. **T.6 Partial close** — extend `/close` to accept `closeVolume`, add slider in TradeBook.
+  3. **T.12 Symbol watchlist** — migration `user_watchlist(user_id, symbol)` + UI.
+
+---
+
+ -- handoff notes for the next agent
+
 ## 2026-05-20T12:00Z -- T.11 Position notional + leverage display
 
 **Agent:** scheduled cowork auto-work pass

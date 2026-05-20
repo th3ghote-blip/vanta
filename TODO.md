@@ -197,7 +197,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** Open BTC buy at 75k with trail $500 → BTC rises to 78k → SL is now 77.5k → BTC dips below 77.5k → auto-close with profit.
 
 ## T.5 Modify open positions (SL/TP after open)
-- [ ] **Files:** `server/src/routes/orders.ts` (new PATCH endpoint), `components/pro/PositionsTable.tsx` (edit button per row)
+- [x] **Files:** `server/src/routes/orders.ts` (new PATCH endpoint), `components/pro/PositionsTable.tsx` (edit button per row)
 - **What:** User can change SL and TP on an existing open trade without closing. Validate the new levels make sense (SL below current ask for longs, etc.).
 - **Acceptance:** Open trade with no SL → tap Edit → set SL → save → risk worker now respects new SL.
 
