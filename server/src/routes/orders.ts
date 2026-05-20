@@ -357,4 +357,108 @@ export async function ordersRoutes(app: FastifyInstance) {
 
     return { tradeId: id, released: release };
   });
+
+  // T.5 — Modify SL / TP on an open position.
+  // PATCH /api/orders/modify/:id  { stopLoss?, takeProfit? }
+  // Both fields are optional; pass null to clear. At least one must be present.
+  // Server validates direction against the live quote (same rules as 1.6 client-side).
+  const ModifyOrderParamsSchema = z.object({
+    id: z.coerce.number().int().positive(),
+  });
+
+  const ModifyOrderBodySchema = z.object({
+    stopLoss: z.number().nullable().optional(),
+    takeProfit: z.number().nullable().optional(),
+  });
+
+  app.patch('/modify/:id', async (req, reply) => {
+    const userId = await authUser(req.headers.authorization);
+    if (!userId) return reply.code(401).send({ error: 'unauthorized' });
+
+    const parsedParams = ModifyOrderParamsSchema.safeParse(req.params);
+    if (!parsedParams.success) return reply.code(400).send({ error: 'invalid_input' });
+    const { id } = parsedParams.data;
+
+    const parsedBody = ModifyOrderBodySchema.safeParse(req.body);
+    if (!parsedBody.success) return reply.code(400).send({ error: 'invalid_input', issues: parsedBody.error.issues });
+    const body = parsedBody.data;
+
+    if (body.stopLoss === undefined && body.takeProfit === undefined) {
+      return reply.code(400).send({ error: 'invalid_input', message: 'provide stopLoss or takeProfit' });
+    }
+
+    // Verify ownership and open status in one query. The accounts!inner embed gives
+    // us user_id to cross-check without a second round-trip.
+    const { data: trade, error } = await supabaseAdmin
+      .from('trades')
+      .select('*, accounts!inner(user_id, leverage)')
+      .eq('id', id)
+      .eq('status', 'open')
+      .single();
+
+    if (error || !trade || (trade as any).accounts.user_id !== userId) {
+      return reply.code(403).send({ error: 'forbidden' });
+    }
+
+    // Directional validation — only when a non-null level is provided and a
+    // live quote is available. If no quote (symbol temporarily unlisted), skip.
+    const quote = getQuote(trade.symbol);
+    if (quote) {
+      if (body.stopLoss != null) {
+        if (trade.side === 'buy' && body.stopLoss >= quote.ask) {
+          return reply.code(400).send({
+            error: 'invalid_sl',
+            message: 'stop loss for a buy must be below current price',
+            stopLoss: body.stopLoss,
+            ask: quote.ask,
+          });
+        }
+        if (trade.side === 'sell' && body.stopLoss <= quote.bid) {
+          return reply.code(400).send({
+            error: 'invalid_sl',
+            message: 'stop loss for a sell must be above current price',
+            stopLoss: body.stopLoss,
+            bid: quote.bid,
+          });
+        }
+      }
+      if (body.takeProfit != null) {
+        if (trade.side === 'buy' && body.takeProfit <= quote.ask) {
+          return reply.code(400).send({
+            error: 'invalid_tp',
+            message: 'take profit for a buy must be above current price',
+            takeProfit: body.takeProfit,
+            ask: quote.ask,
+          });
+        }
+        if (trade.side === 'sell' && body.takeProfit >= quote.bid) {
+          return reply.code(400).send({
+            error: 'invalid_tp',
+            message: 'take profit for a sell must be below current price',
+            takeProfit: body.takeProfit,
+            bid: quote.bid,
+          });
+        }
+      }
+    }
+
+    const updateFields: Record<string, any> = {};
+    if (body.stopLoss !== undefined) updateFields.stop_loss = body.stopLoss;
+    if (body.takeProfit !== undefined) updateFields.take_profit = body.takeProfit;
+
+    const { error: updErr } = await supabaseAdmin
+      .from('trades')
+      .update(updateFields)
+      .eq('id', id)
+      .eq('status', 'open'); // CAS guard: don't update if race-closed during request
+
+    if (updErr) return reply.code(500).send({ error: 'update_failed' });
+
+    return {
+      tradeId: id,
+      stopLoss: 'stopLoss' in updateFields ? updateFields.stop_loss : trade.stop_loss,
+      takeProfit: 'takeProfit' in updateFields ? updateFields.take_profit : trade.take_profit,
+    };
+  });
+
 }

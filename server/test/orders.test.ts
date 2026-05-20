@@ -496,3 +496,140 @@ describe('DELETE /api/orders/pending/:id', () => {
     await app.close();
   });
 });
+
+describe('PATCH /api/orders/modify/:id', () => {
+  beforeEach(() => {
+    resetDb();
+    setQuote({ symbol: 'EURUSD', bid: 1.0999, ask: 1.1001, ts: Date.now() });
+  });
+
+  it('T.5: sets SL and TP on an open buy trade', async () => {
+    const u = seed.user({ id: 'user-1' });
+    const acct = seed.account({ id: ACCT, user_id: u.id, leverage: 100 });
+    const t = seed.trade({
+      id: 55,
+      account_id: acct.id,
+      symbol: 'EURUSD',
+      side: 'buy',
+      volume: 0.1,
+      open_price: 1.1001,
+      status: 'open',
+    });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/orders/modify/${t.id}`,
+      headers: authHeaders(u.id),
+      payload: { stopLoss: 1.08, takeProfit: 1.13 },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.tradeId).toBe(55);
+    // Verify DB row was updated
+    const updated = getTable('trades').find((x) => x.id === 55)!;
+    expect((updated as any).stop_loss).toBe(1.08);
+    expect((updated as any).take_profit).toBe(1.13);
+    await app.close();
+  });
+
+  it('T.5: clears SL/TP when null is passed', async () => {
+    const u = seed.user({ id: 'user-1' });
+    const acct = seed.account({ id: ACCT, user_id: u.id, leverage: 100 });
+    const t = seed.trade({
+      id: 56,
+      account_id: acct.id,
+      symbol: 'EURUSD',
+      side: 'buy',
+      status: 'open',
+      stop_loss: 1.05,
+      take_profit: 1.15,
+    });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/orders/modify/${t.id}`,
+      headers: authHeaders(u.id),
+      payload: { stopLoss: null, takeProfit: null },
+    });
+    expect(res.statusCode).toBe(200);
+    const updated = getTable('trades').find((x) => x.id === 56)!;
+    expect((updated as any).stop_loss).toBeNull();
+    expect((updated as any).take_profit).toBeNull();
+    await app.close();
+  });
+
+  it('T.5: returns 400 invalid_sl when buy SL is above current ask', async () => {
+    const u = seed.user({ id: 'user-1' });
+    const acct = seed.account({ id: ACCT, user_id: u.id, leverage: 100 });
+    const t = seed.trade({ id: 57, account_id: acct.id, symbol: 'EURUSD', side: 'buy', status: 'open' });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/orders/modify/${t.id}`,
+      headers: authHeaders(u.id),
+      payload: { stopLoss: 1.2 }, // above ask 1.1001 — invalid for a buy SL
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe('invalid_sl');
+    await app.close();
+  });
+
+  it('T.5: returns 400 invalid_tp when buy TP is below current ask', async () => {
+    const u = seed.user({ id: 'user-1' });
+    const acct = seed.account({ id: ACCT, user_id: u.id, leverage: 100 });
+    const t = seed.trade({ id: 58, account_id: acct.id, symbol: 'EURUSD', side: 'buy', status: 'open' });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/orders/modify/${t.id}`,
+      headers: authHeaders(u.id),
+      payload: { takeProfit: 1.05 }, // below ask 1.1001 — invalid TP for buy
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe('invalid_tp');
+    await app.close();
+  });
+
+  it('T.5: returns 403 when modifying another user\'s trade', async () => {
+    const owner = seed.user({ id: 'user-1' });
+    const intruder = seed.user({ id: 'user-2' });
+    const acct = seed.account({ id: ACCT, user_id: owner.id, leverage: 100 });
+    const t = seed.trade({ id: 59, account_id: acct.id, symbol: 'EURUSD', side: 'buy', status: 'open' });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/orders/modify/${t.id}`,
+      headers: authHeaders(intruder.id),
+      payload: { stopLoss: 1.0 },
+    });
+    expect(res.statusCode).toBe(403);
+    await app.close();
+  });
+
+  it('T.5: returns 403 when modifying a closed trade', async () => {
+    const u = seed.user({ id: 'user-1' });
+    const acct = seed.account({ id: ACCT, user_id: u.id, leverage: 100 });
+    const t = seed.trade({ id: 60, account_id: acct.id, symbol: 'EURUSD', side: 'buy', status: 'closed' });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/orders/modify/${t.id}`,
+      headers: authHeaders(u.id),
+      payload: { stopLoss: 1.0 },
+    });
+    // The route filters .eq('status','open') so closed trade won't be found → 403
+    expect(res.statusCode).toBe(403);
+    await app.close();
+  });
+
+  it('T.5: returns 401 without auth', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/api/orders/modify/1',
+      payload: { stopLoss: 1.0 },
+    });
+    expect(res.statusCode).toBe(401);
+    await app.close();
+  });
+});

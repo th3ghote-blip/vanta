@@ -93,6 +93,13 @@ export const api = {
       { method: 'DELETE' },
     ),
 
+  /** T.5 — update stop-loss and/or take-profit on an open position. Pass null to clear. */
+  modifyOrder: (tradeId: number, input: { stopLoss?: number | null; takeProfit?: number | null }) =>
+    request<{ tradeId: number; stopLoss: number | null; takeProfit: number | null }>(
+      `/api/orders/modify/${tradeId}`,
+      { method: 'PATCH', body: JSON.stringify(input) },
+    ),
+
   openRound: (input: {
     accountId: string;
     symbol: string;
