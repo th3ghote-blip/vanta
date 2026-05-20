@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { useAccountStore } from '@/stores/account';
 import { usePriceStore } from '@/stores/prices';
 import { api } from '@/lib/api';
-import { calculatePnL } from '@/lib/contracts';
+import { calculatePnL, notionalUSD } from '@/lib/contracts';
 
 interface Trade {
   id: number;
@@ -218,6 +218,7 @@ export function TradeBook({ onWinClose }: { onWinClose?: (profit: number) => voi
                 quote={quotes[t.symbol]}
                 onClose={t.status === 'open' || t.status === 'pending' ? close : undefined}
                 closing={closing === t.id}
+                leverage={account?.leverage}
               />
             ))}
           </ScrollView>
@@ -232,11 +233,13 @@ function TradeRow({
   quote,
   onClose,
   closing,
+  leverage,
 }: {
   trade: Trade;
   quote?: { bid: number; ask: number };
   onClose?: (id: number) => void;
   closing: boolean;
+  leverage?: number;
 }) {
   const isOpen = trade.status === 'open';
   const isPending = trade.status === 'pending';
@@ -293,6 +296,19 @@ function TradeRow({
             {isPending && trade.order_type ? ` ${trade.order_type.toUpperCase()}` : ''}
             {' · '}{trade.volume} · {timeAgo(trade.open_time)}
           </Text>
+          {/* T.11 — notional + leverage for open positions */}
+          {isOpen && leverage && openPrice > 0 && (() => {
+            const notional = notionalUSD(trade.volume, openPrice, trade.symbol);
+            const margin = notional / leverage;
+            return (
+              <Text style={{ ...typography.mono, color: colors.textMuted, fontSize: 10 }}>
+                ${notional >= 1000
+                  ? notional.toLocaleString('en-US', { maximumFractionDigits: 0 })
+                  : notional.toFixed(2)
+                } notional · {leverage}× · ${margin.toFixed(2)} margin
+              </Text>
+            );
+          })()}
         </View>
       </View>
 

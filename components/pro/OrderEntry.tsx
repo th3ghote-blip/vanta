@@ -7,7 +7,7 @@ import { usePriceStore } from '@/stores/prices';
 import { useAccountStore } from '@/stores/account';
 import { api, ApiError } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
-import { defaultVolumeFor } from '@/lib/contracts';
+import { defaultVolumeFor, notionalUSD } from '@/lib/contracts';
 
 interface Props {
   symbol: string;
@@ -234,6 +234,38 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
       </View>
 
       <Field label="Volume (lots)" value={volume} onChangeText={handleVolumeChange} />
+
+      {/* T.11 — live notional + leverage estimate */}
+      {(() => {
+        const vol = Number(volume);
+        const mid = quote ? (quote.bid + quote.ask) / 2 : 0;
+        const refPrice =
+          orderKind === 'limit' && Number(triggerPrice) > 0 ? Number(triggerPrice) : mid;
+        if (!Number.isFinite(vol) || vol <= 0 || refPrice <= 0 || !account) return null;
+        const notional = notionalUSD(vol, refPrice, symbol);
+        const lev = account.leverage || 100;
+        const margin = notional / lev;
+        const fmtPrice = refPrice >= 100
+          ? `$${refPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          : `$${refPrice.toFixed(5)}`;
+        return (
+          <View
+            style={{
+              backgroundColor: colors.bgSurface,
+              borderRadius: radius.sm,
+              paddingHorizontal: spacing.md,
+              paddingVertical: spacing.sm,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <Text style={{ ...typography.mono, color: colors.textSecondary, fontSize: 11, lineHeight: 16 }}>
+              {vol} lots × {fmtPrice} = ${notional.toFixed(2)} notional
+              {' · '}{lev}× leverage · ${margin.toFixed(2)} margin
+            </Text>
+          </View>
+        );
+      })()}
 
       {orderKind === 'limit' && (
         <Field
