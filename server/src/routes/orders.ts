@@ -25,6 +25,9 @@ const OpenOrderSchema = z.object({
   triggerPrice: z.number().positive().optional(),
   // T.3 — stop_limit orders need a second price: the limit fill price after the stop fires.
   limitPrice: z.number().positive().optional(),
+  // T.4 -- trailing stop: distance (in price units) the SL trails behind
+  // the best price seen since open. Only used for market orders.
+  trailDistance: z.number().positive().optional(),
 });
 
 const CloseOrderSchema = z.object({
@@ -232,6 +235,8 @@ export async function ordersRoutes(app: FastifyInstance) {
       order_type: body.orderType,
       trigger_price: isPending ? body.triggerPrice : null,
       limit_price: body.orderType === 'stop_limit' ? (body.limitPrice ?? null) : null,
+      // T.4 -- trailing stop (market orders only; null for pending order types)
+      trail_distance: (!isPending && body.trailDistance != null) ? body.trailDistance : null,
     };
     if (isPending) {
       insertRow.status = 'pending';

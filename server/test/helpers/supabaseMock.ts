@@ -42,6 +42,8 @@ export interface DbTrade {
   order_type?: 'market' | 'limit' | 'stop' | 'stop_limit';
   trigger_price?: number | null;
   limit_price?: number | null;
+  trail_distance?: number | null;
+  trail_high_water?: number | null;
 }
 export interface DbRound {
   id: number;

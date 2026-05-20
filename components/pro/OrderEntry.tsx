@@ -92,6 +92,7 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
   const [volume, setVolume] = useState(() => defaultVolumeFor(symbol));
   const [stopLoss, setStopLoss] = useState('');
   const [takeProfit, setTakeProfit] = useState('');
+  const [trailDistance, setTrailDistance] = useState('');
   const [orderKind, setOrderKind] = useState<OrderKind>('market');
   const [triggerPrice, setTriggerPrice] = useState('');
   const [busy, setBusy] = useState<'buy' | 'sell' | null>(null);
@@ -169,6 +170,7 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
         clientRequestId,
         orderType: orderKind,
         triggerPrice: triggerNum,
+        trailDistance: (orderKind === 'market' && trailDistance) ? Number(trailDistance) : undefined,
       });
       // Refresh account so balance/margin reflects new position
       fetchAccount();
@@ -284,6 +286,16 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
           <Field label="Take Profit" value={takeProfit} onChangeText={setTakeProfit} placeholder="—" />
         </View>
       </View>
+
+      {/* T.4 -- Trailing stop distance (market orders only) */}
+      {orderKind === 'market' && (
+        <Field
+          label="Trail Distance (price units, optional)"
+          value={trailDistance}
+          onChangeText={setTrailDistance}
+          placeholder="e.g. 500 for $500 trail"
+        />
+      )}
 
       {lastError && (
         <Text style={{ ...typography.body, color: colors.loss, fontSize: 12 }}>{lastError}</Text>

@@ -737,3 +737,90 @@ describe('PATCH /api/orders/modify/:id', () => {
     await app.close();
   });
 });
+
+describe('T.4 Trailing stop orders', () => {
+  beforeEach(() => {
+    resetDb();
+  });
+
+  it('T.4: buy market order with trailDistance stored on trade row', async () => {
+    const u = seed.user({ id: 'user-1' });
+    seed.account({ id: ACCT, user_id: u.id, free_margin: 10_000, margin_used: 0, leverage: 100 });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orders/open',
+      headers: authHeaders(u.id),
+      payload: {
+        accountId: ACCT,
+        symbol: 'EURUSD',
+        side: 'buy',
+        volume: 0.1,
+        trailDistance: 0.005, // $0.005 trail for EURUSD
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const { trade } = res.json();
+    expect(trade.status).toBe('open');
+    expect(Number(trade.trail_distance)).toBeCloseTo(0.005);
+    // trail_high_water starts null/undefined -- risk worker sets it on first tick
+    expect(trade.trail_high_water ?? null).toBeNull();
+    await app.close();
+  });
+
+  it('T.4: pending (limit) order ignores trailDistance', async () => {
+    const u = seed.user({ id: 'user-1' });
+    seed.account({ id: ACCT, user_id: u.id, free_margin: 10_000, margin_used: 0, leverage: 100 });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orders/open',
+      headers: authHeaders(u.id),
+      payload: {
+        accountId: ACCT,
+        symbol: 'EURUSD',
+        side: 'buy',
+        volume: 0.1,
+        orderType: 'limit',
+        triggerPrice: 1.08,       // below ask 1.1001 -- valid buy-limit
+        trailDistance: 0.005,     // should be ignored for pending orders
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const { trade } = res.json();
+    expect(trade.status).toBe('pending');
+    expect(trade.trail_distance).toBeNull();
+    await app.close();
+  });
+
+  it('T.4: trailDistance is optional -- omitting it leaves column null', async () => {
+    const u = seed.user({ id: 'user-1' });
+    seed.account({ id: ACCT, user_id: u.id, free_margin: 10_000, margin_used: 0, leverage: 100 });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orders/open',
+      headers: authHeaders(u.id),
+      payload: { accountId: ACCT, symbol: 'EURUSD', side: 'buy', volume: 0.1 },
+    });
+    expect(res.statusCode).toBe(200);
+    const { trade } = res.json();
+    expect(trade.trail_distance).toBeNull();
+    await app.close();
+  });
+
+  it('T.4: trailDistance must be positive -- zero rejected', async () => {
+    const u = seed.user({ id: 'user-1' });
+    seed.account({ id: ACCT, user_id: u.id, free_margin: 10_000, margin_used: 0, leverage: 100 });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orders/open',
+      headers: authHeaders(u.id),
+      payload: { accountId: ACCT, symbol: 'EURUSD', side: 'buy', volume: 0.1, trailDistance: 0 },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe('invalid_input');
+    await app.close();
+  });
+});

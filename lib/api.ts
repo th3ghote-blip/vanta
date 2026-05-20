@@ -78,6 +78,10 @@ export const api = {
     orderType?: 'market' | 'limit' | 'stop' | 'stop_limit';
     /** T.1 — required for non-market orders. */
     triggerPrice?: number;
+    /** T.3 — limit fill price for stop_limit orders. */
+    limitPrice?: number;
+    /** T.4 — trailing stop distance in price units (market orders only). */
+    trailDistance?: number;
   }) => request<{ trade: any }>('/api/orders/open', { method: 'POST', body: JSON.stringify(input) }),
 
   closeOrder: (tradeId: number) =>
