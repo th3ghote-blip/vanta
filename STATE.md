@@ -1,5 +1,65 @@
 # STATE -- handoff notes for the next agent
 
+## 2026-05-20T18:12Z -- T.3 Stop-limit orders
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **T.3 Stop-limit orders**
+**Commit:** `61895d5`
+
+**Pre-run check**
+Working tree appeared dirty (stale WSL index showing MM on T.5 files) but
+`git diff HEAD --stat` confirmed no real changes vs HEAD. Proceeded.
+Railway health unverifiable from sandbox (proxy blocks external connections).
+Client tsc: exit 0. Server tsc: exit 0. Tests: 49 passed before starting.
+
+**What changed**
+- `supabase/migrations/018_stop_limit.sql` (new): `ALTER TABLE trades ADD COLUMN
+  IF NOT EXISTS limit_price numeric(18,5)`. Single statement — no enum change
+  needed (all 4 order_type values were already accepted by migration 016).
+  **NOT applied to live DB** — apply before deploying backend:
+  `SUPABASE_PAT=... python scripts/apply-migration.py supabase/migrations/018_stop_limit.sql`
+- `server/src/routes/orders.ts`: removed 501 guard for stop_limit; added
+  `limitPrice` to OpenOrderSchema; added stop_limit validation block (stop
+  direction same as plain stop — trigger above ask for buy / below bid for sell;
+  limit >= trigger for buy, limit <= trigger for sell); inserts `limit_price` into
+  the DB row.
+- `server/src/workers/ordersTrigger.ts`: two-stage logic — `shouldFill()` now
+  returns `FillAction ('fill' | 'convert_to_limit' | 'none')`. Stop_limit: when
+  stop fires and limit is already met, fill immediately at `limit_price`; when
+  stop fires but limit not yet met, convert row to `order_type='limit'` with
+  `trigger_price=limit_price` so the next tick's standard limit path handles it.
+  Query now includes `stop_limit` in `.in('order_type', [...])`. Added `limit_price`
+  to select and to `PendingOrder` interface.
+- `server/test/helpers/supabaseMock.ts`: added `limit_price?: number | null` to
+  `DbTrade` interface.
+- `server/test/orders.test.ts`: replaced 501 stub with 5 real T.3 tests:
+  buy happy path, sell happy path, bad trigger 400, limit-below-trigger 400,
+  missing-limitPrice 400.
+
+**Verification**
+- `npx --no-install tsc --noEmit` (client) → exit 0 ✅
+- `cd server && npx --no-install tsc --noEmit` (server) → exit 0 ✅
+- `npm run --prefix server test` → **53 passed (was 49, +4) in 3.0s** ✅
+- Frontend deploy: sandbox has no Vercel access — deploy manually or wait for CI.
+- Backend deploy: sandbox has no Railway access — apply migration 018 first, then deploy.
+  No existing data is broken (new nullable column, all existing rows get NULL).
+
+**Notes for next agent**
+- **Apply migration 018 before backend deploy.** The column is nullable so existing
+  market/limit/stop rows are unaffected (limit_price stays NULL for those types).
+  Once applied, stop_limit orders will persist limit_price to the DB correctly.
+- Railway health still unverifiable from sandbox. Check manually if needed.
+- **Edit tool causes corruption on files with multi-byte chars.** ALWAYS use Python
+  for all file modifications, even small ones.
+- T.3 done. Next safe picks:
+  1. **T.4 Trailing stops** — migration adds `trades.trail_distance` + `trades.trail_high_water`;
+     extend `server/src/workers/risk.ts` to ratchet stop-loss on each tick.
+  2. **T.6 Partial close** — extend `/close` to accept `closeVolume`, add slider in TradeBook.
+  3. **T.12 Symbol watchlist** — migration `user_watchlist(user_id, symbol)` + UI.
+
+---
+
+
 ## 2026-05-20T14:15Z -- T.5 Modify open positions (SL/TP after open)
 
 **Agent:** scheduled cowork auto-work pass

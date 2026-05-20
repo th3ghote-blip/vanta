@@ -186,7 +186,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** Sell-stop on BTC at $75k while price is $76k → fills when BTC dips below $75k.
 
 ## T.3 Stop-limit orders
-- [ ] **Same files as T.1.**
+- [x] **Same files as T.1.**
 - **What:** Two-stage: trigger at price X → place limit order at price Y. `trades.order_type='stop_limit'`, both `trigger_price` and limit price stored.
 - **Acceptance:** Buy stop-limit, trigger $76k, limit $76.1k → triggers when price reaches $76k → fills only at $76.1k or better.
 
