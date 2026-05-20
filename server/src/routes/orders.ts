@@ -23,6 +23,8 @@ const OpenOrderSchema = z.object({
   // accepts all 4 values upfront so T.2 / T.3 don't need new migrations.
   orderType: z.enum(['market', 'limit', 'stop', 'stop_limit']).default('market'),
   triggerPrice: z.number().positive().optional(),
+  // T.3 — stop_limit orders need a second price: the limit fill price after the stop fires.
+  limitPrice: z.number().positive().optional(),
 });
 
 const CloseOrderSchema = z.object({
@@ -41,12 +43,6 @@ export async function ordersRoutes(app: FastifyInstance) {
     const parsed = OpenOrderSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid_input', issues: parsed.error.issues });
     const body = parsed.data;
-
-    // T.1 — stop_limit accepted at schema level (migration 016) but
-    // two-stage logic lands in T.3. Stop orders are live (T.2).
-    if (body.orderType === 'stop_limit') {
-      return reply.code(501).send({ error: 'not_implemented', orderType: body.orderType });
-    }
 
     // Verify account ownership and pull margin-relevant fields.
     const { data: account, error: accErr } = await supabaseAdmin
@@ -129,6 +125,54 @@ export async function ordersRoutes(app: FastifyInstance) {
           });
         }
       }
+
+      // T.3 — stop_limit orders: two-stage (stop fires -> limit order active).
+      // Stop side uses the same breakout/breakdown direction as plain stop.
+      // Limit side must be at or beyond the trigger in the direction of travel
+      // (for a buy stop_limit: limit >= trigger so you accept fills up to limit_price;
+      //  for a sell stop_limit: limit <= trigger so you accept fills down to limit_price).
+      if (body.orderType === 'stop_limit') {
+        if (body.limitPrice == null) {
+          return reply.code(400).send({
+            error: 'invalid_limit_price',
+            message: 'limitPrice is required for stop_limit orders',
+          });
+        }
+        // Stop trigger direction (same as plain stop).
+        if (body.side === 'buy' && body.triggerPrice <= quote.ask) {
+          return reply.code(400).send({
+            error: 'invalid_trigger_price',
+            message: 'buy stop_limit trigger must be above current ask',
+            triggerPrice: body.triggerPrice,
+            ask: quote.ask,
+          });
+        }
+        if (body.side === 'sell' && body.triggerPrice >= quote.bid) {
+          return reply.code(400).send({
+            error: 'invalid_trigger_price',
+            message: 'sell stop_limit trigger must be below current bid',
+            triggerPrice: body.triggerPrice,
+            bid: quote.bid,
+          });
+        }
+        // Limit vs trigger relationship.
+        if (body.side === 'buy' && body.limitPrice < body.triggerPrice) {
+          return reply.code(400).send({
+            error: 'invalid_limit_price',
+            message: 'buy stop_limit: limitPrice must be >= triggerPrice',
+            limitPrice: body.limitPrice,
+            triggerPrice: body.triggerPrice,
+          });
+        }
+        if (body.side === 'sell' && body.limitPrice > body.triggerPrice) {
+          return reply.code(400).send({
+            error: 'invalid_limit_price',
+            message: 'sell stop_limit: limitPrice must be <= triggerPrice',
+            limitPrice: body.limitPrice,
+            triggerPrice: body.triggerPrice,
+          });
+        }
+      }
     }
 
     // Margin requirement: for pending orders we estimate at the trigger price
@@ -187,6 +231,7 @@ export async function ordersRoutes(app: FastifyInstance) {
       client_request_id: body.clientRequestId ?? null,
       order_type: body.orderType,
       trigger_price: isPending ? body.triggerPrice : null,
+      limit_price: body.orderType === 'stop_limit' ? (body.limitPrice ?? null) : null,
     };
     if (isPending) {
       insertRow.status = 'pending';
@@ -462,3 +507,4 @@ export async function ordersRoutes(app: FastifyInstance) {
   });
 
 }
+
