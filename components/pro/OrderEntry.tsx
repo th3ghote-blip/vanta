@@ -103,6 +103,13 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
   const [trailDistance, setTrailDistance] = useState('');
   const [orderKind, setOrderKind] = useState<OrderKind>('market');
   const [triggerPrice, setTriggerPrice] = useState('');
+  // T.8 -- OCO (one-cancels-other) pair. When enabled (limit mode only),
+  // we submit two pending orders sharing a freshly-minted ocoGroupId:
+  //   primary: the limit at `triggerPrice`
+  //   sibling: a stop on the same symbol/side/volume at `ocoStopPrice`
+  // Either fill cancels the other (handled in ordersTrigger worker).
+  const [ocoEnabled, setOcoEnabled] = useState(false);
+  const [ocoStopPrice, setOcoStopPrice] = useState('');
   const [busy, setBusy] = useState<'buy' | 'sell' | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
 
@@ -191,6 +198,30 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
       }
     }
 
+    // T.8 — OCO pair validation (limit + sibling stop, same side).
+    let ocoStopNum: number | undefined;
+    let ocoGroupId: string | undefined;
+    if (ocoEnabled && orderKind === 'limit') {
+      ocoStopNum = Number(ocoStopPrice);
+      if (!Number.isFinite(ocoStopNum) || ocoStopNum <= 0) {
+        setLastError('OCO stop price must be a positive number.');
+        return;
+      }
+      if (quote) {
+        // Sibling is a stop entry: buy-stop must be ABOVE current ask,
+        // sell-stop must be BELOW current bid. (Same rule the server applies.)
+        if (side === 'buy' && ocoStopNum <= quote.ask) {
+          setLastError(`OCO buy-stop must be above current ask (${quote.ask}).`);
+          return;
+        }
+        if (side === 'sell' && ocoStopNum >= quote.bid) {
+          setLastError(`OCO sell-stop must be below current bid (${quote.bid}).`);
+          return;
+        }
+      }
+      ocoGroupId = generateRequestId(); // fresh uuid for the pair
+    }
+
     // R.5 — generate a fresh idempotency key for this tap so double-taps
     // (e.g. lag-induced second press) don't open two positions.
     const clientRequestId = generateRequestId();
@@ -211,7 +242,26 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
         orderType: orderKind,
         triggerPrice: triggerNum,
         trailDistance: (orderKind === 'market' && trailDistance) ? Number(trailDistance) : undefined,
+        ocoGroupId,
       });
+      // T.8 — place the sibling stop order with the same OCO group id.
+      // If this throws we still leave the primary in place (the user can
+      // cancel it from the Pending tab) but surface the error.
+      if (ocoEnabled && orderKind === 'limit' && ocoGroupId && ocoStopNum != null) {
+        await api.openOrder({
+          accountId: account.id,
+          symbol,
+          side,
+          volume: vol,
+          stopLoss: stopLoss ? Number(stopLoss) : undefined,
+          takeProfit: takeProfit ? Number(takeProfit) : undefined,
+          reason: Platform.OS === 'web' ? 'web' : 'mobile',
+          clientRequestId: generateRequestId(), // distinct idempotency key
+          orderType: 'stop',
+          triggerPrice: ocoStopNum,
+          ocoGroupId,
+        });
+      }
       // Refresh account so balance/margin reflects new position
       fetchAccount();
       // First-trade confetti: count all trades for this account.
@@ -316,6 +366,44 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
           onChangeText={setTriggerPrice}
           placeholder={quote ? String(quote.bid) : '—'}
         />
+      )}
+
+      {/* T.8 -- OCO pair toggle (limit mode only). Adds a sibling stop. */}
+      {orderKind === 'limit' && (
+        <View style={{ gap: spacing.sm }}>
+          <Pressable
+            onPress={() => setOcoEnabled((v) => !v)}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}
+          >
+            <View
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: radius.sm,
+                borderWidth: 1,
+                borderColor: ocoEnabled ? colors.primary : colors.border,
+                backgroundColor: ocoEnabled ? colors.primary : 'transparent',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {ocoEnabled && (
+                <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>OK</Text>
+              )}
+            </View>
+            <Text style={{ ...typography.body, color: colors.textSecondary, fontSize: 12 }}>
+              Pair as OCO (adds a sibling stop; one cancels the other)
+            </Text>
+          </Pressable>
+          {ocoEnabled && (
+            <Field
+              label="OCO stop trigger price"
+              value={ocoStopPrice}
+              onChangeText={setOcoStopPrice}
+              placeholder={quote ? String(quote.ask) : '—'}
+            />
+          )}
+        </View>
       )}
 
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>

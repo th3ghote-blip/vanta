@@ -29,6 +29,8 @@ interface Trade {
   // T.1 — pending limit orders
   order_type?: 'market' | 'limit' | 'stop' | 'stop_limit';
   trigger_price?: number | null;
+  // T.8 — OCO (one-cancels-other) group id; shown as a badge on pending rows.
+  oco_group_id?: string | null;
 }
 
 type Tab = 'open' | 'pending' | 'closed' | 'all';
@@ -447,6 +449,7 @@ function TradeRow({
             <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 11 }}>
               {trade.side.toUpperCase()}
               {isPending && trade.order_type ? ` ${trade.order_type.toUpperCase()}` : ''}
+              {isPending && trade.oco_group_id ? ' · OCO' : ''}
               {' · '}{trade.volume} · {timeAgo(trade.open_time)}
             </Text>
             {/* T.11 — notional + leverage for open positions */}

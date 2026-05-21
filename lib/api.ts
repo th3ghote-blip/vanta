@@ -82,6 +82,9 @@ export const api = {
     limitPrice?: number;
     /** T.4 — trailing stop distance in price units (market orders only). */
     trailDistance?: number;
+    /** T.8 — OCO group id. Two pending orders sharing this uuid are linked;
+     *  when one fills, the other is auto-cancelled. Pending orders only. */
+    ocoGroupId?: string;
   }) => request<{ trade: any }>('/api/orders/open', { method: 'POST', body: JSON.stringify(input) }),
 
   closeOrder: (tradeId: number, closeVolume?: number) =>

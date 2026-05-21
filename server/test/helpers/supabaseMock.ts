@@ -44,6 +44,7 @@ export interface DbTrade {
   limit_price?: number | null;
   trail_distance?: number | null;
   trail_high_water?: number | null;
+  oco_group_id?: string | null;
 }
 export interface DbRound {
   id: number;
@@ -165,6 +166,13 @@ export const seed = {
       reason: overrides.reason ?? 'mobile',
       stop_loss: overrides.stop_loss ?? null,
       take_profit: overrides.take_profit ?? null,
+      // Pass-through fields for pending / stop_limit / trailing / OCO tests.
+      order_type: overrides.order_type,
+      trigger_price: overrides.trigger_price ?? null,
+      limit_price: overrides.limit_price ?? null,
+      trail_distance: overrides.trail_distance ?? null,
+      trail_high_water: overrides.trail_high_water ?? null,
+      oco_group_id: overrides.oco_group_id ?? null,
     };
     tables.trades.push(t);
     return t;
@@ -179,7 +187,7 @@ export function getTable<K extends keyof Tables>(name: K): Tables[K] {
 
 interface Filter {
   col: string;
-  op: 'eq' | 'gte';
+  op: 'eq' | 'gte' | 'in';
   val: any;
 }
 
@@ -232,6 +240,10 @@ class Query {
     this.filters.push({ col, op: 'gte', val });
     return this;
   }
+  in(col: string, vals: any[]) {
+    this.filters.push({ col, op: 'in', val: vals });
+    return this;
+  }
   order(col: string, opts?: { ascending?: boolean }) {
     this.orderCol = col;
     this.orderAsc = opts?.ascending ?? true;
@@ -264,6 +276,7 @@ class Query {
     return this.filters.every((f) => {
       if (f.op === 'eq') return row[f.col] === f.val;
       if (f.op === 'gte') return row[f.col] >= f.val;
+      if (f.op === 'in') return Array.isArray(f.val) && (f.val as any[]).includes(row[f.col]);
       return false;
     });
   }

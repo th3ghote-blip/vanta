@@ -28,6 +28,10 @@ const OpenOrderSchema = z.object({
   // T.4 -- trailing stop: distance (in price units) the SL trails behind
   // the best price seen since open. Only used for market orders.
   trailDistance: z.number().positive().optional(),
+  // T.8 -- OCO group: two pending orders sharing this uuid are linked.
+  // When one fills, the orders-trigger worker cancels the others in the
+  // same group. Only allowed on pending order types (limit/stop/stop_limit).
+  ocoGroupId: z.string().uuid().optional(),
 });
 
 const CloseOrderSchema = z.object({
@@ -81,6 +85,16 @@ export async function ordersRoutes(app: FastifyInstance) {
     // insert a status='pending' row. The orders-trigger worker flips it to
     // 'open' once the price crosses the trigger.
     const isPending = body.orderType !== 'market';
+
+    // T.8 — OCO is only meaningful for pending orders (the sibling cancel
+    // happens when one leg fills). Reject the combo so the client surfaces
+    // it instead of silently dropping the linkage.
+    if (!isPending && body.ocoGroupId) {
+      return reply.code(400).send({
+        error: 'invalid_input',
+        message: 'ocoGroupId is only allowed on pending orders (limit / stop / stop_limit)',
+      });
+    }
 
     if (isPending) {
       if (body.triggerPrice == null) {
@@ -279,6 +293,8 @@ export async function ordersRoutes(app: FastifyInstance) {
       limit_price: body.orderType === 'stop_limit' ? (body.limitPrice ?? null) : null,
       // T.4 -- trailing stop (market orders only; null for pending order types)
       trail_distance: (!isPending && body.trailDistance != null) ? body.trailDistance : null,
+      // T.8 -- OCO group id (pending orders only; null for market).
+      oco_group_id: (isPending && body.ocoGroupId) ? body.ocoGroupId : null,
     };
     if (isPending) {
       insertRow.status = 'pending';

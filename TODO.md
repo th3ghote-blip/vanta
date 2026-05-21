@@ -211,7 +211,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** Place a market buy with SL and TP filled → 1 entry trade row, both SL and TP active on the risk worker. Closing the entry cancels both legs.
 
 ## T.8 OCO orders (one-cancels-other)
-- [ ] **Files:** Migration: `trades.oco_group_id uuid`. Risk worker: when one leg of an OCO group fills/stops, cancel the others.
+- [x] **Files:** Migration: `trades.oco_group_id uuid`. Risk worker: when one leg of an OCO group fills/stops, cancel the others.
 - **What:** Place two pending orders linked; when one triggers, the other auto-cancels. Useful for "buy at breakout OR buy at pullback" setups.
 - **Acceptance:** Place BTC buy-stop at $78k + BTC buy-limit at $74k as an OCO → one triggers → other vanishes from Pending list.
 

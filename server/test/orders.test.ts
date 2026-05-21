@@ -1007,3 +1007,155 @@ describe('T.4 Trailing stop orders', () => {
     await app.close();
   });
 });
+
+// ── T.8 OCO orders (one-cancels-other) ─────────────────────────────────────
+describe('T.8 OCO orders', () => {
+  beforeEach(() => {
+    resetDb();
+    setQuote({ symbol: 'EURUSD', bid: 1.0999, ask: 1.1001, ts: Date.now() });
+  });
+
+  const OCO_ID = '7b3aaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa';
+
+  it('T.8: pending buy-limit accepts ocoGroupId and stores it on the row', async () => {
+    const u = seed.user({ id: 'user-1' });
+    seed.account({ id: ACCT, user_id: u.id, free_margin: 10_000, margin_used: 0, leverage: 100 });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orders/open',
+      headers: authHeaders(u.id),
+      payload: {
+        accountId: ACCT,
+        symbol: 'EURUSD',
+        side: 'buy',
+        volume: 0.1,
+        orderType: 'limit',
+        triggerPrice: 1.05, // below ask -- valid buy-limit
+        ocoGroupId: OCO_ID,
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const { trade } = res.json();
+    expect(trade.status).toBe('pending');
+    expect(trade.oco_group_id).toBe(OCO_ID);
+    await app.close();
+  });
+
+  it('T.8: market order with ocoGroupId is rejected (400 invalid_input)', async () => {
+    const u = seed.user({ id: 'user-1' });
+    seed.account({ id: ACCT, user_id: u.id, free_margin: 10_000, margin_used: 0, leverage: 100 });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orders/open',
+      headers: authHeaders(u.id),
+      payload: {
+        accountId: ACCT,
+        symbol: 'EURUSD',
+        side: 'buy',
+        volume: 0.1,
+        // orderType omitted -> market default
+        ocoGroupId: OCO_ID,
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe('invalid_input');
+    await app.close();
+  });
+
+  it('T.8: malformed ocoGroupId rejected at schema (400 invalid_input)', async () => {
+    const u = seed.user({ id: 'user-1' });
+    seed.account({ id: ACCT, user_id: u.id, free_margin: 10_000, margin_used: 0, leverage: 100 });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orders/open',
+      headers: authHeaders(u.id),
+      payload: {
+        accountId: ACCT,
+        symbol: 'EURUSD',
+        side: 'buy',
+        volume: 0.1,
+        orderType: 'limit',
+        triggerPrice: 1.05,
+        ocoGroupId: 'not-a-uuid',
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe('invalid_input');
+    await app.close();
+  });
+
+  // The sibling-cancellation behaviour lives in the orders-trigger worker,
+  // so we drive a single tick() directly here against the in-memory DB to
+  // verify: leg A fills -> leg B flips to 'cancelled' and margin is released.
+  it('T.8: when one leg fills, the OCO sibling is cancelled and margin released', async () => {
+    const u = seed.user({ id: 'user-1' });
+    const accountId = ACCT;
+    seed.account({ id: accountId, user_id: u.id, free_margin: 10_000, margin_used: 200, leverage: 100 });
+
+    // Two pending legs sharing the OCO group:
+    //   leg A: buy-stop above the current ask (will fill when ask >= trigger)
+    //   leg B: buy-limit below the current ask (sibling -- should be cancelled)
+    const legA = seed.trade({
+      account_id: accountId,
+      symbol: 'EURUSD',
+      side: 'buy',
+      volume: 0.1,
+      open_price: 0 as any,
+      current_price: 0 as any,
+      status: 'pending',
+      order_type: 'stop',
+      trigger_price: 1.20, // will fill when ask jumps to 1.21
+      oco_group_id: OCO_ID,
+    });
+    const legB = seed.trade({
+      account_id: accountId,
+      symbol: 'EURUSD',
+      side: 'buy',
+      volume: 0.1,
+      open_price: 0 as any,
+      current_price: 0 as any,
+      status: 'pending',
+      order_type: 'limit',
+      trigger_price: 1.05, // below ask -- valid buy-limit, won't fill at 1.21
+      oco_group_id: OCO_ID,
+    });
+
+    // Move the quote so leg A's stop fires (ask above its trigger).
+    setQuote({ symbol: 'EURUSD', bid: 1.2099, ask: 1.2101, ts: Date.now() });
+
+    // Drive one worker tick.
+    const { _ordersTriggerInternals } = await import('../src/workers/ordersTrigger.js');
+    const fakeApp: any = {
+      log: {
+        info: () => {}, warn: () => {}, error: () => {}, debug: () => {}, fatal: () => {}, trace: () => {},
+      },
+    };
+    await _ordersTriggerInternals.tick(fakeApp);
+
+    const trades = getTable('trades');
+    const a = trades.find((t) => t.id === legA.id)!;
+    const b = trades.find((t) => t.id === legB.id)!;
+
+    // Leg A filled (status open, fill price = its trigger).
+    expect(a.status).toBe('open');
+    expect(Number(a.open_price)).toBe(1.20);
+    // Leg B cancelled by the OCO logic.
+    expect(b.status).toBe('cancelled');
+
+    // Margin reservation for leg B (0.1 * 1.05 * 100_000 / 100 = 105) was released.
+    const acct = getTable('accounts').find((x) => x.id === accountId)!;
+    // We started at margin_used=200, no reservation on fill (leg A was already
+    // pending so no extra margin was reserved here), and leg B's 105 was
+    // released by the OCO cancel. So margin_used should drop by ~105.
+    expect(acct.margin_used).toBeLessThan(200);
+    expect(acct.margin_used).toBeGreaterThanOrEqual(0);
+    await app_close_noop();
+  });
+});
+
+// Some tests above used `app.close()`; the worker test doesn't construct a
+// Fastify app, so this is a tiny no-op shim to keep the symmetry.
+async function app_close_noop() {}

@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { supabaseAdmin } from '../lib/supabase.js';
 import { getQuote } from '../lib/quoteCache.js';
 import { recordTick } from '../lib/workerHealth.js';
+import { releaseMargin, requiredMargin } from '../lib/margin.js';
 
 /**
  * Orders-trigger worker — T.1 (limit), T.2 (stop), T.3 (stop_limit).
@@ -42,6 +43,7 @@ interface PendingOrder {
   limit_price: number | null;
   stop_loss: number | null;
   take_profit: number | null;
+  oco_group_id: string | null;
 }
 
 function shouldFill(o: PendingOrder, bid: number, ask: number): FillAction {
@@ -103,7 +105,7 @@ async function tick(app: FastifyInstance): Promise<void> {
   const { data: rows, error } = await supabaseAdmin
     .from('trades')
     .select(
-      'id, account_id, symbol, side, volume, order_type, trigger_price, limit_price, stop_loss, take_profit',
+      'id, account_id, symbol, side, volume, order_type, trigger_price, limit_price, stop_loss, take_profit, oco_group_id',
     )
     .eq('status', 'pending')
     .in('order_type', ['limit', 'stop', 'stop_limit']);
@@ -135,6 +137,7 @@ async function tick(app: FastifyInstance): Promise<void> {
         limit_price: raw.limit_price == null ? null : Number(raw.limit_price),
         stop_loss: raw.stop_loss == null ? null : Number(raw.stop_loss),
         take_profit: raw.take_profit == null ? null : Number(raw.take_profit),
+        oco_group_id: raw.oco_group_id ?? null,
       };
 
       const q = getQuote(order.symbol);
@@ -210,6 +213,11 @@ async function tick(app: FastifyInstance): Promise<void> {
         },
         'ordersTrigger: pending order filled',
       );
+
+      // T.8 — OCO: if this order belonged to a group, cancel the siblings.
+      if (order.oco_group_id) {
+        await cancelOcoSiblings(app, order.oco_group_id, order.id);
+      }
     } catch (err) {
       app.log.error(
         { err, tradeId: raw.id },
@@ -218,6 +226,100 @@ async function tick(app: FastifyInstance): Promise<void> {
     }
   }
 }
+
+/**
+ * T.8 — OCO cancellation. Called after a pending order in an OCO group
+ * fills (action === 'fill'). Cancels every other still-pending row in the
+ * same group and releases the margin reserved at submit time.
+ *
+ * The CAS guard `.eq('status','pending')` on each update ensures we never
+ * cancel a row that raced to fill on the same tick.
+ */
+async function cancelOcoSiblings(
+  app: FastifyInstance,
+  ocoGroupId: string,
+  filledId: number,
+): Promise<void> {
+  const { data: siblings, error } = await supabaseAdmin
+    .from('trades')
+    .select(
+      'id, account_id, symbol, volume, trigger_price, open_price, accounts!inner(leverage)',
+    )
+    .eq('oco_group_id', ocoGroupId)
+    .eq('status', 'pending');
+
+  if (error) {
+    app.log.warn(
+      { err: error, ocoGroupId, filledId },
+      'ordersTrigger: OCO sibling lookup failed',
+    );
+    return;
+  }
+  if (!siblings || siblings.length === 0) return;
+
+  for (const s of siblings as any[]) {
+    if (s.id === filledId) continue;
+    try {
+      // CAS: only cancel if still pending. If the row already moved on
+      // (filled, cancelled), `data` returns no row and we skip the margin
+      // release to avoid double-refunding.
+      const { data: cancelled, error: updErr } = await supabaseAdmin
+        .from('trades')
+        .update({
+          status: 'cancelled',
+          close_time: new Date().toISOString(),
+        })
+        .eq('id', s.id)
+        .eq('status', 'pending')
+        .select('id')
+        .maybeSingle();
+
+      if (updErr) {
+        app.log.warn(
+          { err: updErr, tradeId: s.id, ocoGroupId },
+          'ordersTrigger: OCO sibling cancel update failed',
+        );
+        continue;
+      }
+      if (!cancelled) continue; // raced — already filled or cancelled
+
+      // Release the margin reservation made at submit time. Use the
+      // trigger_price (or open_price as a defensive fallback) for the
+      // notional calc — that is what `reserveMargin` reserved against.
+      const refPrice = Number(s.trigger_price ?? s.open_price ?? 0);
+      const leverage = Number(s.accounts?.leverage) || 1;
+      if (refPrice > 0) {
+        const release = +requiredMargin(
+          Number(s.volume),
+          refPrice,
+          s.symbol,
+          leverage,
+        ).toFixed(2);
+        try {
+          await releaseMargin(s.account_id, release, app.log);
+        } catch (e) {
+          app.log.error(
+            { err: e, tradeId: s.id, release, ocoGroupId },
+            'ordersTrigger: failed to release margin on OCO cancel',
+          );
+        }
+      }
+
+      app.log.info(
+        { tradeId: s.id, ocoGroupId, filledId },
+        'ordersTrigger: OCO sibling cancelled',
+      );
+    } catch (err) {
+      app.log.error(
+        { err, tradeId: s.id, ocoGroupId },
+        'ordersTrigger: OCO sibling cancel threw',
+      );
+    }
+  }
+}
+
+// Exported for tests so they can drive a single tick deterministically.
+export const _ordersTriggerInternals = { tick, cancelOcoSiblings };
 
 export function startOrdersTriggerWorker(app: FastifyInstance): NodeJS.Timeout {
   let running = false;
