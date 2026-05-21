@@ -275,6 +275,23 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **What:** Add 5s, 30s, 30min, 4h, 24h durations (already have 60s/5min/15min). Add category filter (Crypto / Forex / Stocks tabs) the way Pro mode has.
 - **Acceptance:** Quick mode has 7 duration options and category tabs.
 
+## T.21 Chart history pan / lazy-load older bars
+- [ ] **Files:** `server/src/routes/bars.ts` (accept `before` param), `components/pro/Chart.tsx` (subscribe to visible range, prepend on near-edge), `lib/api.ts` (new `getBarsBefore(symbol, tf, beforeUnixSec, limit)` helper).
+- **Problem today:** `GET /api/bars/:symbol?tf=1h&limit=500` only fetches the most recent 500 bars peg-anchored to `now()`. When the user pans/scrolls the chart left past the initial window, Lightweight Charts has nothing to render and the timeline dead-ends. Visible on every symbol/timeframe.
+- **Server change:**
+  - Add optional `before` query param (unix seconds). When supplied: `end = before`, `start = before - limit * granularity`. When absent: keep existing now-anchored behavior.
+  - For Coinbase path: pass `&start=...&end=...` derived from `before` instead of `Date.now()`. Coinbase already supports historical windows (already used for the current path — just parametrize `end`).
+  - For Twelve Data path: their `time_series` endpoint accepts `end_date=YYYY-MM-DD HH:mm:ss` — switch to it when `before` is supplied. Twelve Data caps at 5000 historical bars on free tier; document the limit.
+  - Cache key already includes `limit` — extend it to include `before` so historical fetches don't collide with the live window.
+- **Client change:**
+  - On mount, after initial 500-bar fetch + setData, subscribe to `chart.timeScale().subscribeVisibleLogicalRangeChange` (Lightweight Charts API).
+  - When `range.from < 20` (less than 20 bars from the left edge) AND no fetch in flight AND we haven't hit the historical floor, fire `getBarsBefore(symbol, tf, oldestLoadedBarTime, 500)`.
+  - On response: `series.update(...)` won't work for backfill — must rebuild: get current data, prepend the new bars (dedupe by `time`), call `series.setData(merged)`. Preserve the user's visible range across the rebuild (capture `getVisibleLogicalRange()` before `setData`, restore after via `setVisibleLogicalRange`).
+  - Stop fetching if a response returns < 50 bars (we've hit the data source's floor).
+  - Loading spinner anchored to the chart's left edge while a backfill is in flight.
+- **Acceptance:** Open Pro mode, any symbol. Scroll/pan the chart left past the initially-loaded window → older candles stream in continuously without losing the user's current zoom level. Network tab shows incremental `/api/bars/...?before=...` calls. Switching timeframe resets history; switching symbol resets history.
+- **Edge cases to handle:** symbol with no historical data older than X (return empty array; client stops asking), duplicate bar times across requests (dedupe by `time` key on merge), user pans fast → multiple fetches queued (debounce 200ms or use a single in-flight guard).
+
 ---
 
 # Phase 1 — Trading core (must work before anything else)

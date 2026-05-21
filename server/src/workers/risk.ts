@@ -8,24 +8,27 @@ import { sendPushChecked } from '../lib/push.js';
 import { recordTick } from '../lib/workerHealth.js';
 
 /**
- * Risk worker -- Phase 1.1
+ * Risk worker — Phase 1.1
  *
  * Every 1s:
  *   1. Pull all open trades.
- *   2. T.4 -- For trades with trail_distance set: ratchet trail_high_water
- *      and update stop_loss so it trails the best price.
- *   3. For each, compare live mid against stop_loss / take_profit.
- *      - buy SL hit:  mid <= stop_loss   -> close at stop_loss
- *      - sell SL hit: mid >= stop_loss   -> close at stop_loss
- *      - buy TP hit:  mid >= take_profit -> close at take_profit
- *      - sell TP hit: mid <= take_profit -> close at take_profit
+ *   2. For each, compare live mid against stop_loss / take_profit.
+ *      - buy SL hit:  mid <= stop_loss   → close at stop_loss
+ *      - sell SL hit: mid >= stop_loss   → close at stop_loss
+ *      - buy TP hit:  mid >= take_profit → close at take_profit
+ *      - sell TP hit: mid <= take_profit → close at take_profit
  *      Any auto-close marks reason='stopout'.
- *   4. After SL/TP sweep, for each account with remaining open exposure,
+ *   3. After SL/TP sweep, for each account with remaining open exposure,
  *      compute total unrealized P&L. If account.equity + unrealized < 0,
  *      force-close that account's worst loser at current bid/ask.
  *
  * Closes call the same `apply_trade_pnl` RPC the manual close path uses, so
- * balance / equity / free_margin all stay consistent.
+ * balance / equity / free_margin all stay consistent. Phase 1.2 also adds a
+ * margin release on each auto-close so `accounts.margin_used` doesn't grow
+ * monotonically.
+ *
+ * Concurrency: a single in-flight tick at a time. If a tick runs long, the
+ * next setInterval fire is skipped (no overlapping reads/writes).
  */
 
 type Side = 'buy' | 'sell';
@@ -41,8 +44,6 @@ interface OpenTrade {
   stop_loss: number | null;
   take_profit: number | null;
   leverage: number;
-  trail_distance: number | null;
-  trail_high_water: number | null;
 }
 
 async function closeAtPrice(
@@ -81,7 +82,7 @@ async function closeAtPrice(
     return null;
   }
   if (!updated) {
-    // Already closed by something else this tick -- skip P&L apply.
+    // Already closed by something else this tick — skip P&L apply.
     return null;
   }
 
@@ -94,7 +95,7 @@ async function closeAtPrice(
     app.log.error({ err, tradeId: trade.id }, 'risk: apply_trade_pnl failed');
   }
 
-  // Phase 1.2 -- release reserved margin so margin_used doesn't grow forever.
+  // Phase 1.2 — release reserved margin so margin_used doesn't grow forever.
   try {
     const release = +requiredMargin(
       trade.volume,
@@ -110,75 +111,11 @@ async function closeAtPrice(
   return profit;
 }
 
-/**
- * T.4 -- Update the trailing stop for a single trade.
- *
- * Ratchets trail_high_water to the new best price, then updates stop_loss so
- * it always trails `trail_distance` behind the high-water mark.
- * For a buy: SL = high_water - trail_distance  (ratchets UP only)
- * For a sell: SL = high_water + trail_distance (ratchets DOWN only)
- *
- * Returns the mutated trade object (with updated stop_loss / trail_high_water)
- * so the caller's SL-check sees the new values without re-fetching from the DB.
- */
-async function updateTrailingStop(
-  app: FastifyInstance,
-  trade: OpenTrade,
-  mid: number,
-): Promise<OpenTrade> {
-  const dist = trade.trail_distance as number; // caller ensures != null
-
-  // Ratchet the high-water mark.
-  const prevHW = trade.trail_high_water ?? trade.open_price;
-  let newHW: number;
-  let newSL: number;
-
-  if (trade.side === 'buy') {
-    newHW = Math.max(prevHW, mid);
-    newSL = +(newHW - dist).toFixed(5);
-    // Only ratchet up -- never lower an existing SL.
-    if (trade.stop_loss != null && newSL <= trade.stop_loss) {
-      // No improvement; still update high_water if it moved.
-      if (newHW === prevHW) return trade;
-      newSL = trade.stop_loss;
-    }
-  } else {
-    newHW = Math.min(prevHW, mid);
-    newSL = +(newHW + dist).toFixed(5);
-    // Only ratchet down -- never raise an existing SL for a sell.
-    if (trade.stop_loss != null && newSL >= trade.stop_loss) {
-      if (newHW === prevHW) return trade;
-      newSL = trade.stop_loss;
-    }
-  }
-
-  const { error } = await supabaseAdmin
-    .from('trades')
-    .update({
-      trail_high_water: newHW,
-      stop_loss: newSL,
-    })
-    .eq('id', trade.id)
-    .eq('status', 'open'); // don't update if race-closed
-
-  if (error) {
-    app.log.warn({ err: error, tradeId: trade.id }, 'risk: trailing stop update failed');
-    return trade;
-  }
-
-  app.log.debug(
-    { tradeId: trade.id, side: trade.side, mid, prevHW, newHW, newSL },
-    'risk: trailing stop ratcheted',
-  );
-
-  return { ...trade, trail_high_water: newHW, stop_loss: newSL };
-}
-
 async function tick(app: FastifyInstance): Promise<void> {
   const { data: trades, error } = await supabaseAdmin
     .from('trades')
     .select(
-      'id, account_id, symbol, side, volume, open_price, stop_loss, take_profit, trail_distance, trail_high_water, accounts!inner(leverage, user_id)',
+      'id, account_id, symbol, side, volume, open_price, stop_loss, take_profit, accounts!inner(leverage, user_id)',
     )
     .eq('status', 'open');
 
@@ -190,9 +127,9 @@ async function tick(app: FastifyInstance): Promise<void> {
 
   const remaining: OpenTrade[] = [];
 
-  // Pass 1 -- trailing-stop ratchet + SL / TP triggers.
+  // Pass 1 — SL / TP triggers.
   for (const raw of trades as any[]) {
-    let t: OpenTrade = {
+    const t: OpenTrade = {
       id: raw.id,
       account_id: raw.account_id,
       user_id: raw.accounts?.user_id ?? '',
@@ -203,22 +140,13 @@ async function tick(app: FastifyInstance): Promise<void> {
       stop_loss: raw.stop_loss == null ? null : Number(raw.stop_loss),
       take_profit: raw.take_profit == null ? null : Number(raw.take_profit),
       leverage: Number(raw.accounts?.leverage) || 1,
-      trail_distance: raw.trail_distance == null ? null : Number(raw.trail_distance),
-      trail_high_water: raw.trail_high_water == null ? null : Number(raw.trail_high_water),
     };
 
     const mid = getMid(t.symbol);
     if (mid == null) {
+      // No quote yet — defer. Don't include in stop-out math (no mid means we
+      // can't compute unrealized P&L for it anyway).
       continue;
-    }
-
-    // T.4 -- ratchet trailing stop before SL check so we use the latest SL.
-    if (t.trail_distance != null && t.trail_distance > 0) {
-      try {
-        t = await updateTrailingStop(app, t, mid);
-      } catch (err) {
-        app.log.warn({ err, tradeId: t.id }, 'risk: trailing stop update threw');
-      }
     }
 
     const slHit =
@@ -230,13 +158,13 @@ async function tick(app: FastifyInstance): Promise<void> {
       const closed = await closeAtPrice(app, t, t.stop_loss as number, 'sl');
       if (closed != null) {
         app.log.info(
-          { tradeId: t.id, accountId: t.account_id, symbol: t.symbol, profit: closed, trigger: 'sl', trailing: t.trail_distance != null },
+          { tradeId: t.id, accountId: t.account_id, symbol: t.symbol, profit: closed, trigger: 'sl' },
           'risk: SL hit',
         );
         if (t.user_id) {
           const sign = closed >= 0 ? '+' : '';
           sendPushChecked(t.user_id, 'trade_results', {
-            title: `${t.symbol} ${t.trail_distance != null ? 'trailing ' : ''}stop-loss hit`,
+            title: `${t.symbol} stop-loss hit`,
             body: `${sign}$${Math.abs(closed).toFixed(2)}`,
             data: { tradeId: t.id, symbol: t.symbol, profit: closed, kind: 'trade_closed', trigger: 'sl' },
           }).catch(() => {});
@@ -272,7 +200,7 @@ async function tick(app: FastifyInstance): Promise<void> {
     remaining.push(t);
   }
 
-  // Pass 2 -- aggregate stop-out check.
+  // Pass 2 — aggregate stop-out check.
   if (remaining.length === 0) return;
 
   const byAccount = new Map<string, Array<OpenTrade & { unrealized: number }>>();
