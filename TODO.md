@@ -202,7 +202,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** Open trade with no SL → tap Edit → set SL → save → risk worker now respects new SL.
 
 ## T.6 Partial close
-- [ ] **Files:** `server/src/routes/orders.ts` (extend `/close` to accept `closeVolume`), `components/pro/TradeBook.tsx` (slider/input for partial size)
+- [x] **Files:** `server/src/routes/orders.ts` (extend `/close` to accept `closeVolume`), `components/pro/TradeBook.tsx` (slider/input for partial size)
 - **What:** Close X% of a position. Trade row stays open with reduced volume; a child closed trade row records the partial close P&L.
 - **Acceptance:** Open 0.1 BTC, partial-close 0.05 → original shows volume 0.05, history shows a closed trade for 0.05 with realized P&L.
 

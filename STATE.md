@@ -1,5 +1,65 @@
 # STATE -- handoff notes for the next agent
 
+## 2026-05-21T13:07Z -- T.6 Partial close
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **T.6 Partial close**
+**Commit:** `30a54b0`
+
+**Pre-run check**
+Stale WSL index present (as usual). `git diff HEAD --stat` confirmed disk==HEAD.
+Client tsc: exit 0. Server tsc: exit 0. Tests: 57 passed before starting.
+
+**What changed**
+- `server/src/routes/orders.ts`: `CloseOrderSchema` gains optional `closeVolume`
+  (positive number). In `/close` handler: if `closeVolume < trade.volume`, runs
+  a partial-close path — inserts a child `trades` row (status='closed',
+  reason='partial_close', volume=closeVolume, open_price/symbol/side/open_time
+  inherited from parent), updates parent row volume to
+  (trade.volume - closeVolume), releases proportional margin, applies partial
+  P&L via `apply_trade_pnl` RPC, sends partial-close push notification.
+  If closeVolume >= trade.volume (or omitted), falls through to the original
+  full-close path unchanged.
+- `lib/api.ts`: `closeOrder(tradeId, closeVolume?)` — passes closeVolume in
+  body when provided.
+- `components/pro/TradeBook.tsx`: added `Scissors` import from lucide. New
+  partial-close state (partialCloseId, partialVolumeStr, partialClosing,
+  partialError). New functions: startPartialClose, cancelPartialClose,
+  submitPartialClose. TradeRow gains 8 new props for the partial-close UI.
+  Action column width expands from 64 → 96px for open trades (to fit 3 buttons:
+  Pencil / Scissors / X). A Scissors button appears on open rows; tapping it
+  opens an inline sub-panel (same style as T.5 SL/TP edit panel) with a volume
+  input pre-filled to trade.volume and a red "Close X lots" button.
+- `server/test/orders.test.ts`: +3 T.6 tests: partial close inserts child row
+  and reduces parent volume, vol>=full falls back to full close, zero
+  closeVolume rejected with 400.
+
+**Verification**
+- `npx --no-install tsc --noEmit` (client) → exit 0 ✅
+- `cd server && npx --no-install tsc --noEmit` (server) → exit 0 ✅
+- `npm run --prefix server test` → **60 passed (was 57, +3) in 1.84s** ✅
+- Frontend deploy: sandbox has no Vercel access — deploy manually or wait for CI.
+- Backend deploy: sandbox has no Railway access — no migration needed (child
+  trade row reuses existing schema), so can deploy when Railway is accessible.
+
+**Notes for next agent**
+- No migration needed for T.6 — partial close uses the existing trades schema.
+  Child row has reason='partial_close' for easy filtering in history.
+- Railway health unverifiable from sandbox (proxy blocks outbound).
+- **Edit tool causes corruption on files with multi-byte chars.** ALWAYS use
+  Python for all file modifications.
+- T.6 done. Next safe picks:
+  1. **T.7 Bracket orders** — entry + SL + TP placed atomically; SL/TP inputs
+     already wired in OrderEntry so this is mostly a server-side atomic insert.
+     No migration needed.
+  2. **T.12 Symbol watchlist** — migration `user_watchlist(user_id, symbol)` +
+     star UI in symbol picker. Next migration number: 020.
+  3. **T.8 OCO orders** — migration adds `trades.oco_group_id uuid`. Risk worker
+     cancels the other leg when one fires.
+
+---
+
+
 ## 2026-05-21T22:12Z -- T.4 Trailing stops
 
 **Agent:** scheduled cowork auto-work pass
