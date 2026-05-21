@@ -78,12 +78,16 @@ export const api = {
     orderType?: 'market' | 'limit' | 'stop' | 'stop_limit';
     /** T.1 — required for non-market orders. */
     triggerPrice?: number;
+    /** T.3 — limit fill price for stop_limit orders. */
+    limitPrice?: number;
+    /** T.4 — trailing stop distance in price units (market orders only). */
+    trailDistance?: number;
   }) => request<{ trade: any }>('/api/orders/open', { method: 'POST', body: JSON.stringify(input) }),
 
-  closeOrder: (tradeId: number) =>
-    request<{ tradeId: number; profit: number; closePrice: number }>(
+  closeOrder: (tradeId: number, closeVolume?: number) =>
+    request<{ tradeId: number; profit: number; closePrice: number; closedVolume?: number; remainingVolume?: number }>(
       '/api/orders/close',
-      { method: 'POST', body: JSON.stringify({ tradeId }) },
+      { method: 'POST', body: JSON.stringify({ tradeId, ...(closeVolume !== undefined ? { closeVolume } : {}) }) },
     ),
 
   /** T.1 — cancel a pending (un-filled) order; releases reserved margin. */
@@ -91,6 +95,13 @@ export const api = {
     request<{ tradeId: number; released: number }>(
       `/api/orders/pending/${tradeId}`,
       { method: 'DELETE' },
+    ),
+
+  /** T.5 — update stop-loss and/or take-profit on an open position. Pass null to clear. */
+  modifyOrder: (tradeId: number, input: { stopLoss?: number | null; takeProfit?: number | null }) =>
+    request<{ tradeId: number; stopLoss: number | null; takeProfit: number | null }>(
+      `/api/orders/modify/${tradeId}`,
+      { method: 'PATCH', body: JSON.stringify(input) },
     ),
 
   openRound: (input: {

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native';
-import { X, ArrowUpRight, ArrowDownRight } from 'lucide-react-native';
+import { View, Text, Pressable, ScrollView, ActivityIndicator, TextInput } from 'react-native';
+import { X, ArrowUpRight, ArrowDownRight, Pencil, Check, Scissors } from 'lucide-react-native';
 
 import { colors, radius, spacing, typography } from '@/lib/theme';
 import { TradeBookSkeleton } from '@/components/shared/SkeletonShimmer';
@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { useAccountStore } from '@/stores/account';
 import { usePriceStore } from '@/stores/prices';
 import { api } from '@/lib/api';
-import { calculatePnL } from '@/lib/contracts';
+import { calculatePnL, notionalUSD } from '@/lib/contracts';
 
 interface Trade {
   id: number;
@@ -41,6 +41,19 @@ export function TradeBook({ onWinClose }: { onWinClose?: (profit: number) => voi
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
   const [closing, setClosing] = useState<number | null>(null);
+
+  // T.5 — edit state for SL/TP modification
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editSL, setEditSL] = useState('');
+  const [editTP, setEditTP] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  // T.6 — partial close state
+  const [partialCloseId, setPartialCloseId] = useState<number | null>(null);
+  const [partialVolumeStr, setPartialVolumeStr] = useState('');
+  const [partialClosing, setPartialClosing] = useState(false);
+  const [partialError, setPartialError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!account) {
@@ -106,6 +119,87 @@ export function TradeBook({ onWinClose }: { onWinClose?: (profit: number) => voi
       }
     } catch {}
     finally { setClosing(null); }
+  };
+
+  // T.5 — open the SL/TP edit form for a trade
+  const startEdit = (trade: Trade) => {
+    setEditingId(trade.id);
+    setEditSL(trade.stop_loss != null ? String(trade.stop_loss) : '');
+    setEditTP(trade.take_profit != null ? String(trade.take_profit) : '');
+    setEditError(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditSL('');
+    setEditTP('');
+    setEditError(null);
+  };
+
+  const saveEdit = async (tradeId: number) => {
+    setSaving(true);
+    setEditError(null);
+    const sl = editSL.trim() === '' ? null : parseFloat(editSL);
+    const tp = editTP.trim() === '' ? null : parseFloat(editTP);
+    if ((editSL.trim() !== '' && isNaN(sl as number)) || (editTP.trim() !== '' && isNaN(tp as number))) {
+      setEditError('Enter a valid number or leave blank to clear');
+      setSaving(false);
+      return;
+    }
+    try {
+      await api.modifyOrder(tradeId, { stopLoss: sl, takeProfit: tp });
+      await refresh();
+      cancelEdit();
+    } catch (err: any) {
+      const code: string = err?.code ?? 'update_failed';
+      if (code === 'invalid_sl') setEditError('Stop loss level is invalid for this position direction');
+      else if (code === 'invalid_tp') setEditError('Take profit level is invalid for this position direction');
+      else setEditError('Could not save — check that the levels make sense');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // T.6 — open the partial-close panel for a trade
+  const startPartialClose = (trade: Trade) => {
+    if (editingId === trade.id) cancelEdit();
+    setPartialCloseId(trade.id);
+    setPartialVolumeStr(String(trade.volume));
+    setPartialError(null);
+  };
+
+  const cancelPartialClose = () => {
+    setPartialCloseId(null);
+    setPartialVolumeStr('');
+    setPartialError(null);
+  };
+
+  const submitPartialClose = async (trade: Trade) => {
+    const vol = parseFloat(partialVolumeStr);
+    if (isNaN(vol) || vol <= 0) {
+      setPartialError('Enter a positive volume');
+      return;
+    }
+    if (vol > Number(trade.volume)) {
+      setPartialError(`Max closable: ${trade.volume} lots`);
+      return;
+    }
+    setPartialClosing(true);
+    setPartialError(null);
+    const isFullClose = vol >= Number(trade.volume);
+    try {
+      const result = await api.closeOrder(trade.id, isFullClose ? undefined : vol) as any;
+      fetchAccount();
+      cancelPartialClose();
+      if (isFullClose && result?.profit > 0 && onWinClose) {
+        onWinClose(result.profit);
+      }
+    } catch (err: any) {
+      setPartialError(err?.message ?? 'Close failed — try again');
+    } finally {
+      setPartialClosing(false);
+      await refresh();
+    }
   };
 
   const stats = useMemo(() => {
@@ -207,7 +301,7 @@ export function TradeBook({ onWinClose }: { onWinClose?: (profit: number) => voi
             <HeaderCell flex={1.4}>Symbol / Side</HeaderCell>
             <HeaderCell flex={1} align="right">Open → Now</HeaderCell>
             <HeaderCell flex={0.9} align="right">P&L</HeaderCell>
-            <View style={{ width: 32 }} />
+            <View style={{ width: 64 }} />
           </View>
 
           <ScrollView style={{ maxHeight: 480 }}>
@@ -218,6 +312,25 @@ export function TradeBook({ onWinClose }: { onWinClose?: (profit: number) => voi
                 quote={quotes[t.symbol]}
                 onClose={t.status === 'open' || t.status === 'pending' ? close : undefined}
                 closing={closing === t.id}
+                leverage={account?.leverage}
+                onEdit={t.status === 'open' ? () => startEdit(t) : undefined}
+                isEditing={editingId === t.id}
+                editSL={editSL}
+                editTP={editTP}
+                onEditSLChange={setEditSL}
+                onEditTPChange={setEditTP}
+                onSaveEdit={() => saveEdit(t.id)}
+                onCancelEdit={cancelEdit}
+                editSaving={saving && editingId === t.id}
+                editError={editingId === t.id ? editError : null}
+                onPartialClose={t.status === 'open' ? () => startPartialClose(t) : undefined}
+                isPartialClosing={partialCloseId === t.id}
+                partialVolumeStr={partialCloseId === t.id ? partialVolumeStr : ''}
+                onPartialVolumeChange={setPartialVolumeStr}
+                onSubmitPartialClose={() => submitPartialClose(t)}
+                onCancelPartialClose={cancelPartialClose}
+                partialClosingInFlight={partialClosing && partialCloseId === t.id}
+                partialError={partialCloseId === t.id ? partialError : null}
               />
             ))}
           </ScrollView>
@@ -232,11 +345,49 @@ function TradeRow({
   quote,
   onClose,
   closing,
+  leverage,
+  onEdit,
+  isEditing,
+  editSL,
+  editTP,
+  onEditSLChange,
+  onEditTPChange,
+  onSaveEdit,
+  onCancelEdit,
+  editSaving,
+  editError,
+  onPartialClose,
+  isPartialClosing,
+  partialVolumeStr,
+  onPartialVolumeChange,
+  onSubmitPartialClose,
+  onCancelPartialClose,
+  partialClosingInFlight,
+  partialError,
 }: {
   trade: Trade;
   quote?: { bid: number; ask: number };
   onClose?: (id: number) => void;
   closing: boolean;
+  leverage?: number;
+  onEdit?: () => void;
+  isEditing: boolean;
+  editSL: string;
+  editTP: string;
+  onEditSLChange: (v: string) => void;
+  onEditTPChange: (v: string) => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
+  editSaving: boolean;
+  editError: string | null;
+  onPartialClose?: () => void;
+  isPartialClosing: boolean;
+  partialVolumeStr: string;
+  onPartialVolumeChange: (v: string) => void;
+  onSubmitPartialClose: () => void;
+  onCancelPartialClose: () => void;
+  partialClosingInFlight: boolean;
+  partialError: string | null;
 }) {
   const isOpen = trade.status === 'open';
   const isPending = trade.status === 'pending';
@@ -263,104 +414,368 @@ function TradeRow({
   return (
     <View
       style={{
-        flexDirection: 'row',
-        padding: spacing.md,
         borderTopWidth: 1,
         borderTopColor: colors.border,
-        alignItems: 'center',
-        gap: spacing.sm,
       }}
     >
-      <View style={{ flex: 1.4, flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-        <View
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: radius.sm,
-            backgroundColor: trade.side === 'buy' ? colors.profit + '22' : colors.loss + '22',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <SideIcon color={trade.side === 'buy' ? colors.profit : colors.loss} size={14} />
-        </View>
-        <View>
-          <Text style={{ ...typography.bodyBold, color: colors.textPrimary, fontSize: 14 }}>
-            {trade.symbol}
-          </Text>
-          <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 11 }}>
-            {trade.side.toUpperCase()}
-            {isPending && trade.order_type ? ` ${trade.order_type.toUpperCase()}` : ''}
-            {' · '}{trade.volume} · {timeAgo(trade.open_time)}
-          </Text>
-        </View>
-      </View>
-
-      <View style={{ flex: 1, alignItems: 'flex-end' }}>
-        <Text style={{ ...typography.mono, color: colors.textPrimary, fontSize: 12 }}>
-          {isPending ? trade.trigger_price ?? '—' : trade.open_price ?? '—'}
-        </Text>
-        <Text style={{ ...typography.mono, color: colors.textMuted, fontSize: 11 }}>
-          → {isPending ? (liveMid != null ? liveMid.toFixed(5) : '—') : livePrice}
-        </Text>
-      </View>
-
-      <View style={{ flex: 0.9, alignItems: 'flex-end' }}>
-        {isPending ? (
-          <>
-            <Text style={{ ...typography.monoBold, color: colors.textSecondary, fontSize: 12 }}>
-              {triggerGap != null
-                ? `${triggerGap > 0 ? '+' : ''}${triggerGap.toFixed(5)}`
-                : '—'}
-            </Text>
-            <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 10 }}>
-              AWAY
-            </Text>
-          </>
-        ) : (
-          <>
-            <Text
-              style={{
-                ...typography.monoBold,
-                color: positive ? colors.profit : colors.loss,
-                fontSize: 14,
-              }}
-            >
-              {positive ? '+' : ''}{profit.toFixed(2)}
-            </Text>
-            {!isOpen && (
-              <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 10 }}>
-                {trade.status === 'cancelled' ? 'CANCELLED' : 'CLOSED'}
-              </Text>
-            )}
-          </>
-        )}
-      </View>
-
-      <View style={{ width: 32, alignItems: 'center' }}>
-        {onClose ? (
-          <Pressable
-            onPress={() => onClose(trade.id)}
-            disabled={closing}
+      {/* Main row */}
+      <View
+        style={{
+          flexDirection: 'row',
+          padding: spacing.md,
+          alignItems: 'center',
+          gap: spacing.sm,
+        }}
+      >
+        <View style={{ flex: 1.4, flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+          <View
             style={{
               width: 28,
               height: 28,
               borderRadius: radius.sm,
-              backgroundColor: colors.bgSurface,
+              backgroundColor: trade.side === 'buy' ? colors.profit + '22' : colors.loss + '22',
               alignItems: 'center',
               justifyContent: 'center',
-              borderWidth: 1,
-              borderColor: colors.border,
             }}
           >
-            {closing ? (
-              <ActivityIndicator size="small" color={colors.textSecondary} />
+            <SideIcon color={trade.side === 'buy' ? colors.profit : colors.loss} size={14} />
+          </View>
+          <View>
+            <Text style={{ ...typography.bodyBold, color: colors.textPrimary, fontSize: 14 }}>
+              {trade.symbol}
+            </Text>
+            <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 11 }}>
+              {trade.side.toUpperCase()}
+              {isPending && trade.order_type ? ` ${trade.order_type.toUpperCase()}` : ''}
+              {' · '}{trade.volume} · {timeAgo(trade.open_time)}
+            </Text>
+            {/* T.11 — notional + leverage for open positions */}
+            {isOpen && leverage && openPrice > 0 && (() => {
+              const notional = notionalUSD(trade.volume, openPrice, trade.symbol);
+              const margin = notional / leverage;
+              return (
+                <Text style={{ ...typography.mono, color: colors.textMuted, fontSize: 10 }}>
+                  ${notional >= 1000
+                    ? notional.toLocaleString('en-US', { maximumFractionDigits: 0 })
+                    : notional.toFixed(2)
+                  } notional · {leverage}× · ${margin.toFixed(2)} margin
+                </Text>
+              );
+            })()}
+            {/* T.5 — show current SL/TP when set and not in edit mode */}
+            {isOpen && !isEditing && (trade.stop_loss != null || trade.take_profit != null) && (
+              <Text style={{ ...typography.mono, color: colors.textMuted, fontSize: 10 }}>
+                {trade.stop_loss != null ? `SL ${trade.stop_loss}` : ''}
+                {trade.stop_loss != null && trade.take_profit != null ? '  ' : ''}
+                {trade.take_profit != null ? `TP ${trade.take_profit}` : ''}
+              </Text>
+            )}
+          </View>
+        </View>
+
+        <View style={{ flex: 1, alignItems: 'flex-end' }}>
+          <Text style={{ ...typography.mono, color: colors.textPrimary, fontSize: 12 }}>
+            {isPending ? trade.trigger_price ?? '—' : trade.open_price ?? '—'}
+          </Text>
+          <Text style={{ ...typography.mono, color: colors.textMuted, fontSize: 11 }}>
+            → {isPending ? (liveMid != null ? liveMid.toFixed(5) : '—') : livePrice}
+          </Text>
+        </View>
+
+        <View style={{ flex: 0.9, alignItems: 'flex-end' }}>
+          {isPending ? (
+            <>
+              <Text style={{ ...typography.monoBold, color: colors.textSecondary, fontSize: 12 }}>
+                {triggerGap != null
+                  ? `${triggerGap > 0 ? '+' : ''}${triggerGap.toFixed(5)}`
+                  : '—'}
+              </Text>
+              <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 10 }}>
+                AWAY
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text
+                style={{
+                  ...typography.monoBold,
+                  color: positive ? colors.profit : colors.loss,
+                  fontSize: 14,
+                }}
+              >
+                {positive ? '+' : ''}{profit.toFixed(2)}
+              </Text>
+              {!isOpen && (
+                <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 10 }}>
+                  {trade.status === 'cancelled' ? 'CANCELLED' : 'CLOSED'}
+                </Text>
+              )}
+            </>
+          )}
+        </View>
+
+        {/* Action buttons: edit (open only) + scissors (partial close) + close/cancel */}
+        <View style={{ width: onPartialClose ? 96 : 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+          {onEdit && !isEditing && !isPartialClosing && (
+            <Pressable
+              onPress={onEdit}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: radius.sm,
+                backgroundColor: colors.bgSurface,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Pencil color={colors.textSecondary} size={13} />
+            </Pressable>
+          )}
+          {isEditing && (
+            <Pressable
+              onPress={onCancelEdit}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: radius.sm,
+                backgroundColor: colors.bgSurface,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <X color={colors.textSecondary} size={13} />
+            </Pressable>
+          )}
+          {/* T.6 — partial close button (scissors) for open positions */}
+          {onPartialClose && !isEditing && !isPartialClosing && (
+            <Pressable
+              onPress={onPartialClose}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: radius.sm,
+                backgroundColor: colors.bgSurface,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Scissors color={colors.textSecondary} size={13} />
+            </Pressable>
+          )}
+          {isPartialClosing && (
+            <Pressable
+              onPress={onCancelPartialClose}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: radius.sm,
+                backgroundColor: colors.bgSurface,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <X color={colors.textSecondary} size={13} />
+            </Pressable>
+          )}
+          {onClose ? (
+            <Pressable
+              onPress={() => onClose(trade.id)}
+              disabled={closing}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: radius.sm,
+                backgroundColor: colors.bgSurface,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              {closing ? (
+                <ActivityIndicator size="small" color={colors.textSecondary} />
+              ) : (
+                <X color={colors.textSecondary} size={14} />
+              )}
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+
+      {/* T.6 — inline partial close form */}
+      {isPartialClosing && (
+        <View
+          style={{
+            paddingHorizontal: spacing.md,
+            paddingBottom: spacing.md,
+            gap: spacing.sm,
+            backgroundColor: colors.bgSurface,
+            borderTopWidth: 1,
+            borderTopColor: colors.border,
+          }}
+        >
+          <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 11, marginTop: spacing.sm }}>
+            PARTIAL CLOSE · {trade.volume} LOTS OPEN
+          </Text>
+          <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'flex-end' }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ ...typography.body, color: colors.textSecondary, fontSize: 11, marginBottom: 4 }}>
+                Volume to close
+              </Text>
+              <TextInput
+                value={partialVolumeStr}
+                onChangeText={onPartialVolumeChange}
+                placeholder={String(trade.volume)}
+                placeholderTextColor={colors.textMuted}
+                keyboardType="numeric"
+                style={{
+                  backgroundColor: colors.bgElevated,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: radius.sm,
+                  paddingHorizontal: spacing.sm,
+                  paddingVertical: 6,
+                  color: colors.textPrimary,
+                  fontSize: 13,
+                  fontFamily: 'JetBrainsMono',
+                }}
+              />
+            </View>
+          </View>
+          {partialError && (
+            <Text style={{ ...typography.body, color: colors.loss, fontSize: 11 }}>
+              {partialError}
+            </Text>
+          )}
+          <Pressable
+            onPress={onSubmitPartialClose}
+            disabled={partialClosingInFlight}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: spacing.sm,
+              paddingVertical: 8,
+              borderRadius: radius.sm,
+              backgroundColor: colors.loss,
+            }}
+          >
+            {partialClosingInFlight ? (
+              <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <X color={colors.textSecondary} size={14} />
+              <>
+                <Scissors color="#fff" size={13} />
+                <Text style={{ ...typography.bodyBold, color: '#fff', fontSize: 13 }}>
+                  Close {partialVolumeStr || '?'} lots
+                </Text>
+              </>
             )}
           </Pressable>
-        ) : null}
-      </View>
+        </View>
+      )}
+
+      {/* T.5 — inline SL/TP edit form, shown below the main row when editing */}
+      {isEditing && (
+        <View
+          style={{
+            paddingHorizontal: spacing.md,
+            paddingBottom: spacing.md,
+            gap: spacing.sm,
+            backgroundColor: colors.bgSurface,
+            borderTopWidth: 1,
+            borderTopColor: colors.border,
+          }}
+        >
+          <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 11, marginTop: spacing.sm }}>
+            EDIT SL / TP
+          </Text>
+          <View style={{ flexDirection: 'row', gap: spacing.md }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ ...typography.body, color: colors.textSecondary, fontSize: 11, marginBottom: 4 }}>
+                Stop Loss
+              </Text>
+              <TextInput
+                value={editSL}
+                onChangeText={onEditSLChange}
+                placeholder="e.g. 1.0850"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="numeric"
+                style={{
+                  backgroundColor: colors.bgElevated,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: radius.sm,
+                  paddingHorizontal: spacing.sm,
+                  paddingVertical: 6,
+                  color: colors.textPrimary,
+                  fontSize: 13,
+                  fontFamily: 'JetBrainsMono',
+                }}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ ...typography.body, color: colors.textSecondary, fontSize: 11, marginBottom: 4 }}>
+                Take Profit
+              </Text>
+              <TextInput
+                value={editTP}
+                onChangeText={onEditTPChange}
+                placeholder="e.g. 1.1200"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="numeric"
+                style={{
+                  backgroundColor: colors.bgElevated,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: radius.sm,
+                  paddingHorizontal: spacing.sm,
+                  paddingVertical: 6,
+                  color: colors.textPrimary,
+                  fontSize: 13,
+                  fontFamily: 'JetBrainsMono',
+                }}
+              />
+            </View>
+          </View>
+          {editError && (
+            <Text style={{ ...typography.body, color: colors.loss, fontSize: 11 }}>
+              {editError}
+            </Text>
+          )}
+          <Pressable
+            onPress={onSaveEdit}
+            disabled={editSaving}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: spacing.sm,
+              paddingVertical: 8,
+              borderRadius: radius.sm,
+              backgroundColor: colors.primary,
+            }}
+          >
+            {editSaving ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Check color="#fff" size={14} />
+                <Text style={{ ...typography.bodyBold, color: '#fff', fontSize: 13 }}>
+                  Save SL / TP
+                </Text>
+              </>
+            )}
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }

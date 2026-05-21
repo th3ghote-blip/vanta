@@ -7,7 +7,7 @@ import { usePriceStore } from '@/stores/prices';
 import { useAccountStore } from '@/stores/account';
 import { api, ApiError } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
-import { defaultVolumeFor } from '@/lib/contracts';
+import { defaultVolumeFor, notionalUSD } from '@/lib/contracts';
 
 interface Props {
   symbol: string;
@@ -74,6 +74,14 @@ function describeOrderError(err: unknown, symbol: string): string {
         return err.details?.message
           ? `Trigger price: ${err.details.message}.`
           : `Trigger price is invalid.`;
+      case 'invalid_sl':
+        return err.details?.message
+          ? `Stop-loss invalid: ${err.details.message}.`
+          : `Stop-loss is on the wrong side of the entry price.`;
+      case 'invalid_tp':
+        return err.details?.message
+          ? `Take-profit invalid: ${err.details.message}.`
+          : `Take-profit is on the wrong side of the entry price.`;
       case 'not_implemented':
         return `That order type isn't available yet.`;
       default:
@@ -92,6 +100,7 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
   const [volume, setVolume] = useState(() => defaultVolumeFor(symbol));
   const [stopLoss, setStopLoss] = useState('');
   const [takeProfit, setTakeProfit] = useState('');
+  const [trailDistance, setTrailDistance] = useState('');
   const [orderKind, setOrderKind] = useState<OrderKind>('market');
   const [triggerPrice, setTriggerPrice] = useState('');
   const [busy, setBusy] = useState<'buy' | 'sell' | null>(null);
@@ -150,6 +159,38 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
       }
     }
 
+    // T.7 — bracket order: client-side SL/TP direction check for market orders.
+    // Server re-validates; this gives instant feedback before the network round-trip.
+    if (orderKind === 'market' && quote) {
+      const entryPrice = side === 'buy' ? quote.ask : quote.bid;
+      if (stopLoss) {
+        const slNum = Number(stopLoss);
+        if (Number.isFinite(slNum)) {
+          if (side === 'buy' && slNum >= entryPrice) {
+            setLastError(`Stop-loss must be below the current ask (${entryPrice}).`);
+            return;
+          }
+          if (side === 'sell' && slNum <= entryPrice) {
+            setLastError(`Stop-loss must be above the current bid (${entryPrice}).`);
+            return;
+          }
+        }
+      }
+      if (takeProfit) {
+        const tpNum = Number(takeProfit);
+        if (Number.isFinite(tpNum)) {
+          if (side === 'buy' && tpNum <= entryPrice) {
+            setLastError(`Take-profit must be above the current ask (${entryPrice}).`);
+            return;
+          }
+          if (side === 'sell' && tpNum >= entryPrice) {
+            setLastError(`Take-profit must be below the current bid (${entryPrice}).`);
+            return;
+          }
+        }
+      }
+    }
+
     // R.5 — generate a fresh idempotency key for this tap so double-taps
     // (e.g. lag-induced second press) don't open two positions.
     const clientRequestId = generateRequestId();
@@ -169,6 +210,7 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
         clientRequestId,
         orderType: orderKind,
         triggerPrice: triggerNum,
+        trailDistance: (orderKind === 'market' && trailDistance) ? Number(trailDistance) : undefined,
       });
       // Refresh account so balance/margin reflects new position
       fetchAccount();
@@ -235,6 +277,38 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
 
       <Field label="Volume (lots)" value={volume} onChangeText={handleVolumeChange} />
 
+      {/* T.11 — live notional + leverage estimate */}
+      {(() => {
+        const vol = Number(volume);
+        const mid = quote ? (quote.bid + quote.ask) / 2 : 0;
+        const refPrice =
+          orderKind === 'limit' && Number(triggerPrice) > 0 ? Number(triggerPrice) : mid;
+        if (!Number.isFinite(vol) || vol <= 0 || refPrice <= 0 || !account) return null;
+        const notional = notionalUSD(vol, refPrice, symbol);
+        const lev = account.leverage || 100;
+        const margin = notional / lev;
+        const fmtPrice = refPrice >= 100
+          ? `$${refPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          : `$${refPrice.toFixed(5)}`;
+        return (
+          <View
+            style={{
+              backgroundColor: colors.bgSurface,
+              borderRadius: radius.sm,
+              paddingHorizontal: spacing.md,
+              paddingVertical: spacing.sm,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <Text style={{ ...typography.mono, color: colors.textSecondary, fontSize: 11, lineHeight: 16 }}>
+              {vol} lots × {fmtPrice} = ${notional.toFixed(2)} notional
+              {' · '}{lev}× leverage · ${margin.toFixed(2)} margin
+            </Text>
+          </View>
+        );
+      })()}
+
       {orderKind === 'limit' && (
         <Field
           label="Trigger price"
@@ -252,6 +326,16 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
           <Field label="Take Profit" value={takeProfit} onChangeText={setTakeProfit} placeholder="—" />
         </View>
       </View>
+
+      {/* T.4 -- Trailing stop distance (market orders only) */}
+      {orderKind === 'market' && (
+        <Field
+          label="Trail Distance (price units, optional)"
+          value={trailDistance}
+          onChangeText={setTrailDistance}
+          placeholder="e.g. 500 for $500 trail"
+        />
+      )}
 
       {lastError && (
         <Text style={{ ...typography.body, color: colors.loss, fontSize: 12 }}>{lastError}</Text>

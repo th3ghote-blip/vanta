@@ -23,10 +23,18 @@ const OpenOrderSchema = z.object({
   // accepts all 4 values upfront so T.2 / T.3 don't need new migrations.
   orderType: z.enum(['market', 'limit', 'stop', 'stop_limit']).default('market'),
   triggerPrice: z.number().positive().optional(),
+  // T.3 — stop_limit orders need a second price: the limit fill price after the stop fires.
+  limitPrice: z.number().positive().optional(),
+  // T.4 -- trailing stop: distance (in price units) the SL trails behind
+  // the best price seen since open. Only used for market orders.
+  trailDistance: z.number().positive().optional(),
 });
 
 const CloseOrderSchema = z.object({
   tradeId: z.number().int().positive(),
+  // T.6 — partial close: provide a volume < trade.volume to close only that portion.
+  // If omitted or >= trade.volume, the full position is closed.
+  closeVolume: z.number().positive().optional(),
 });
 
 const CancelPendingParamsSchema = z.object({
@@ -41,12 +49,6 @@ export async function ordersRoutes(app: FastifyInstance) {
     const parsed = OpenOrderSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid_input', issues: parsed.error.issues });
     const body = parsed.data;
-
-    // T.1 — stop_limit accepted at schema level (migration 016) but
-    // two-stage logic lands in T.3. Stop orders are live (T.2).
-    if (body.orderType === 'stop_limit') {
-      return reply.code(501).send({ error: 'not_implemented', orderType: body.orderType });
-    }
 
     // Verify account ownership and pull margin-relevant fields.
     const { data: account, error: accErr } = await supabaseAdmin
@@ -129,6 +131,93 @@ export async function ordersRoutes(app: FastifyInstance) {
           });
         }
       }
+
+      // T.3 — stop_limit orders: two-stage (stop fires -> limit order active).
+      // Stop side uses the same breakout/breakdown direction as plain stop.
+      // Limit side must be at or beyond the trigger in the direction of travel
+      // (for a buy stop_limit: limit >= trigger so you accept fills up to limit_price;
+      //  for a sell stop_limit: limit <= trigger so you accept fills down to limit_price).
+      if (body.orderType === 'stop_limit') {
+        if (body.limitPrice == null) {
+          return reply.code(400).send({
+            error: 'invalid_limit_price',
+            message: 'limitPrice is required for stop_limit orders',
+          });
+        }
+        // Stop trigger direction (same as plain stop).
+        if (body.side === 'buy' && body.triggerPrice <= quote.ask) {
+          return reply.code(400).send({
+            error: 'invalid_trigger_price',
+            message: 'buy stop_limit trigger must be above current ask',
+            triggerPrice: body.triggerPrice,
+            ask: quote.ask,
+          });
+        }
+        if (body.side === 'sell' && body.triggerPrice >= quote.bid) {
+          return reply.code(400).send({
+            error: 'invalid_trigger_price',
+            message: 'sell stop_limit trigger must be below current bid',
+            triggerPrice: body.triggerPrice,
+            bid: quote.bid,
+          });
+        }
+        // Limit vs trigger relationship.
+        if (body.side === 'buy' && body.limitPrice < body.triggerPrice) {
+          return reply.code(400).send({
+            error: 'invalid_limit_price',
+            message: 'buy stop_limit: limitPrice must be >= triggerPrice',
+            limitPrice: body.limitPrice,
+            triggerPrice: body.triggerPrice,
+          });
+        }
+        if (body.side === 'sell' && body.limitPrice > body.triggerPrice) {
+          return reply.code(400).send({
+            error: 'invalid_limit_price',
+            message: 'sell stop_limit: limitPrice must be <= triggerPrice',
+            limitPrice: body.limitPrice,
+            triggerPrice: body.triggerPrice,
+          });
+        }
+      }
+    }
+
+    // T.7 — bracket order: validate SL/TP direction for market orders.
+    // Pending orders don't know their fill price yet, so we skip validation there
+    // (the risk worker will honour whatever values are stored).
+    if (!isPending && (body.stopLoss != null || body.takeProfit != null)) {
+      const entryPrice = body.side === 'buy' ? quote.ask : quote.bid;
+      if (body.stopLoss != null) {
+        if (body.side === 'buy' && body.stopLoss >= entryPrice) {
+          return reply.code(400).send({
+            error: 'invalid_sl',
+            message: 'buy stop-loss must be below the entry price',
+            entryPrice,
+          });
+        }
+        if (body.side === 'sell' && body.stopLoss <= entryPrice) {
+          return reply.code(400).send({
+            error: 'invalid_sl',
+            message: 'sell stop-loss must be above the entry price',
+            entryPrice,
+          });
+        }
+      }
+      if (body.takeProfit != null) {
+        if (body.side === 'buy' && body.takeProfit <= entryPrice) {
+          return reply.code(400).send({
+            error: 'invalid_tp',
+            message: 'buy take-profit must be above the entry price',
+            entryPrice,
+          });
+        }
+        if (body.side === 'sell' && body.takeProfit >= entryPrice) {
+          return reply.code(400).send({
+            error: 'invalid_tp',
+            message: 'sell take-profit must be below the entry price',
+            entryPrice,
+          });
+        }
+      }
     }
 
     // Margin requirement: for pending orders we estimate at the trigger price
@@ -187,6 +276,9 @@ export async function ordersRoutes(app: FastifyInstance) {
       client_request_id: body.clientRequestId ?? null,
       order_type: body.orderType,
       trigger_price: isPending ? body.triggerPrice : null,
+      limit_price: body.orderType === 'stop_limit' ? (body.limitPrice ?? null) : null,
+      // T.4 -- trailing stop (market orders only; null for pending order types)
+      trail_distance: (!isPending && body.trailDistance != null) ? body.trailDistance : null,
     };
     if (isPending) {
       insertRow.status = 'pending';
@@ -231,7 +323,7 @@ export async function ordersRoutes(app: FastifyInstance) {
 
     const parsed = CloseOrderSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid_input' });
-    const { tradeId } = parsed.data;
+    const { tradeId, closeVolume } = parsed.data;
 
     const { data: trade, error } = await supabaseAdmin
       .from('trades')
@@ -248,6 +340,88 @@ export async function ordersRoutes(app: FastifyInstance) {
     if (!quote) return reply.code(400).send({ error: 'no_quote' });
 
     const closePrice = trade.side === 'buy' ? quote.bid : quote.ask;
+    const accLeverage = Number((trade as any).accounts?.leverage) || 1;
+
+    // T.6 — partial close: if closeVolume is supplied and is less than the
+    // current position volume, close only that slice.  The parent row stays
+    // open with the reduced volume; a child row records the realised P&L.
+    const fullVolume = Number(trade.volume);
+    const isPartial = closeVolume !== undefined && closeVolume < fullVolume;
+
+    if (isPartial) {
+      const closedVol = +closeVolume.toFixed(8);
+      const remainingVol = +(fullVolume - closedVol).toFixed(8);
+
+      const partialProfit = +calculatePnL(
+        trade.side, closedVol, trade.open_price, closePrice, trade.symbol,
+      ).toFixed(2);
+
+      // Insert the child "closed slice" row — inherits symbol/side/open_price
+      // from the parent so the history is readable.
+      const childRow = {
+        account_id: trade.account_id,
+        symbol: trade.symbol,
+        side: trade.side,
+        volume: closedVol,
+        open_price: trade.open_price,
+        open_time: trade.open_time,
+        close_price: closePrice,
+        close_time: new Date().toISOString(),
+        status: 'closed',
+        profit: partialProfit,
+        reason: 'partial_close',
+        order_type: (trade as any).order_type ?? 'market',
+      };
+      const { data: childTrade, error: insertErr } = await supabaseAdmin
+        .from('trades')
+        .insert(childRow)
+        .select()
+        .single();
+
+      if (insertErr) return reply.code(500).send({ error: 'partial_close_insert_failed' });
+
+      // Reduce the parent volume.
+      const { error: updErr } = await supabaseAdmin
+        .from('trades')
+        .update({ volume: remainingVol })
+        .eq('id', tradeId)
+        .eq('status', 'open'); // CAS guard
+
+      if (updErr) return reply.code(500).send({ error: 'partial_close_update_failed' });
+
+      // Release proportional margin (ratio = closedVol / fullVolume).
+      const fullMargin = +requiredMargin(fullVolume, Number(trade.open_price), trade.symbol, accLeverage).toFixed(2);
+      const releaseAmt = +(fullMargin * (closedVol / fullVolume)).toFixed(2);
+      try {
+        await releaseMargin(trade.account_id, releaseAmt, app.log);
+      } catch (e) {
+        app.log.error({ err: e, tradeId, releaseAmt }, 'failed to release margin on partial close');
+      }
+
+      // Apply the partial P&L to account balance.
+      try {
+        await supabaseAdmin.rpc('apply_trade_pnl', { p_account_id: trade.account_id, p_amount: partialProfit });
+      } catch {}
+
+      // Push notification for partial close.
+      const sign = partialProfit >= 0 ? '+' : '';
+      sendPushChecked(userId, 'trade_results', {
+        title: `${trade.symbol} partial close`,
+        body: `${closedVol} lots  ${sign}$${Math.abs(partialProfit).toFixed(2)}`,
+        data: { tradeId, symbol: trade.symbol, profit: partialProfit, kind: 'partial_close' },
+      }).catch(() => {});
+
+      return {
+        tradeId,
+        childTradeId: (childTrade as any)?.id ?? null,
+        profit: partialProfit,
+        closePrice,
+        closedVolume: closedVol,
+        remainingVolume: remainingVol,
+      };
+    }
+
+    // Full close (original path).
     const profit = +calculatePnL(trade.side, trade.volume, trade.open_price, closePrice, trade.symbol).toFixed(2);
 
     const { error: closeErr } = await supabaseAdmin
@@ -268,7 +442,6 @@ export async function ordersRoutes(app: FastifyInstance) {
     } catch {}
 
     // Phase 1.2 — release the margin we reserved when the trade was opened.
-    const accLeverage = Number((trade as any).accounts?.leverage) || 1;
     const release = +requiredMargin(
       Number(trade.volume),
       Number(trade.open_price),
@@ -357,4 +530,109 @@ export async function ordersRoutes(app: FastifyInstance) {
 
     return { tradeId: id, released: release };
   });
+
+  // T.5 — Modify SL / TP on an open position.
+  // PATCH /api/orders/modify/:id  { stopLoss?, takeProfit? }
+  // Both fields are optional; pass null to clear. At least one must be present.
+  // Server validates direction against the live quote (same rules as 1.6 client-side).
+  const ModifyOrderParamsSchema = z.object({
+    id: z.coerce.number().int().positive(),
+  });
+
+  const ModifyOrderBodySchema = z.object({
+    stopLoss: z.number().nullable().optional(),
+    takeProfit: z.number().nullable().optional(),
+  });
+
+  app.patch('/modify/:id', async (req, reply) => {
+    const userId = await authUser(req.headers.authorization);
+    if (!userId) return reply.code(401).send({ error: 'unauthorized' });
+
+    const parsedParams = ModifyOrderParamsSchema.safeParse(req.params);
+    if (!parsedParams.success) return reply.code(400).send({ error: 'invalid_input' });
+    const { id } = parsedParams.data;
+
+    const parsedBody = ModifyOrderBodySchema.safeParse(req.body);
+    if (!parsedBody.success) return reply.code(400).send({ error: 'invalid_input', issues: parsedBody.error.issues });
+    const body = parsedBody.data;
+
+    if (body.stopLoss === undefined && body.takeProfit === undefined) {
+      return reply.code(400).send({ error: 'invalid_input', message: 'provide stopLoss or takeProfit' });
+    }
+
+    // Verify ownership and open status in one query. The accounts!inner embed gives
+    // us user_id to cross-check without a second round-trip.
+    const { data: trade, error } = await supabaseAdmin
+      .from('trades')
+      .select('*, accounts!inner(user_id, leverage)')
+      .eq('id', id)
+      .eq('status', 'open')
+      .single();
+
+    if (error || !trade || (trade as any).accounts.user_id !== userId) {
+      return reply.code(403).send({ error: 'forbidden' });
+    }
+
+    // Directional validation — only when a non-null level is provided and a
+    // live quote is available. If no quote (symbol temporarily unlisted), skip.
+    const quote = getQuote(trade.symbol);
+    if (quote) {
+      if (body.stopLoss != null) {
+        if (trade.side === 'buy' && body.stopLoss >= quote.ask) {
+          return reply.code(400).send({
+            error: 'invalid_sl',
+            message: 'stop loss for a buy must be below current price',
+            stopLoss: body.stopLoss,
+            ask: quote.ask,
+          });
+        }
+        if (trade.side === 'sell' && body.stopLoss <= quote.bid) {
+          return reply.code(400).send({
+            error: 'invalid_sl',
+            message: 'stop loss for a sell must be above current price',
+            stopLoss: body.stopLoss,
+            bid: quote.bid,
+          });
+        }
+      }
+      if (body.takeProfit != null) {
+        if (trade.side === 'buy' && body.takeProfit <= quote.ask) {
+          return reply.code(400).send({
+            error: 'invalid_tp',
+            message: 'take profit for a buy must be above current price',
+            takeProfit: body.takeProfit,
+            ask: quote.ask,
+          });
+        }
+        if (trade.side === 'sell' && body.takeProfit >= quote.bid) {
+          return reply.code(400).send({
+            error: 'invalid_tp',
+            message: 'take profit for a sell must be below current price',
+            takeProfit: body.takeProfit,
+            bid: quote.bid,
+          });
+        }
+      }
+    }
+
+    const updateFields: Record<string, any> = {};
+    if (body.stopLoss !== undefined) updateFields.stop_loss = body.stopLoss;
+    if (body.takeProfit !== undefined) updateFields.take_profit = body.takeProfit;
+
+    const { error: updErr } = await supabaseAdmin
+      .from('trades')
+      .update(updateFields)
+      .eq('id', id)
+      .eq('status', 'open'); // CAS guard: don't update if race-closed during request
+
+    if (updErr) return reply.code(500).send({ error: 'update_failed' });
+
+    return {
+      tradeId: id,
+      stopLoss: 'stopLoss' in updateFields ? updateFields.stop_loss : trade.stop_loss,
+      takeProfit: 'takeProfit' in updateFields ? updateFields.take_profit : trade.take_profit,
+    };
+  });
+
 }
+
