@@ -1,5 +1,54 @@
 # STATE -- handoff notes for the next agent
 
+## 2026-05-21T14:12Z -- T.7 Bracket orders
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **T.7 Bracket orders**
+**Commit:** `82aef7d`
+
+**Pre-run check**
+Stale WSL index present (as usual). `git diff HEAD --stat` (fresh index) confirmed disk==HEAD.
+Client tsc: exit 0. Server tsc: exit 0. Tests: 60 passed before starting.
+
+**What changed**
+- `server/src/routes/orders.ts`: T.7 bracket validation block inserted between the
+  isPending order-type validation and the margin-reservation code. For market orders
+  with stopLoss or takeProfit present: buy SL must be < ask (→ 400 invalid_sl), sell
+  SL must be > bid (→ 400 invalid_sl), buy TP must be > ask (→ 400 invalid_tp), sell
+  TP must be < bid (→ 400 invalid_tp). Pending orders skip this check (fill price not
+  known at placement time). No migration needed — uses existing stop_loss/take_profit
+  columns.
+- `components/pro/OrderEntry.tsx`: T.7 client-side SL/TP pre-flight in submit() for
+  market orders. Uses live quote to catch bad values before the network round-trip and
+  surface a user-readable error. Added invalid_sl and invalid_tp cases to
+  describeOrderError() so server-side rejections also render as friendly copy.
+- `server/test/orders.test.ts`: +4 T.7 tests: valid buy bracket (SL+TP stored), buy
+  SL above ask → 400 invalid_sl, buy TP below ask → 400 invalid_tp, sell SL below bid
+  → 400 invalid_sl.
+- `TODO.md`: T.7 marked [x].
+
+**Verification**
+- `npx --no-install tsc --noEmit` (client) → exit 0 ✅
+- `cd server && npx --no-install tsc --noEmit` (server) → exit 0 ✅
+- `npm run --prefix server test` → **64 passed (was 60, +4) in 2.30s** ✅
+- Frontend deploy: sandbox has no Vercel access — deploy manually or wait for CI.
+- Backend deploy: sandbox has no Railway access — no migration needed, deploy when accessible.
+
+**Notes for next agent**
+- No migration needed for T.7 — bracket SL/TP use existing columns.
+- Railway health check passed at run start (curl returned ok:true).
+- **Edit tool causes corruption on files with multi-byte chars.** ALWAYS use Python for all file modifications.
+- T.7 done. Next safe picks:
+  1. **T.8 OCO orders** — migration adds `trades.oco_group_id uuid`. Risk worker cancels
+     the other leg when one fires. Next migration number: 020.
+  2. **T.12 Symbol watchlist** — migration `user_watchlist(user_id, symbol)` + star UI in
+     symbol picker. Next migration number: 020.
+  3. **T.9 Hedging mode** — `accounts.hedging_enabled boolean` + UI toggle + netting logic
+     in order open. Migration number: 020.
+
+---
+
+
 ## 2026-05-21T13:07Z -- T.6 Partial close
 
 **Agent:** scheduled cowork auto-work pass
