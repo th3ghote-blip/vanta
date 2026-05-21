@@ -32,6 +32,9 @@ const OpenOrderSchema = z.object({
 
 const CloseOrderSchema = z.object({
   tradeId: z.number().int().positive(),
+  // T.6 — partial close: provide a volume < trade.volume to close only that portion.
+  // If omitted or >= trade.volume, the full position is closed.
+  closeVolume: z.number().positive().optional(),
 });
 
 const CancelPendingParamsSchema = z.object({
@@ -281,7 +284,7 @@ export async function ordersRoutes(app: FastifyInstance) {
 
     const parsed = CloseOrderSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid_input' });
-    const { tradeId } = parsed.data;
+    const { tradeId, closeVolume } = parsed.data;
 
     const { data: trade, error } = await supabaseAdmin
       .from('trades')
@@ -298,6 +301,88 @@ export async function ordersRoutes(app: FastifyInstance) {
     if (!quote) return reply.code(400).send({ error: 'no_quote' });
 
     const closePrice = trade.side === 'buy' ? quote.bid : quote.ask;
+    const accLeverage = Number((trade as any).accounts?.leverage) || 1;
+
+    // T.6 — partial close: if closeVolume is supplied and is less than the
+    // current position volume, close only that slice.  The parent row stays
+    // open with the reduced volume; a child row records the realised P&L.
+    const fullVolume = Number(trade.volume);
+    const isPartial = closeVolume !== undefined && closeVolume < fullVolume;
+
+    if (isPartial) {
+      const closedVol = +closeVolume.toFixed(8);
+      const remainingVol = +(fullVolume - closedVol).toFixed(8);
+
+      const partialProfit = +calculatePnL(
+        trade.side, closedVol, trade.open_price, closePrice, trade.symbol,
+      ).toFixed(2);
+
+      // Insert the child "closed slice" row — inherits symbol/side/open_price
+      // from the parent so the history is readable.
+      const childRow = {
+        account_id: trade.account_id,
+        symbol: trade.symbol,
+        side: trade.side,
+        volume: closedVol,
+        open_price: trade.open_price,
+        open_time: trade.open_time,
+        close_price: closePrice,
+        close_time: new Date().toISOString(),
+        status: 'closed',
+        profit: partialProfit,
+        reason: 'partial_close',
+        order_type: (trade as any).order_type ?? 'market',
+      };
+      const { data: childTrade, error: insertErr } = await supabaseAdmin
+        .from('trades')
+        .insert(childRow)
+        .select()
+        .single();
+
+      if (insertErr) return reply.code(500).send({ error: 'partial_close_insert_failed' });
+
+      // Reduce the parent volume.
+      const { error: updErr } = await supabaseAdmin
+        .from('trades')
+        .update({ volume: remainingVol })
+        .eq('id', tradeId)
+        .eq('status', 'open'); // CAS guard
+
+      if (updErr) return reply.code(500).send({ error: 'partial_close_update_failed' });
+
+      // Release proportional margin (ratio = closedVol / fullVolume).
+      const fullMargin = +requiredMargin(fullVolume, Number(trade.open_price), trade.symbol, accLeverage).toFixed(2);
+      const releaseAmt = +(fullMargin * (closedVol / fullVolume)).toFixed(2);
+      try {
+        await releaseMargin(trade.account_id, releaseAmt, app.log);
+      } catch (e) {
+        app.log.error({ err: e, tradeId, releaseAmt }, 'failed to release margin on partial close');
+      }
+
+      // Apply the partial P&L to account balance.
+      try {
+        await supabaseAdmin.rpc('apply_trade_pnl', { p_account_id: trade.account_id, p_amount: partialProfit });
+      } catch {}
+
+      // Push notification for partial close.
+      const sign = partialProfit >= 0 ? '+' : '';
+      sendPushChecked(userId, 'trade_results', {
+        title: `${trade.symbol} partial close`,
+        body: `${closedVol} lots  ${sign}$${Math.abs(partialProfit).toFixed(2)}`,
+        data: { tradeId, symbol: trade.symbol, profit: partialProfit, kind: 'partial_close' },
+      }).catch(() => {});
+
+      return {
+        tradeId,
+        childTradeId: (childTrade as any)?.id ?? null,
+        profit: partialProfit,
+        closePrice,
+        closedVolume: closedVol,
+        remainingVolume: remainingVol,
+      };
+    }
+
+    // Full close (original path).
     const profit = +calculatePnL(trade.side, trade.volume, trade.open_price, closePrice, trade.symbol).toFixed(2);
 
     const { error: closeErr } = await supabaseAdmin
@@ -318,7 +403,6 @@ export async function ordersRoutes(app: FastifyInstance) {
     } catch {}
 
     // Phase 1.2 — release the margin we reserved when the trade was opened.
-    const accLeverage = Number((trade as any).accounts?.leverage) || 1;
     const release = +requiredMargin(
       Number(trade.volume),
       Number(trade.open_price),

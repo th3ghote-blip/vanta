@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { View, Text, Pressable, ScrollView, ActivityIndicator, TextInput } from 'react-native';
-import { X, ArrowUpRight, ArrowDownRight, Pencil, Check } from 'lucide-react-native';
+import { X, ArrowUpRight, ArrowDownRight, Pencil, Check, Scissors } from 'lucide-react-native';
 
 import { colors, radius, spacing, typography } from '@/lib/theme';
 import { TradeBookSkeleton } from '@/components/shared/SkeletonShimmer';
@@ -48,6 +48,12 @@ export function TradeBook({ onWinClose }: { onWinClose?: (profit: number) => voi
   const [editTP, setEditTP] = useState('');
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+
+  // T.6 — partial close state
+  const [partialCloseId, setPartialCloseId] = useState<number | null>(null);
+  const [partialVolumeStr, setPartialVolumeStr] = useState('');
+  const [partialClosing, setPartialClosing] = useState(false);
+  const [partialError, setPartialError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!account) {
@@ -151,6 +157,48 @@ export function TradeBook({ onWinClose }: { onWinClose?: (profit: number) => voi
       else setEditError('Could not save — check that the levels make sense');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // T.6 — open the partial-close panel for a trade
+  const startPartialClose = (trade: Trade) => {
+    if (editingId === trade.id) cancelEdit();
+    setPartialCloseId(trade.id);
+    setPartialVolumeStr(String(trade.volume));
+    setPartialError(null);
+  };
+
+  const cancelPartialClose = () => {
+    setPartialCloseId(null);
+    setPartialVolumeStr('');
+    setPartialError(null);
+  };
+
+  const submitPartialClose = async (trade: Trade) => {
+    const vol = parseFloat(partialVolumeStr);
+    if (isNaN(vol) || vol <= 0) {
+      setPartialError('Enter a positive volume');
+      return;
+    }
+    if (vol > Number(trade.volume)) {
+      setPartialError(`Max closable: ${trade.volume} lots`);
+      return;
+    }
+    setPartialClosing(true);
+    setPartialError(null);
+    const isFullClose = vol >= Number(trade.volume);
+    try {
+      const result = await api.closeOrder(trade.id, isFullClose ? undefined : vol) as any;
+      fetchAccount();
+      cancelPartialClose();
+      if (isFullClose && result?.profit > 0 && onWinClose) {
+        onWinClose(result.profit);
+      }
+    } catch (err: any) {
+      setPartialError(err?.message ?? 'Close failed — try again');
+    } finally {
+      setPartialClosing(false);
+      await refresh();
     }
   };
 
@@ -275,6 +323,14 @@ export function TradeBook({ onWinClose }: { onWinClose?: (profit: number) => voi
                 onCancelEdit={cancelEdit}
                 editSaving={saving && editingId === t.id}
                 editError={editingId === t.id ? editError : null}
+                onPartialClose={t.status === 'open' ? () => startPartialClose(t) : undefined}
+                isPartialClosing={partialCloseId === t.id}
+                partialVolumeStr={partialCloseId === t.id ? partialVolumeStr : ''}
+                onPartialVolumeChange={setPartialVolumeStr}
+                onSubmitPartialClose={() => submitPartialClose(t)}
+                onCancelPartialClose={cancelPartialClose}
+                partialClosingInFlight={partialClosing && partialCloseId === t.id}
+                partialError={partialCloseId === t.id ? partialError : null}
               />
             ))}
           </ScrollView>
@@ -300,6 +356,14 @@ function TradeRow({
   onCancelEdit,
   editSaving,
   editError,
+  onPartialClose,
+  isPartialClosing,
+  partialVolumeStr,
+  onPartialVolumeChange,
+  onSubmitPartialClose,
+  onCancelPartialClose,
+  partialClosingInFlight,
+  partialError,
 }: {
   trade: Trade;
   quote?: { bid: number; ask: number };
@@ -316,6 +380,14 @@ function TradeRow({
   onCancelEdit: () => void;
   editSaving: boolean;
   editError: string | null;
+  onPartialClose?: () => void;
+  isPartialClosing: boolean;
+  partialVolumeStr: string;
+  onPartialVolumeChange: (v: string) => void;
+  onSubmitPartialClose: () => void;
+  onCancelPartialClose: () => void;
+  partialClosingInFlight: boolean;
+  partialError: string | null;
 }) {
   const isOpen = trade.status === 'open';
   const isPending = trade.status === 'pending';
@@ -442,9 +514,9 @@ function TradeRow({
           )}
         </View>
 
-        {/* Action buttons: edit (open only) + close/cancel */}
-        <View style={{ width: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
-          {onEdit && !isEditing && (
+        {/* Action buttons: edit (open only) + scissors (partial close) + close/cancel */}
+        <View style={{ width: onPartialClose ? 96 : 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+          {onEdit && !isEditing && !isPartialClosing && (
             <Pressable
               onPress={onEdit}
               style={{
@@ -464,6 +536,41 @@ function TradeRow({
           {isEditing && (
             <Pressable
               onPress={onCancelEdit}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: radius.sm,
+                backgroundColor: colors.bgSurface,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <X color={colors.textSecondary} size={13} />
+            </Pressable>
+          )}
+          {/* T.6 — partial close button (scissors) for open positions */}
+          {onPartialClose && !isEditing && !isPartialClosing && (
+            <Pressable
+              onPress={onPartialClose}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: radius.sm,
+                backgroundColor: colors.bgSurface,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Scissors color={colors.textSecondary} size={13} />
+            </Pressable>
+          )}
+          {isPartialClosing && (
+            <Pressable
+              onPress={onCancelPartialClose}
               style={{
                 width: 28,
                 height: 28,
@@ -502,6 +609,78 @@ function TradeRow({
           ) : null}
         </View>
       </View>
+
+      {/* T.6 — inline partial close form */}
+      {isPartialClosing && (
+        <View
+          style={{
+            paddingHorizontal: spacing.md,
+            paddingBottom: spacing.md,
+            gap: spacing.sm,
+            backgroundColor: colors.bgSurface,
+            borderTopWidth: 1,
+            borderTopColor: colors.border,
+          }}
+        >
+          <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 11, marginTop: spacing.sm }}>
+            PARTIAL CLOSE · {trade.volume} LOTS OPEN
+          </Text>
+          <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'flex-end' }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ ...typography.body, color: colors.textSecondary, fontSize: 11, marginBottom: 4 }}>
+                Volume to close
+              </Text>
+              <TextInput
+                value={partialVolumeStr}
+                onChangeText={onPartialVolumeChange}
+                placeholder={String(trade.volume)}
+                placeholderTextColor={colors.textMuted}
+                keyboardType="numeric"
+                style={{
+                  backgroundColor: colors.bgElevated,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: radius.sm,
+                  paddingHorizontal: spacing.sm,
+                  paddingVertical: 6,
+                  color: colors.textPrimary,
+                  fontSize: 13,
+                  fontFamily: 'JetBrainsMono',
+                }}
+              />
+            </View>
+          </View>
+          {partialError && (
+            <Text style={{ ...typography.body, color: colors.loss, fontSize: 11 }}>
+              {partialError}
+            </Text>
+          )}
+          <Pressable
+            onPress={onSubmitPartialClose}
+            disabled={partialClosingInFlight}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: spacing.sm,
+              paddingVertical: 8,
+              borderRadius: radius.sm,
+              backgroundColor: colors.loss,
+            }}
+          >
+            {partialClosingInFlight ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Scissors color="#fff" size={13} />
+                <Text style={{ ...typography.bodyBold, color: '#fff', fontSize: 13 }}>
+                  Close {partialVolumeStr || '?'} lots
+                </Text>
+              </>
+            )}
+          </Pressable>
+        </View>
+      )}
 
       {/* T.5 — inline SL/TP edit form, shown below the main row when editing */}
       {isEditing && (

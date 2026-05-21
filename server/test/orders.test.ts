@@ -514,6 +514,99 @@ describe('POST /api/orders/close', () => {
   });
 });
 
+describe('POST /api/orders/close — T.6 partial close', () => {
+  beforeEach(() => {
+    resetDb();
+    setQuote({ symbol: 'EURUSD', bid: 1.1099, ask: 1.1101, ts: Date.now() });
+  });
+
+  it('partial close: reduces parent volume and inserts a closed child row', async () => {
+    const u = seed.user({ id: 'user-1' });
+    const acct = seed.account({
+      id: ACCT,
+      user_id: u.id,
+      free_margin: 9_778,
+      margin_used: 222,
+      leverage: 100,
+    });
+    const t = seed.trade({
+      id: 55,
+      account_id: acct.id,
+      symbol: 'EURUSD',
+      side: 'buy',
+      volume: 0.2,
+      open_price: 1.1001,
+      status: 'open',
+    });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orders/close',
+      headers: authHeaders(u.id),
+      payload: { tradeId: t.id, closeVolume: 0.1 },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.closedVolume).toBeCloseTo(0.1);
+    expect(body.remainingVolume).toBeCloseTo(0.1);
+    expect(body.profit).toBeGreaterThan(0);
+    // Parent row should still be open with reduced volume
+    const parentRow = getTable('trades').find((x) => x.id === 55)!;
+    expect(parentRow.status).toBe('open');
+    expect(Number(parentRow.volume)).toBeCloseTo(0.1);
+    // A child row should exist as 'closed'
+    const childRow = getTable('trades').find((x) => x.id !== 55 && (x as any).status === 'closed');
+    expect(childRow).toBeTruthy();
+    expect(Number((childRow as any).volume)).toBeCloseTo(0.1);
+    expect((childRow as any).reason).toBe('partial_close');
+    await app.close();
+  });
+
+  it('partial close with volume >= full volume performs a full close', async () => {
+    const u = seed.user({ id: 'user-1' });
+    const acct = seed.account({ id: ACCT, user_id: u.id, free_margin: 9_889, margin_used: 111, leverage: 100 });
+    const t = seed.trade({
+      id: 66,
+      account_id: acct.id,
+      symbol: 'EURUSD',
+      side: 'buy',
+      volume: 0.1,
+      open_price: 1.1001,
+      status: 'open',
+    });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orders/close',
+      headers: authHeaders(u.id),
+      payload: { tradeId: t.id, closeVolume: 0.1 },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    // Full close path — no closedVolume in response
+    expect(body.tradeId).toBe(66);
+    const row = getTable('trades').find((x) => x.id === 66)!;
+    expect(row.status).toBe('closed');
+    await app.close();
+  });
+
+  it('partial close returns 400 on invalid (zero) closeVolume', async () => {
+    const u = seed.user({ id: 'user-1' });
+    const acct = seed.account({ id: ACCT, user_id: u.id });
+    seed.trade({ id: 77, account_id: acct.id, symbol: 'EURUSD', side: 'buy', volume: 0.1, open_price: 1.1001, status: 'open' });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orders/close',
+      headers: authHeaders(u.id),
+      payload: { tradeId: 77, closeVolume: 0 },
+    });
+    // closeVolume: 0 fails z.number().positive() — schema rejects it
+    expect(res.statusCode).toBe(400);
+    await app.close();
+  });
+});
+
 describe('DELETE /api/orders/pending/:id', () => {
   beforeEach(() => {
     resetDb();

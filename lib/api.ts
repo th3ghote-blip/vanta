@@ -84,10 +84,10 @@ export const api = {
     trailDistance?: number;
   }) => request<{ trade: any }>('/api/orders/open', { method: 'POST', body: JSON.stringify(input) }),
 
-  closeOrder: (tradeId: number) =>
-    request<{ tradeId: number; profit: number; closePrice: number }>(
+  closeOrder: (tradeId: number, closeVolume?: number) =>
+    request<{ tradeId: number; profit: number; closePrice: number; closedVolume?: number; remainingVolume?: number }>(
       '/api/orders/close',
-      { method: 'POST', body: JSON.stringify({ tradeId }) },
+      { method: 'POST', body: JSON.stringify({ tradeId, ...(closeVolume !== undefined ? { closeVolume } : {}) }) },
     ),
 
   /** T.1 — cancel a pending (un-filled) order; releases reserved margin. */
