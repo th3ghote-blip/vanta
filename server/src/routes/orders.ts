@@ -181,6 +181,45 @@ export async function ordersRoutes(app: FastifyInstance) {
       }
     }
 
+    // T.7 — bracket order: validate SL/TP direction for market orders.
+    // Pending orders don't know their fill price yet, so we skip validation there
+    // (the risk worker will honour whatever values are stored).
+    if (!isPending && (body.stopLoss != null || body.takeProfit != null)) {
+      const entryPrice = body.side === 'buy' ? quote.ask : quote.bid;
+      if (body.stopLoss != null) {
+        if (body.side === 'buy' && body.stopLoss >= entryPrice) {
+          return reply.code(400).send({
+            error: 'invalid_sl',
+            message: 'buy stop-loss must be below the entry price',
+            entryPrice,
+          });
+        }
+        if (body.side === 'sell' && body.stopLoss <= entryPrice) {
+          return reply.code(400).send({
+            error: 'invalid_sl',
+            message: 'sell stop-loss must be above the entry price',
+            entryPrice,
+          });
+        }
+      }
+      if (body.takeProfit != null) {
+        if (body.side === 'buy' && body.takeProfit <= entryPrice) {
+          return reply.code(400).send({
+            error: 'invalid_tp',
+            message: 'buy take-profit must be above the entry price',
+            entryPrice,
+          });
+        }
+        if (body.side === 'sell' && body.takeProfit >= entryPrice) {
+          return reply.code(400).send({
+            error: 'invalid_tp',
+            message: 'sell take-profit must be below the entry price',
+            entryPrice,
+          });
+        }
+      }
+    }
+
     // Margin requirement: for pending orders we estimate at the trigger price
     // (a stricter reservation than market would be — fine, the position will
     // open exactly at that price). For market we use the live quote side.

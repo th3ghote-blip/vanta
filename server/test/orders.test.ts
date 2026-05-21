@@ -916,4 +916,94 @@ describe('T.4 Trailing stop orders', () => {
     expect(res.json().error).toBe('invalid_input');
     await app.close();
   });
+
+  // ── T.7 Bracket orders (entry + SL + TP validation on open) ─────────────────
+
+  it('T.7: market buy with valid SL and TP stores both on the trade row', async () => {
+    const u = seed.user({ id: 'user-1' });
+    seed.account({ id: ACCT, user_id: u.id, free_margin: 10_000, margin_used: 0, leverage: 100 });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orders/open',
+      headers: authHeaders(u.id),
+      payload: {
+        accountId: ACCT,
+        symbol: 'EURUSD',
+        side: 'buy',
+        volume: 0.1,
+        stopLoss: 1.0800,    // below ask 1.1001 — valid
+        takeProfit: 1.1300,  // above ask 1.1001 — valid
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const { trade } = res.json();
+    expect(trade.status).toBe('open');
+    expect(Number(trade.stop_loss)).toBeCloseTo(1.08);
+    expect(Number(trade.take_profit)).toBeCloseTo(1.13);
+    await app.close();
+  });
+
+  it('T.7: buy SL above ask → 400 invalid_sl', async () => {
+    const u = seed.user({ id: 'user-1' });
+    seed.account({ id: ACCT, user_id: u.id, free_margin: 10_000, margin_used: 0, leverage: 100 });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orders/open',
+      headers: authHeaders(u.id),
+      payload: {
+        accountId: ACCT,
+        symbol: 'EURUSD',
+        side: 'buy',
+        volume: 0.1,
+        stopLoss: 1.1100,  // above ask 1.1001 — invalid
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe('invalid_sl');
+    await app.close();
+  });
+
+  it('T.7: buy TP below ask → 400 invalid_tp', async () => {
+    const u = seed.user({ id: 'user-1' });
+    seed.account({ id: ACCT, user_id: u.id, free_margin: 10_000, margin_used: 0, leverage: 100 });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orders/open',
+      headers: authHeaders(u.id),
+      payload: {
+        accountId: ACCT,
+        symbol: 'EURUSD',
+        side: 'buy',
+        volume: 0.1,
+        takeProfit: 1.0500,  // below ask 1.1001 — invalid
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe('invalid_tp');
+    await app.close();
+  });
+
+  it('T.7: sell SL below bid → 400 invalid_sl', async () => {
+    const u = seed.user({ id: 'user-1' });
+    seed.account({ id: ACCT, user_id: u.id, free_margin: 10_000, margin_used: 0, leverage: 100 });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orders/open',
+      headers: authHeaders(u.id),
+      payload: {
+        accountId: ACCT,
+        symbol: 'EURUSD',
+        side: 'sell',
+        volume: 0.1,
+        stopLoss: 1.0800,  // below bid 1.0999 — invalid for sell
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe('invalid_sl');
+    await app.close();
+  });
 });

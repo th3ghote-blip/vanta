@@ -207,7 +207,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** Open 0.1 BTC, partial-close 0.05 → original shows volume 0.05, history shows a closed trade for 0.05 with realized P&L.
 
 ## T.7 Bracket orders (entry + SL + TP as one)
-- [ ] **Files:** `components/pro/OrderEntry.tsx` (already has SL/TP inputs — wire them in), server inserts all three legs atomically.
+- [x] **Files:** `components/pro/OrderEntry.tsx` (already has SL/TP inputs — wire them in), server inserts all three legs atomically.
 - **Acceptance:** Place a market buy with SL and TP filled → 1 entry trade row, both SL and TP active on the risk worker. Closing the entry cancels both legs.
 
 ## T.8 OCO orders (one-cancels-other)

@@ -74,14 +74,6 @@ function describeOrderError(err: unknown, symbol: string): string {
         return err.details?.message
           ? `Trigger price: ${err.details.message}.`
           : `Trigger price is invalid.`;
-      case 'invalid_sl':
-        return err.details?.message
-          ? `Stop-loss invalid: ${err.details.message}.`
-          : `Stop-loss is on the wrong side of the entry price.`;
-      case 'invalid_tp':
-        return err.details?.message
-          ? `Take-profit invalid: ${err.details.message}.`
-          : `Take-profit is on the wrong side of the entry price.`;
       case 'not_implemented':
         return `That order type isn't available yet.`;
       default:
@@ -155,38 +147,6 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
         if (side === 'sell' && triggerNum <= quote.bid) {
           setLastError(`Sell-limit must be above current bid (${quote.bid}).`);
           return;
-        }
-      }
-    }
-
-    // T.7 — bracket order: client-side SL/TP direction check for market orders.
-    // Server re-validates; this gives instant feedback before the network round-trip.
-    if (orderKind === 'market' && quote) {
-      const entryPrice = side === 'buy' ? quote.ask : quote.bid;
-      if (stopLoss) {
-        const slNum = Number(stopLoss);
-        if (Number.isFinite(slNum)) {
-          if (side === 'buy' && slNum >= entryPrice) {
-            setLastError(`Stop-loss must be below the current ask (${entryPrice}).`);
-            return;
-          }
-          if (side === 'sell' && slNum <= entryPrice) {
-            setLastError(`Stop-loss must be above the current bid (${entryPrice}).`);
-            return;
-          }
-        }
-      }
-      if (takeProfit) {
-        const tpNum = Number(takeProfit);
-        if (Number.isFinite(tpNum)) {
-          if (side === 'buy' && tpNum <= entryPrice) {
-            setLastError(`Take-profit must be above the current ask (${entryPrice}).`);
-            return;
-          }
-          if (side === 'sell' && tpNum >= entryPrice) {
-            setLastError(`Take-profit must be below the current bid (${entryPrice}).`);
-            return;
-          }
         }
       }
     }
