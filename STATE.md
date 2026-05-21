@@ -1,5 +1,66 @@
 # STATE -- handoff notes for the next agent
 
+## 2026-05-22T22:12Z -- T.12 Symbol watchlist
+
+**Agent:** scheduled cowork auto-work pass
+**TODO item picked:** **T.12 Symbol watchlist / favourites**
+**Commit:** `7d9acbc`
+
+**Pre-run check**
+Stale WSL locks present as usual (.git/HEAD.lock, .git/index.lock -- cannot remove,
+WSL mount restriction). Used GIT_INDEX_FILE=/tmp/vanta_idx_6 + git plumbing
+(write-tree / commit-tree / direct ref write) to commit, same pattern as prior runs.
+Client tsc: exit 0. Server tsc: exit 0. Tests: 68 passed (unchanged) before starting.
+
+**What changed**
+- `supabase/migrations/021_user_watchlist.sql` (new): creates `user_watchlist`
+  table with (user_id uuid, symbol text), unique index on (user_id, symbol),
+  listing index on (user_id, created_at desc), and RLS select/insert/delete
+  policies. **NOT applied to live DB** -- apply before backend deploy:
+  `SUPABASE_PAT=... python scripts/apply-migration.py supabase/migrations/021_user_watchlist.sql`
+- `server/src/routes/watchlist.ts` (new): three endpoints:
+    GET  /api/watchlist          -> { symbols: string[] } ordered by created_at
+    POST /api/watchlist          -> { ok, symbol } -- upsert with ignoreDuplicates
+    DELETE /api/watchlist/:symbol -> { ok, symbol }
+- `server/src/index.ts`: import + register `watchlistRoutes` at `/api/watchlist`.
+- `lib/api.ts`: three exported helpers appended at bottom -- `getWatchlist()`,
+  `addToWatchlist(symbol)`, `removeFromWatchlist(symbol)`.
+- `stores/watchlist.ts` (new): Zustand store with `starred: Set<string>`,
+  `fetch()` (hydrates from server), `toggle(symbol)` (optimistic + rollback),
+  `isStarred(symbol)`.
+- `components/pro/SymbolPickerModal.tsx`: 
+    * New 'Watchlist' tab added as the FIRST tab (before 'All'); shows `starred.size` count.
+    * `useEffect` calls `fetchWatchlist()` whenever the modal opens (`visible` changes).
+    * Star icon (lucide `Star`) on the left of every symbol row -- amber + filled when
+      starred, muted outline when not. Tap calls `toggleStar(s.ticker)` with
+      `e.stopPropagation()` so it doesn't also select the symbol.
+    * Watchlist tab filtered pool shows only starred symbols.
+    * Empty state for Watchlist tab (when nothing starred and no search active)
+      shows a large Star icon + guidance text.
+- `TODO.md`: T.12 marked [x].
+
+**Verification**
+- `npx --no-install tsc --noEmit` (client) -> exit 0 OK
+- `cd server && npx --no-install tsc --noEmit` (server) -> exit 0 OK
+- `npm run --prefix server test` -> **68 passed (unchanged) in 2.23s** OK
+- Frontend deploy: sandbox has no Vercel access -- deploy manually or wait for CI.
+- Backend deploy: sandbox has no Railway access -- apply migration 021 first, then deploy.
+
+**Notes for next agent**
+- **Apply migration 021 before backend deploy.** New table + indexes + RLS only;
+  no existing tables or columns changed.
+- Same WSL HEAD.lock / index.lock pattern as prior runs -- use GIT_INDEX_FILE +
+  plumbing to commit. Write ref directly via Python.
+- T.12 done. Next safe picks:
+  1. **T.9 Hedging mode** -- `accounts.hedging_enabled boolean` + UI toggle in Profile.
+     Migration 022. Touches order open path (bypass netting when hedging=true).
+  2. **T.10 Multiple accounts per user** -- `accounts.is_primary boolean`. Account
+     switcher UI in header. Migration 022. Mostly UI work.
+  3. **T.14 Trade journal** -- `trades.notes text` migration + notes textarea in TradeBook
+     drawer. Low risk, pure addition.
+
+---
+
 ## 2026-05-21T18:15Z -- T.8 OCO orders
 
 **Agent:** scheduled cowork auto-work pass
@@ -241,65 +302,3 @@ Client tsc: exit 0. Server tsc: exit 0. Tests: 53 passed before starting.
   2. **T.12 Symbol watchlist** -- migration `user_watchlist(user_id, symbol)` + star UI in picker.
   3. **T.7 Bracket orders** -- entry + SL + TP placed atomically; SL/TP inputs already wired in
      OrderEntry so this is mostly a server-side atomic insert.
-
----
-
-
-## 2026-05-20T18:12Z -- T.3 Stop-limit orders
-
-**Agent:** scheduled cowork auto-work pass
-**TODO item picked:** **T.3 Stop-limit orders**
-**Commit:** `61895d5`
-
-**Pre-run check**
-Working tree appeared dirty (stale WSL index showing MM on T.5 files) but
-`git diff HEAD --stat` confirmed no real changes vs HEAD. Proceeded.
-Railway health unverifiable from sandbox (proxy blocks external connections).
-Client tsc: exit 0. Server tsc: exit 0. Tests: 49 passed before starting.
-
-**What changed**
-- `supabase/migrations/018_stop_limit.sql` (new): `ALTER TABLE trades ADD COLUMN
-  IF NOT EXISTS limit_price numeric(18,5)`. Single statement — no enum change
-  needed (all 4 order_type values were already accepted by migration 016).
-  **NOT applied to live DB** — apply before deploying backend:
-  `SUPABASE_PAT=... python scripts/apply-migration.py supabase/migrations/018_stop_limit.sql`
-- `server/src/routes/orders.ts`: removed 501 guard for stop_limit; added
-  `limitPrice` to OpenOrderSchema; added stop_limit validation block (stop
-  direction same as plain stop — trigger above ask for buy / below bid for sell;
-  limit >= trigger for buy, limit <= trigger for sell); inserts `limit_price` into
-  the DB row.
-- `server/src/workers/ordersTrigger.ts`: two-stage logic — `shouldFill()` now
-  returns `FillAction ('fill' | 'convert_to_limit' | 'none')`. Stop_limit: when
-  stop fires and limit is already met, fill immediately at `limit_price`; when
-  stop fires but limit not yet met, convert row to `order_type='limit'` with
-  `trigger_price=limit_price` so the next tick's standard limit path handles it.
-  Query now includes `stop_limit` in `.in('order_type', [...])`. Added `limit_price`
-  to select and to `PendingOrder` interface.
-- `server/test/helpers/supabaseMock.ts`: added `limit_price?: number | null` to
-  `DbTrade` interface.
-- `server/test/orders.test.ts`: replaced 501 stub with 5 real T.3 tests:
-  buy happy path, sell happy path, bad trigger 400, limit-below-trigger 400,
-  missing-limitPrice 400.
-
-**Verification**
-- `npx --no-install tsc --noEmit` (client) → exit 0 ✅
-- `cd server && npx --no-install tsc --noEmit` (server) → exit 0 ✅
-- `npm run --prefix server test` → **53 passed (was 49, +4) in 3.0s** ✅
-- Frontend deploy: sandbox has no Vercel access — deploy manually or wait for CI.
-- Backend deploy: sandbox has no Railway access — apply migration 018 first, then deploy.
-  No existing data is broken (new nullable column, all existing rows get NULL).
-
-**Notes for next agent**
-- **Apply migration 018 before backend deploy.** The column is nullable so existing
-  market/limit/stop rows are unaffected (limit_price stays NULL for those types).
-  Once applied, stop_limit orders will persist limit_price to the DB correctly.
-- Railway health still unverifiable from sandbox. Check manually if needed.
-- **Edit tool causes corruption on files with multi-byte chars.** ALWAYS use Python
-  for all file modifications, even small ones.
-- T.3 done. Next safe picks:
-  1. **T.4 Trailing stops** — migration adds `trades.trail_distance` + `trades.trail_high_water`;
-     extend `server/src/workers/risk.ts` to ratchet stop-loss on each tick.
-  2. **T.6 Partial close** — extend `/close` to accept `closeVolume`, add slider in TradeBook.
-  3. **T.12 Symbol watchlist** — migration `user_watchlist(user_id, symbol)` + UI.
-
----
