@@ -232,7 +232,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** Numbers update live as user types.
 
 ## T.12 Symbol watchlist / favorites
-- [ ] **Files:** `app/(tabs)/trade/watchlist.tsx`, migration: `user_watchlist (user_id, symbol)` table.
+- [x] **Files:** `app/(tabs)/trade/watchlist.tsx`, migration: `user_watchlist (user_id, symbol)` table.
 - **What:** Star a symbol → appears in your watchlist tab. Cross-device sync via Supabase.
 - **Acceptance:** Star BTCUSD → switch tabs → see it in your saved list with live price.
 

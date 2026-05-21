@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -8,7 +8,7 @@ import {
   ScrollView,
   StyleSheet,
 } from 'react-native';
-import { Search, X, ChevronRight } from 'lucide-react-native';
+import { Search, X, ChevronRight, Star } from 'lucide-react-native';
 
 import { colors, radius, spacing, typography } from '@/lib/theme';
 import { usePriceStore } from '@/stores/prices';
@@ -17,6 +17,7 @@ import {
   allSymbols,
   type SymbolCategory,
 } from '@/lib/symbolMeta';
+import { useWatchlistStore } from '@/stores/watchlist';
 
 interface Props {
   visible: boolean;
@@ -25,17 +26,31 @@ interface Props {
   onClose: () => void;
 }
 
-type Tab = 'All' | SymbolCategory;
+type Tab = 'Watchlist' | 'All' | SymbolCategory;
 
 export function SymbolPickerModal({ visible, current, onSelect, onClose }: Props) {
   const quotes = usePriceStore((s) => s.quotes);
   const [tab, setTab] = useState<Tab>('All');
   const [search, setSearch] = useState('');
 
+  const { starred, fetch: fetchWatchlist, toggle: toggleStar, isStarred } = useWatchlistStore();
+
+  // Hydrate watchlist whenever the modal opens.
+  useEffect(() => {
+    if (visible) fetchWatchlist();
+  }, [visible]);
+
   const all = useMemo(() => allSymbols(), []);
 
   const filtered = useMemo(() => {
-    let pool = tab === 'All' ? all : all.filter((s) => s.category === tab);
+    let pool: typeof all;
+    if (tab === 'Watchlist') {
+      pool = all.filter((s) => starred.has(s.ticker));
+    } else if (tab === 'All') {
+      pool = all;
+    } else {
+      pool = all.filter((s) => s.category === tab);
+    }
     const q = search.trim().toUpperCase();
     if (q) {
       pool = pool.filter(
@@ -44,9 +59,9 @@ export function SymbolPickerModal({ visible, current, onSelect, onClose }: Props
       );
     }
     return pool;
-  }, [all, tab, search]);
+  }, [all, tab, search, starred]);
 
-  const tabs: Tab[] = ['All', ...CATEGORIES];
+  const tabs: Tab[] = ['Watchlist', 'All', ...CATEGORIES];
 
   return (
     <Modal
@@ -98,7 +113,9 @@ export function SymbolPickerModal({ visible, current, onSelect, onClose }: Props
             {tabs.map((t) => {
               const active = t === tab;
               const count =
-                t === 'All'
+                t === 'Watchlist'
+                  ? starred.size
+                  : t === 'All'
                   ? all.length
                   : all.filter((s) => s.category === t).length;
               return (
@@ -132,9 +149,18 @@ export function SymbolPickerModal({ visible, current, onSelect, onClose }: Props
           <ScrollView style={styles.list} contentContainerStyle={{ paddingBottom: spacing.xl }}>
             {filtered.length === 0 ? (
               <View style={{ padding: spacing.xl, alignItems: 'center' }}>
-                <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 13 }}>
-                  No symbols match "{search}".
-                </Text>
+                {tab === 'Watchlist' && !search ? (
+                  <>
+                    <Star size={32} color={colors.textMuted} style={{ marginBottom: spacing.sm }} />
+                    <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 13, textAlign: 'center' }}>
+                      {"No starred symbols yet. Tap the star next to any symbol to add it here."}
+                    </Text>
+                  </>
+                ) : (
+                  <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 13 }}>
+                    No symbols match "{search}".
+                  </Text>
+                )}
               </View>
             ) : (
               filtered.map((s) => {
@@ -158,6 +184,18 @@ export function SymbolPickerModal({ visible, current, onSelect, onClose }: Props
                       backgroundColor: isActive ? colors.bgSurface : 'transparent',
                     }}
                   >
+                    {/* Star toggle — does NOT propagate to the row's onPress */}
+                    <Pressable
+                      onPress={(e) => { e.stopPropagation(); toggleStar(s.ticker); }}
+                      hitSlop={8}
+                      style={{ marginRight: spacing.sm }}
+                    >
+                      <Star
+                        size={16}
+                        color={isStarred(s.ticker) ? '#F59E0B' : colors.textMuted}
+                        fill={isStarred(s.ticker) ? '#F59E0B' : 'none'}
+                      />
+                    </Pressable>
                     <View style={{ flex: 1 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs }}>
                         <Text style={{ ...typography.bodyBold, color: colors.textPrimary, fontSize: 14 }}>

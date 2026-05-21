@@ -37,6 +37,7 @@ import { adminRoutes } from './routes/admin.js';
 import { alertsRoutes } from './routes/alerts.js';
 import { sessionsRoutes } from './routes/sessions.js';
 import { achievementsRoutes } from './routes/achievements.js';
+import { watchlistRoutes } from './routes/watchlist.js';
 import { startPriceFeed } from './feed/pricefeed.js';
 import { getWorkerHealth } from './lib/workerHealth.js';
 import { recordTiming } from './middleware/timing.js';
@@ -119,6 +120,7 @@ await app.register(adminRoutes, { prefix: '/api/admin' });
 await app.register(alertsRoutes, { prefix: '/api/alerts' });
 await app.register(sessionsRoutes, { prefix: '/api/auth' });
 await app.register(achievementsRoutes, { prefix: '/api/achievements' });
+await app.register(watchlistRoutes, { prefix: '/api/watchlist' });
 
 startPriceFeed(app);
 startRobotEngine(app);

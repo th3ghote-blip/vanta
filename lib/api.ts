@@ -430,3 +430,27 @@ export interface AchievementsResponse {
 export async function getAchievements(): Promise<AchievementsResponse> {
   return request<AchievementsResponse>('/api/achievements');
 }
+
+
+// -- Watchlist (T.12) ---------------------------------------------------------
+
+/** Returns the list of starred symbol tickers for the current user. */
+export async function getWatchlist(): Promise<string[]> {
+  const data = await request<{ symbols: string[] }>('/api/watchlist');
+  return data.symbols;
+}
+
+/** Star a symbol. Idempotent -- starring an already-starred symbol is a no-op. */
+export async function addToWatchlist(symbol: string): Promise<void> {
+  await request<{ ok: boolean }>('/api/watchlist', {
+    method: 'POST',
+    body: JSON.stringify({ symbol }),
+  });
+}
+
+/** Unstar a symbol. */
+export async function removeFromWatchlist(symbol: string): Promise<void> {
+  await request<{ ok: boolean }>('/api/watchlist/' + encodeURIComponent(symbol), {
+    method: 'DELETE',
+  });
+}
