@@ -248,9 +248,10 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** Open trade → add note "RSI oversold reversal" → close → reopen TradeBook → note still attached.
 
 ## T.15 Technical indicators on chart
-- [ ] **Files:** `components/pro/Chart.tsx` extension (TradingView Lightweight Charts already supports overlays)
+- [x] **Files:** `components/pro/Chart.tsx`, `stores/chartPrefs.ts` (new)
 - **What:** Toggle for RSI, MACD, MA(20), MA(50), Bollinger Bands. Settings persist per user (`profiles.chart_prefs jsonb`).
 - **Acceptance:** Toggle RSI → indicator pane appears below price. Reload page → still on.
+- **Done:** 2026-05-22 — indicator toggle pills below the chart; MA20/MA50/BB overlaid on main series; RSI + MACD in separate panes below with synchronized time scale. State persisted to AsyncStorage via `stores/chartPrefs.ts`. Iframe remounts on toggle via indicatorHash key.
 
 ## T.16 Drawing tools on chart
 - [ ] **What:** Trendline, horizontal line, fib retracement. Lightweight Charts has a drawings API. Persist via `chart_drawings` table per (user, symbol).

@@ -15,6 +15,46 @@ The values are scoped to this repo only (no `--global`). Add this to `scripts/gi
 
 ---
 
+## 2026-05-22T14:20Z -- T.15 Technical indicators on chart
+
+**TODO item picked:** **T.15 Technical indicators on chart**
+
+**Pre-run state**
+- Sandbox proxy blocks external curl (403 from allowlist) — cannot verify live health endpoints from this sandbox. This is a known limitation; the services were green as of the last successful deploy.
+- Stale HEAD.lock as usual; phantom-index reconciled via `git reset HEAD` + file restore from HEAD.
+- On-disk Chart.tsx was truncated (135 lines missing from end) — restored from HEAD before starting.
+- TypeScript: exit 0 both sides. Tests: 71 passed.
+
+**What changed**
+- `stores/chartPrefs.ts` (new): Zustand store persisting indicator toggle state to AsyncStorage under key `vanta:chart-prefs`. Five toggles: ma20, ma50, bb, rsi, macd. Follows the same hydrate/setItem pattern as stores/theme.ts.
+- `components/pro/Chart.tsx`: Added indicator toggle pill strip below the chart (TouchableOpacity pills, active = primary color accent). Each toggle is in INDICATOR_ORDER array; state read from useChartPrefs. Iframe key includes indicatorHash so it fully remounts on toggle (avoids partial-update issues). Container height expands by 120px per oscillator pane (RSI, MACD) when enabled.
+- `buildChartHtml()` refactored from template literal to string concatenation (avoids backtick-inside-template-literal TS parse errors on long files). Accepts indicators object. Injects SHOW_MA20/MA50/BB/RSI/MACD booleans. Computes:
+  - MA20/MA50: LightweightCharts addLineSeries overlaid on main price chart (amber / indigo).
+  - Bollinger Bands (20, 2σ): upper/middle/lower dashed lines on main chart.
+  - RSI (Wilder 14): separate chart div below main, violet line, 70/30 reference lines, autoscale 0-100.
+  - MACD (12,26,9): separate chart div, MACD line (sky), signal (orange), histogram (profit/loss colors).
+  - Time scale sync: mainChart range change propagates to rsiChart/macdChart via subscribeVisibleLogicalRangeChange.
+  - History prepend (T.21) calls rebuildIndicators() after data merge.
+  - MA series updated incrementally on each WS tick.
+
+**File written via Python** (bash) to avoid Write-tool truncation at ~365 lines.
+
+**Verification**
+- Client tsc: exit 0 ✅
+- Server tsc: exit 0 ✅
+- npm test: 71 passed ✅
+- Visual: cannot verify from sandbox (no live Vercel access). Deploy manually or wait for next session with Vercel auth.
+
+**Backend:** No changes — pure frontend. No migration needed.
+**Frontend deploy:** Not deployed — sandbox has no Vercel credentials this session. Need to run `vercel --prod --yes` from a session with Vercel auth.
+
+**Next agent**
+1. Deploy frontend: `cd /c/Claude/vanta && vercel --prod --yes`
+2. Next safe code pick: **T.10 Multiple accounts per user** (migration + account switcher UI, accounts.is_primary boolean, dropdown in header). Or **T.14 Trade journal** (trades.notes text migration + notes textarea).
+3. Same HEAD.lock / phantom-index issue will recur — precheck.sh handles it.
+
+---
+
 ## 2026-05-22T14:30Z -- T.21 Chart history pan / lazy-load
 
 **TODO item picked:** **T.21 Chart history pan / lazy-load older bars**
