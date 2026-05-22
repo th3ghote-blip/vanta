@@ -36,10 +36,11 @@ const TF_SECONDS: Record<Timeframe, number> = {
 /**
  * Live chart with real historical bars + WebSocket tick updates.
  *
- * 1. Fetches historical OHLC from /api/bars/:symbol?tf=...
+ * 1. Fetches initial 500 historical OHLC bars from /api/bars/:symbol?tf=...
  * 2. Renders with TradingView Lightweight Charts inside an iframe/WebView
  * 3. Subscribes to /ws/quotes for live ticks → updates the active candle
  * 4. Rolls a new candle when the timeframe boundary is crossed
+ * 5. T.21: lazy-loads older bars as the user pans/scrolls toward the left edge
  */
 export function Chart({ symbol, timeframe, height = 360 }: Props) {
   const [bars, setBars] = useState<Bar[] | null>(null);
@@ -181,16 +182,21 @@ function buildChartHtml(
   .dot{width:6px;height:6px;border-radius:50%;background:${colors.profit};box-shadow:0 0 8px ${colors.profit};}
   @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
   .dot{animation:pulse 1.5s ease-in-out infinite;}
+  .loading-left{position:absolute;top:50%;left:12px;transform:translateY(-50%);color:${colors.textMuted};font:500 11px Inter,sans-serif;z-index:2;opacity:0;transition:opacity .15s;background:${colors.bgElevated};padding:4px 8px;border-radius:4px;}
+  .loading-left.on{opacity:1;}
 </style>
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head><body>
 <div class="label">${symbol}<span class="tf">· ${timeframe}</span></div>
 <div class="live"><span class="dot"></span><span id="status">connecting…</span></div>
+<div id="loading-left" class="loading-left">loading history…</div>
 <div id="chart"></div>
 <script>
   const SYMBOL = ${JSON.stringify(symbol)};
+  const TIMEFRAME = ${JSON.stringify(timeframe)};
   const TF_SECONDS = ${tfSeconds};
   const DECIMALS = ${decimals};
+  const API_URL = ${JSON.stringify(API_URL)};
   const BARS = ${JSON.stringify(bars)};
 
   const chart = LightweightCharts.createChart(document.getElementById('chart'), {
@@ -208,11 +214,79 @@ function buildChartHtml(
     priceFormat:{ type: 'price', precision: DECIMALS, minMove: Math.pow(10, -DECIMALS) },
   });
 
-  series.setData(BARS);
+  // T.21: keep a mutable, time-sorted data array so we can prepend older
+  // bars when the user pans toward the left edge. We dedupe by &#96;time&#96; on
+  // every merge (Lightweight Charts requires strictly-ascending times).
+  let DATA = BARS.slice();
+  series.setData(DATA);
   chart.timeScale().fitContent();
 
+  // Lazy-load older history when leftmost visible index is within
+  // LOAD_THRESHOLD bars of index 0. Single in-flight guard prevents
+  // queue pile-up during fast panning. hitFloor latches true once the
+  // server returns < MIN_BARS_FOR_MORE — we stop asking from there.
+  const LOAD_THRESHOLD = 20;
+  const MIN_BARS_FOR_MORE = 20;
+  let inFlight = false;
+  let hitFloor = DATA.length === 0;
+  const loadingEl = document.getElementById('loading-left');
+
+  async function loadMoreHistory() {
+    if (inFlight || hitFloor || DATA.length === 0) return;
+    inFlight = true;
+    loadingEl.classList.add('on');
+    const oldestTime = DATA[0].time;
+    try {
+      const url = API_URL + '/api/bars/' + encodeURIComponent(SYMBOL) +
+        '?tf=' + encodeURIComponent(TIMEFRAME) +
+        '&limit=500&before=' + encodeURIComponent(oldestTime);
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const json = await res.json();
+      const older = (json && json.bars) || [];
+      if (older.length < MIN_BARS_FOR_MORE) {
+        hitFloor = true;
+      }
+      if (older.length > 0) {
+        // Capture the user's visible range BEFORE we rebuild the data array,
+        // so we can shift it forward by the count of bars we're prepending
+        // and keep the same chart window in view.
+        const visible = chart.timeScale().getVisibleLogicalRange();
+        const seen = new Set(DATA.map(function (b) { return b.time; }));
+        const fresh = older.filter(function (b) { return !seen.has(b.time); });
+        if (fresh.length > 0) {
+          const merged = fresh.concat(DATA);
+          merged.sort(function (a, b) { return a.time - b.time; });
+          DATA = merged;
+          series.setData(DATA);
+          if (visible) {
+            chart.timeScale().setVisibleLogicalRange({
+              from: visible.from + fresh.length,
+              to: visible.to + fresh.length,
+            });
+          }
+        }
+      }
+    } catch (e) {
+      // Non-fatal — let the next pan retry unless we hit the floor.
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn('chart history fetch failed', e);
+      }
+    } finally {
+      inFlight = false;
+      loadingEl.classList.remove('on');
+    }
+  }
+
+  chart.timeScale().subscribeVisibleLogicalRangeChange(function (range) {
+    if (!range) return;
+    if (range.from < LOAD_THRESHOLD) {
+      loadMoreHistory();
+    }
+  });
+
   // Active candle = latest bar (we extend it on each tick)
-  let cur = BARS.length > 0 ? Object.assign({}, BARS[BARS.length - 1]) : null;
+  let cur = DATA.length > 0 ? Object.assign({}, DATA[DATA.length - 1]) : null;
 
   const status = document.getElementById('status');
   let ws;
@@ -232,12 +306,15 @@ function buildChartHtml(
         const start = t - (t % TF_SECONDS);
 
         if (!cur || start > cur.time) {
-          // Roll a new candle
+          // Roll a new candle. Append to DATA so future history merges
+          // see the right newest bar.
           cur = { time: start, open: cur ? cur.close : mid, high: mid, low: mid, close: mid };
+          DATA.push(cur);
         } else {
           if (mid > cur.high) cur.high = mid;
           if (mid < cur.low)  cur.low  = mid;
           cur.close = mid;
+          if (DATA.length > 0) DATA[DATA.length - 1] = cur;
         }
         series.update(cur);
       } catch {}

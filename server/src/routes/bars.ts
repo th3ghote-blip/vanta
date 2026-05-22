@@ -69,13 +69,26 @@ export async function barsRoutes(app: FastifyInstance) {
     const { symbol } = req.params as { symbol: string };
     const tf = ((req.query as any)?.tf ?? '1m') as string;
     const limit = Math.min(1000, Math.max(50, Number((req.query as any)?.limit ?? 500)));
+    // T.21: optional `before` (unix seconds) for historical pagination.
+    // When supplied the route returns the `limit` bars ending at `before`
+    // instead of the most recent `limit` bars. Both Coinbase and Twelve Data
+    // accept arbitrary end-of-window, so the historical floor is whatever
+    // the upstream serves (Coinbase: years of crypto data; TD: 5000 bars
+    // on free tier).
+    const beforeRaw = (req.query as any)?.before;
+    const before = beforeRaw == null || beforeRaw === '' ? null : Number(beforeRaw);
+    if (before != null && (!Number.isFinite(before) || before <= 0)) {
+      return reply.code(400).send({ error: 'invalid_before', got: beforeRaw });
+    }
 
     const seconds = TF_SECONDS[tf];
     if (!seconds) {
       return reply.code(400).send({ error: 'invalid_tf', accepted: Object.keys(TF_SECONDS) });
     }
 
-    const cacheKey = `${symbol}:${tf}:${limit}`;
+    // Cache key includes `before` so historical pages never collide with the
+    // live (now-anchored) window.
+    const cacheKey = `${symbol}:${tf}:${limit}:${before ?? 'now'}`;
     const cached = cache.get(cacheKey);
     if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
       return { bars: cached.bars, source: cached.bars.length > 0 && (cached as any).source };
@@ -83,19 +96,24 @@ export async function barsRoutes(app: FastifyInstance) {
 
     try {
       const bars = CRYPTO_SYMBOLS.has(symbol)
-        ? await fetchCoinbaseBars(symbol, seconds, limit)
-        : await fetchTwelveDataBars(symbol, tf, limit);
+        ? await fetchCoinbaseBars(symbol, seconds, limit, before)
+        : await fetchTwelveDataBars(symbol, tf, limit, before);
 
       cache.set(cacheKey, { bars, ts: Date.now() });
       return { bars, source: CRYPTO_SYMBOLS.has(symbol) ? 'coinbase' : 'twelvedata' };
     } catch (err) {
-      app.log.warn({ err: (err as Error).message, symbol, tf }, 'bars: fetch failed');
+      app.log.warn({ err: (err as Error).message, symbol, tf, before }, 'bars: fetch failed');
       return reply.code(502).send({ error: 'fetch_failed', message: (err as Error).message });
     }
   });
 }
 
-async function fetchCoinbaseBars(vSym: string, seconds: number, limit: number): Promise<Bar[]> {
+async function fetchCoinbaseBars(
+  vSym: string,
+  seconds: number,
+  limit: number,
+  before: number | null = null,
+): Promise<Bar[]> {
   const product = vSym.slice(0, -3) + '-USD';
 
   // Coinbase only supports 60, 300, 900, 3600, 21600, 86400.
@@ -117,7 +135,11 @@ async function fetchCoinbaseBars(vSym: string, seconds: number, limit: number): 
   }
 
   const fineLimit = Math.min(300, limit * aggregateRatio); // Coinbase max 300 per call
-  const end = Math.floor(Date.now() / 1000);
+  // T.21: when `before` is set, end the window one bar before that timestamp
+  // so the historical page doesn't duplicate what the client already has.
+  const end = before != null
+    ? Math.max(0, Math.floor(before) - actualGranularity)
+    : Math.floor(Date.now() / 1000);
   const start = end - fineLimit * actualGranularity;
 
   const url =
@@ -165,17 +187,35 @@ function aggregateBars(bars: Bar[], targetSeconds: number): Bar[] {
   return Array.from(buckets.values()).sort((a, b) => a.time - b.time);
 }
 
-async function fetchTwelveDataBars(vSym: string, tf: string, limit: number): Promise<Bar[]> {
+async function fetchTwelveDataBars(
+  vSym: string,
+  tf: string,
+  limit: number,
+  before: number | null = null,
+): Promise<Bar[]> {
   if (!TD_KEY) throw new Error('TWELVE_DATA_API_KEY not set');
   const symbol = TD_SYMBOL[vSym];
   const interval = TD_INTERVAL[tf];
   if (!symbol || !interval) throw new Error(`unsupported symbol/tf: ${vSym}/${tf}`);
+
+  // T.21: when `before` is supplied, pass `end_date` so TD returns the window
+  // ending at that timestamp. Subtract one bar so we don't overlap with the
+  // client's existing data.
+  let endDateParam = '';
+  if (before != null) {
+    const tfSec = TF_SECONDS[tf] ?? 60;
+    const endTs = Math.max(0, Math.floor(before) - tfSec);
+    const d = new Date(endTs * 1000);
+    const iso = d.toISOString().replace('T', ' ').replace(/\..*/, '');
+    endDateParam = `&end_date=${encodeURIComponent(iso)}`;
+  }
 
   const url =
     `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(symbol)}` +
     `&interval=${encodeURIComponent(interval)}` +
     `&outputsize=${limit}` +
     `&order=asc` +
+    endDateParam +
     `&apikey=${TD_KEY}`;
 
   const res = await fetch(url);
