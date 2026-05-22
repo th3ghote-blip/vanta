@@ -125,4 +125,46 @@ export async function accountRoutes(app: FastifyInstance) {
     }
     return reply.send({ profile });
   });
+
+  /**
+   * PATCH /api/account/hedging
+   * Toggle hedging mode on an account.  In netting mode (hedging_enabled=false,
+   * the default) opening a trade in the opposite direction of an existing
+   * position nets them out.  In hedging mode both legs coexist.
+   * Body: { accountId: string, enabled: boolean }
+   */
+  app.patch('/hedging', async (req, reply) => {
+    const userId = await authUser(req.headers.authorization);
+    if (!userId) return reply.code(401).send({ error: 'unauthorized' });
+
+    const body = req.body as { accountId?: unknown; enabled?: unknown };
+    if (typeof body?.accountId !== 'string' || typeof body?.enabled !== 'boolean') {
+      return reply.code(400).send({ error: 'invalid_body', message: 'accountId (string) and enabled (boolean) required' });
+    }
+
+    // Verify ownership.
+    const { data: account } = await supabaseAdmin
+      .from('accounts')
+      .select('id, user_id')
+      .eq('id', body.accountId)
+      .single();
+
+    if (!account || account.user_id !== userId) {
+      return reply.code(403).send({ error: 'forbidden' });
+    }
+
+    const { data: updated, error } = await supabaseAdmin
+      .from('accounts')
+      .update({ hedging_enabled: body.enabled })
+      .eq('id', body.accountId)
+      .select()
+      .single();
+
+    if (error) {
+      app.log.error({ error }, 'account/hedging: update failed');
+      return reply.code(500).send({ error: error.message });
+    }
+
+    return reply.send({ account: updated });
+  });
 }

@@ -454,3 +454,12 @@ export async function removeFromWatchlist(symbol: string): Promise<void> {
     method: 'DELETE',
   });
 }
+
+/** T.9 — Toggle hedging mode on an account. When disabled (default), opposing
+ *  positions on the same symbol are netted out instead of coexisting. */
+export async function setHedgingEnabled(accountId: string, enabled: boolean): Promise<void> {
+  await request<{ account: unknown }>('/api/account/hedging', {
+    method: 'PATCH',
+    body: JSON.stringify({ accountId, enabled }),
+  });
+}

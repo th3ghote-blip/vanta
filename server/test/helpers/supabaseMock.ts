@@ -22,6 +22,7 @@ export interface DbAccount {
   free_margin: number;
   margin_used: number;
   leverage: number;
+  hedging_enabled?: boolean;
 }
 export interface DbTrade {
   id: number;
@@ -139,6 +140,7 @@ export const seed = {
       free_margin: overrides.free_margin ?? 10_000,
       margin_used: overrides.margin_used ?? 0,
       leverage: overrides.leverage ?? 100,
+      hedging_enabled: overrides.hedging_enabled ?? false,
     };
     tables.accounts.push(a);
     return a;

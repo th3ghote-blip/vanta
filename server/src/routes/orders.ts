@@ -57,7 +57,7 @@ export async function ordersRoutes(app: FastifyInstance) {
     // Verify account ownership and pull margin-relevant fields.
     const { data: account, error: accErr } = await supabaseAdmin
       .from('accounts')
-      .select('id, user_id, balance, free_margin, margin_used, leverage')
+      .select('id, user_id, balance, free_margin, margin_used, leverage, hedging_enabled')
       .eq('id', body.accountId)
       .single();
 
@@ -277,6 +277,80 @@ export async function ordersRoutes(app: FastifyInstance) {
         });
       }
       return reply.code(500).send({ error: 'margin_reserve_failed' });
+    }
+
+    // T.9 — Netting mode: when hedging is disabled and this is a market order,
+    // check for an open opposing position on the same symbol.  If found, net
+    // them out (close the opposing position for min(existing, new) volume and
+    // reduce or skip the incoming trade accordingly).
+    if (!isPending && !(account as any).hedging_enabled) {
+      const opposingSide = body.side === 'buy' ? 'sell' : 'buy';
+      const { data: opposing } = await supabaseAdmin
+        .from('trades')
+        .select('id, volume, open_price, account_id')
+        .eq('account_id', body.accountId)
+        .eq('symbol', body.symbol)
+        .eq('side', opposingSide)
+        .eq('status', 'open')
+        .order('open_time', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (opposing) {
+        const existingVol = Number(opposing.volume);
+        const incomingVol = body.volume;
+        const closePrice = body.side === 'buy' ? quote.bid : quote.ask; // price at which the sell is closed
+        const closeVol = Math.min(existingVol, incomingVol);
+        const profit = +calculatePnL(
+          opposingSide, closeVol, Number(opposing.open_price), closePrice, body.symbol,
+        ).toFixed(2);
+        const accLeverage = Number(account.leverage) || 1;
+        const netMarginRelease = +requiredMargin(closeVol, Number(opposing.open_price), body.symbol, accLeverage).toFixed(2);
+
+        if (existingVol <= incomingVol) {
+          // Full close of opposing position.
+          await supabaseAdmin
+            .from('trades')
+            .update({
+              status: 'closed',
+              close_price: closePrice,
+              close_time: new Date().toISOString(),
+              profit,
+              reason: 'netting',
+            })
+            .eq('id', opposing.id);
+        } else {
+          // Partial close: opposing volume > incoming, reduce opposing.
+          const remainingVol = +(existingVol - incomingVol).toFixed(8);
+          await supabaseAdmin.from('trades').update({ volume: remainingVol }).eq('id', opposing.id).eq('status', 'open');
+        }
+
+        // Realise the P&L and release the reserved margin for the closed slice.
+        try { await supabaseAdmin.rpc('apply_trade_pnl', { p_account_id: body.accountId, p_amount: profit }); } catch {}
+        try { await releaseMargin(body.accountId, netMarginRelease, app.log); } catch {}
+
+        if (existingVol >= incomingVol) {
+          // The incoming trade is fully absorbed by the opposing position —
+          // nothing new to open. Also roll back the just-reserved margin for
+          // the incoming trade since we won't open it.
+          try { await releaseMargin(body.accountId, required, app.log); } catch {}
+          return {
+            netted: true,
+            closedTradeId: opposing.id,
+            closedVolume: closeVol,
+            profit,
+            closePrice,
+          };
+        }
+        // Reduce the incoming volume by the amount netted and continue to open
+        // the remainder.  Also release the over-reserved margin portion.
+        const remainder = +(incomingVol - existingVol).toFixed(8);
+        const overReserved = +(required - +requiredMargin(remainder, referencePrice, body.symbol, accLeverage).toFixed(2)).toFixed(2);
+        if (overReserved > 0) {
+          try { await releaseMargin(body.accountId, overReserved, app.log); } catch {}
+        }
+        body.volume = remainder;
+      }
     }
 
     const insertRow: Record<string, any> = {

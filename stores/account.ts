@@ -20,6 +20,8 @@ export interface Account {
   margin_used: number;
   free_margin: number;
   leverage: number;
+  /** T.9 — when true, opposing positions on the same symbol coexist. */
+  hedging_enabled: boolean;
 }
 
 interface AccountState {

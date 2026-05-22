@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
+import { View, Text, ScrollView, Pressable, Switch } from 'react-native';
 import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { Shield, Bell, MessageSquare, Phone, HelpCircle, LogOut, ChevronRight, BadgeCheck, ShieldCheck, Trophy, Sun, Moon, Monitor, FileText, type LucideIcon } from 'lucide-react-native';
@@ -9,7 +9,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useAccountStore } from '@/stores/account';
 import { useThemeStore } from '@/stores/theme';
 import type { ThemePreference } from '@/stores/theme';
-import { api, getAchievements } from '@/lib/api';
+import { api, getAchievements, setHedgingEnabled } from '@/lib/api';
 import type { Achievement, AchievementMeta } from '@/lib/api';
 import { listVerifiedFactors } from '@/lib/2fa';
 import { ModeSwitcher } from '@/components/shared/ModeSwitcher';
@@ -24,10 +24,12 @@ const THEME_OPTIONS: { value: ThemePreference; label: string; Icon: LucideIcon }
 export default function Profile() {
   const { user, signOut } = useAuthStore();
   const account = useAccountStore((s) => s.account);
+  const fetchAccount = useAccountStore((s) => s.fetch);
   const themePreference = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
   const [isAdmin, setIsAdmin] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [hedgingBusy, setHedgingBusy] = useState(false);
   const [has2FA, setHas2FA] = useState(false);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [achievementMeta, setAchievementMeta] = useState<Record<string, AchievementMeta>>({});
@@ -112,6 +114,34 @@ export default function Profile() {
             Trading Mode
           </Text>
           <ModeSwitcher />
+          {/* T.9 -- Hedging mode toggle */}
+          {account && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border }}>
+              <View style={{ flex: 1, marginRight: spacing.md }}>
+                <Text style={{ ...typography.bodyBold, color: colors.textPrimary, fontSize: 13 }}>
+                  Hedging mode
+                </Text>
+                <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 11, marginTop: 2 }}>
+                  {account.hedging_enabled
+                    ? 'ON — opposing positions coexist independently'
+                    : 'OFF — opposing positions are netted out (default)'}
+                </Text>
+              </View>
+              <Switch
+                value={account.hedging_enabled ?? false}
+                disabled={hedgingBusy}
+                onValueChange={async (val) => {
+                  setHedgingBusy(true);
+                  try {
+                    await setHedgingEnabled(account.id, val);
+                    await fetchAccount();
+                  } catch {}
+                  setHedgingBusy(false);
+                }}
+                trackColor={{ false: colors.border, true: colors.primary }}
+              />
+            </View>
+          )}
         </View>
 
         {/* Display — theme toggle */}

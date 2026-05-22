@@ -1156,6 +1156,125 @@ describe('T.8 OCO orders', () => {
   });
 });
 
+// ── T.9 Hedging mode ────────────────────────────────────────────────────────
+describe('T.9 Hedging mode', () => {
+  let app: any;
+  beforeEach(async () => {
+    resetDb();
+    app = await buildApp();
+  });
+
+  it('T.9: hedging ON — buy + sell on same symbol both remain open', async () => {
+    const userId = 'user-hedging-1';
+    const T9_ACCT_1 = 'aaaaaaaa-0001-0001-0001-aaaaaaaaaaaa';
+    seed.user({ id: userId });
+    const acct = seed.account({ id: T9_ACCT_1, user_id: userId, free_margin: 10_000, margin_used: 0, hedging_enabled: true });
+    const token = issueToken(userId);
+    setQuote({ symbol: 'BTCUSD', bid: 75_000, ask: 75_010, ts: Date.now() });
+
+    // Open buy.
+    const r1 = await app.inject({
+      method: 'POST', url: '/api/orders/open',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { accountId: acct.id, symbol: 'BTCUSD', side: 'buy', volume: 0.1 },
+    });
+    expect(r1.statusCode).toBe(200);
+    const buyId = JSON.parse(r1.body).trade.id;
+
+    // Open opposing sell.
+    const r2 = await app.inject({
+      method: 'POST', url: '/api/orders/open',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { accountId: acct.id, symbol: 'BTCUSD', side: 'sell', volume: 0.1 },
+    });
+    expect(r2.statusCode).toBe(200);
+    const sellId = JSON.parse(r2.body).trade.id;
+
+    const trades = getTable('trades');
+    const buy = trades.find((t: any) => t.id === buyId)!;
+    const sell = trades.find((t: any) => t.id === sellId)!;
+    // Both should be open.
+    expect(buy.status).toBe('open');
+    expect(sell.status).toBe('open');
+    await app.close();
+  });
+
+  it('T.9: hedging OFF — equal opposing position is netted out (no new trade)', async () => {
+    const userId = 'user-netting-1';
+    const T9_ACCT_2 = 'aaaaaaaa-0002-0002-0002-aaaaaaaaaaaa';
+    seed.user({ id: userId });
+    const acct = seed.account({ id: T9_ACCT_2, user_id: userId, free_margin: 10_000, margin_used: 0, hedging_enabled: false });
+    const token = issueToken(userId);
+    setQuote({ symbol: 'BTCUSD', bid: 75_000, ask: 75_010, ts: Date.now() });
+
+    // Open a sell position first.
+    const r1 = await app.inject({
+      method: 'POST', url: '/api/orders/open',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { accountId: acct.id, symbol: 'BTCUSD', side: 'sell', volume: 0.1 },
+    });
+    expect(r1.statusCode).toBe(200);
+    const sellId = JSON.parse(r1.body).trade.id;
+
+    // Open equal buy — should net out the sell, not open a new trade.
+    const r2 = await app.inject({
+      method: 'POST', url: '/api/orders/open',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { accountId: acct.id, symbol: 'BTCUSD', side: 'buy', volume: 0.1 },
+    });
+    expect(r2.statusCode).toBe(200);
+    const body2 = JSON.parse(r2.body);
+    // netted flag present, no new 'trade' key
+    expect(body2.netted).toBe(true);
+    expect(body2.closedTradeId).toBe(sellId);
+
+    const trades = getTable('trades');
+    const sellTrade = trades.find((t: any) => t.id === sellId)!;
+    // The sell should now be closed.
+    expect(sellTrade.status).toBe('closed');
+    expect(sellTrade.reason).toBe('netting');
+    // No new open buy trade should exist.
+    const openBuys = trades.filter((t: any) => t.account_id === acct.id && t.side === 'buy' && t.status === 'open');
+    expect(openBuys).toHaveLength(0);
+    await app.close();
+  });
+
+  it('T.9: hedging OFF — smaller opposing buy partially nets the sell, sell volume reduced', async () => {
+    const userId = 'user-netting-2';
+    const T9_ACCT_3 = 'aaaaaaaa-0003-0003-0003-aaaaaaaaaaaa';
+    seed.user({ id: userId });
+    const acct = seed.account({ id: T9_ACCT_3, user_id: userId, free_margin: 10_000, margin_used: 0, hedging_enabled: false });
+    const token = issueToken(userId);
+    setQuote({ symbol: 'BTCUSD', bid: 75_000, ask: 75_010, ts: Date.now() });
+
+    // Open a sell 0.2 lots.
+    const r1 = await app.inject({
+      method: 'POST', url: '/api/orders/open',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { accountId: acct.id, symbol: 'BTCUSD', side: 'sell', volume: 0.2 },
+    });
+    expect(r1.statusCode).toBe(200);
+    const sellId = JSON.parse(r1.body).trade.id;
+
+    // Open buy 0.1 — should partially close the sell (reduce to 0.1).
+    const r2 = await app.inject({
+      method: 'POST', url: '/api/orders/open',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { accountId: acct.id, symbol: 'BTCUSD', side: 'buy', volume: 0.1 },
+    });
+    expect(r2.statusCode).toBe(200);
+    const body2 = JSON.parse(r2.body);
+    expect(body2.netted).toBe(true);
+
+    const trades = getTable('trades');
+    const sellTrade = trades.find((t: any) => t.id === sellId)!;
+    // Sell should still be open but volume reduced.
+    expect(sellTrade.status).toBe('open');
+    expect(Number(sellTrade.volume)).toBeCloseTo(0.1, 5);
+    await app.close();
+  });
+});
+
 // Some tests above used `app.close()`; the worker test doesn't construct a
 // Fastify app, so this is a tiny no-op shim to keep the symmetry.
 async function app_close_noop() {}

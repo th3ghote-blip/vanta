@@ -216,7 +216,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** Place BTC buy-stop at $78k + BTC buy-limit at $74k as an OCO → one triggers → other vanishes from Pending list.
 
 ## T.9 Hedging mode (allow opposing positions on same symbol)
-- [ ] **Account setting:** `accounts.hedging_enabled boolean` (default false). UI toggle in Profile.
+- [x] **Account setting:** `accounts.hedging_enabled boolean` (default false). UI toggle in Profile.
 - **What:** Default is netting — a buy on top of an existing sell reduces or flips the position. Hedging lets both exist simultaneously (MT4 default behavior).
 - **Acceptance:** With hedging on: open 0.1 BTC buy + 0.1 BTC sell → both rows in Open Positions, P&L offsets in real time.
 
