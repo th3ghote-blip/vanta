@@ -64,6 +64,18 @@ if [ "$BRANCH" != "main" ]; then
 fi
 echo "[git-precheck] branch: $BRANCH OK"
 
+# ── 2b. Ensure git author email matches GitHub (Vercel rejects otherwise) ──
+EXPECTED_EMAIL="229847808+th3ghote-blip@users.noreply.github.com"
+EXPECTED_NAME="th3ghote-blip"
+CURRENT_EMAIL=$(git config --get user.email 2>/dev/null || echo "")
+if [ "$CURRENT_EMAIL" != "$EXPECTED_EMAIL" ]; then
+  git config user.email "$EXPECTED_EMAIL"
+  git config user.name "$EXPECTED_NAME"
+  echo "[git-precheck] author: set repo-local to $EXPECTED_EMAIL (was '$CURRENT_EMAIL')"
+else
+  echo "[git-precheck] author: $CURRENT_EMAIL OK"
+fi
+
 # ── 3. Report working tree status ──────────────────────────────────────────
 STATUS=$(GIT_INDEX_FILE=/tmp/vanta_precheck_idx git read-tree HEAD 2>/dev/null && GIT_INDEX_FILE=/tmp/vanta_precheck_idx git status --porcelain 2>/dev/null || git status --porcelain 2>/dev/null || echo "(git status failed)")
 if [ -z "$STATUS" ]; then
