@@ -3,6 +3,7 @@ import { Platform, View, Text, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 import { colors, radius, spacing, typography } from '@/lib/theme';
+import { isCrypto } from '@/lib/contracts';
 import { usePriceStore } from '@/stores/prices';
 import type { Timeframe } from './TimeframeSelector';
 
@@ -58,7 +59,7 @@ export function Chart({ symbol, timeframe, height = 360 }: Props) {
     setError(null);
     setBars(null);
 
-    fetch(`${API_URL}/api/bars/${encodeURIComponent(symbol)}?tf=${timeframe}&limit=500`)
+    fetch(`${API_URL}/api/bars/${encodeURIComponent(symbol)}?tf=${timeframe}&limit=1000`)
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
@@ -170,6 +171,12 @@ function buildChartHtml(
 ) {
   const sample = bars.length > 0 ? bars[bars.length - 1].close : fallback;
   const decimals = decimalsFor(sample);
+  const isCryptoSym = isCrypto(symbol);
+  // Coinbase's native candle granularities. For other timeframes (4h) we
+  // fall back to the server route, which already aggregates.
+  const COINBASE_NATIVE = [60, 300, 900, 3600, 21600, 86400];
+  const coinbaseGran = COINBASE_NATIVE.includes(tfSeconds) ? tfSeconds : null;
+  const coinbaseProduct = isCryptoSym ? symbol.slice(0, -3) + '-USD' : '';
 
   return `<!doctype html>
 <html><head><meta charset="utf-8" />
@@ -198,6 +205,13 @@ function buildChartHtml(
   const DECIMALS = ${decimals};
   const API_URL = ${JSON.stringify(API_URL)};
   const BARS = ${JSON.stringify(bars)};
+  // T.21 direct-Coinbase path: when truthy, the lazy-load handler hits
+  // Coinbase's public candles endpoint directly (CORS-enabled) instead of
+  // our backend's /api/bars. Works around the case where the backend
+  // doesn't yet support ?before=. For 4h crypto (non-native granularity)
+  // and for forex/stocks/gold we still go through the backend.
+  const COINBASE_PRODUCT = ${JSON.stringify(coinbaseProduct)};
+  const COINBASE_GRANULARITY = ${coinbaseGran === null ? 'null' : String(coinbaseGran)};
 
   const chart = LightweightCharts.createChart(document.getElementById('chart'), {
     layout:{ background:{ color:'${colors.bgElevated}' }, textColor:'${colors.textSecondary}' },
@@ -237,13 +251,35 @@ function buildChartHtml(
     loadingEl.classList.add('on');
     const oldestTime = DATA[0].time;
     try {
-      const url = API_URL + '/api/bars/' + encodeURIComponent(SYMBOL) +
-        '?tf=' + encodeURIComponent(TIMEFRAME) +
-        '&limit=500&before=' + encodeURIComponent(oldestTime);
-      const res = await fetch(url);
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const json = await res.json();
-      const older = (json && json.bars) || [];
+      let older = [];
+      if (COINBASE_PRODUCT && COINBASE_GRANULARITY) {
+        // Direct-to-Coinbase path: works against today's backend regardless
+        // of whether the server route supports ?before=. Coinbase max 300
+        // candles per call.
+        const endTs = oldestTime - COINBASE_GRANULARITY;
+        const startTs = endTs - 300 * COINBASE_GRANULARITY;
+        const url = 'https://api.exchange.coinbase.com/products/' + COINBASE_PRODUCT +
+          '/candles?granularity=' + COINBASE_GRANULARITY +
+          '&start=' + encodeURIComponent(new Date(startTs * 1000).toISOString()) +
+          '&end=' + encodeURIComponent(new Date(endTs * 1000).toISOString());
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Coinbase HTTP ' + res.status);
+        const raw = await res.json();
+        // Coinbase candles row: [time, low, high, open, close, volume]
+        older = (Array.isArray(raw) ? raw : []).map(function (r) {
+          return { time: r[0], open: r[3], high: r[2], low: r[1], close: r[4] };
+        }).sort(function (a, b) { return a.time - b.time; });
+      } else {
+        // Backend path (forex/stocks/gold, plus 4h crypto which needs
+        // server-side aggregation).
+        const url = API_URL + '/api/bars/' + encodeURIComponent(SYMBOL) +
+          '?tf=' + encodeURIComponent(TIMEFRAME) +
+          '&limit=500&before=' + encodeURIComponent(oldestTime);
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const json = await res.json();
+        older = (json && json.bars) || [];
+      }
       if (older.length < MIN_BARS_FOR_MORE) {
         hitFloor = true;
       }

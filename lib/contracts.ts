@@ -20,6 +20,14 @@ const STOCK_SYMBOLS = new Set([
   'NFLX', 'AMD', 'INTC', 'CRM', 'ORCL', 'IBM', 'BA', 'JPM', 'BAC',
 ]);
 
+export function isCrypto(symbol: string): boolean {
+  if (FOREX_PAIRS.has(symbol)) return false;
+  if (symbol === 'XAUUSD' || symbol === 'XAGUSD') return false;
+  if (STOCK_SYMBOLS.has(symbol)) return false;
+  // Everything else (BTCUSD, ETHUSD, etc.) is crypto.
+  return symbol.endsWith('USD');
+}
+
 export function contractSize(symbol: string): number {
   if (FOREX_PAIRS.has(symbol)) return 100_000;
   if (symbol === 'XAUUSD') return 100; // 100 oz
