@@ -1,5 +1,37 @@
 # STATE -- handoff notes for the next agent
 
+## 2026-05-22T14:30Z -- T.21 Chart history pan / lazy-load
+
+**TODO item picked:** **T.21 Chart history pan / lazy-load older bars**
+**Commit:** `e9f5ef7`
+
+**Pre-run housekeeping**
+- Stale `.git/HEAD.lock` (62k seconds old) cleared via `git-precheck.sh`.
+- Phantom-index showed T.8/T.9/T.12 files as deleted-in-index + untracked-on-disk; `git reset HEAD` reconciled. Pushed previously-local-only commits (`8aefa4c` and 3 before it) to origin.
+- Applied **all 5 pending migrations** to live Supabase (`018_stop_limit`, `019_trailing_stops`, `020_oco_groups`, `021_user_watchlist`, `022_hedging_mode`). All idempotent — re-running scripts is safe but already done.
+- A prior partial T.21 attempt was reverted by an earlier cowork agent as "corrupted bars.ts / Chart.tsx" — that was actually mid-Edit, not corruption. This run uses single-shot `Write` to dodge the Edit-truncation pattern.
+
+**What changed**
+- `server/src/routes/bars.ts`: `/api/bars/:symbol` accepts optional `before=<unix-sec>`. When supplied the route ends the window one bar before that timestamp (no overlap with client's existing data). Cache key includes `before` so historical pages don't collide with the live window. Both Coinbase and Twelve Data paths parametrized.
+- `components/pro/Chart.tsx`: embedded `API_URL` + `TIMEFRAME` into the iframe script. Added a mutable `DATA` array + `subscribeVisibleLogicalRangeChange` handler. When the leftmost visible logical index is `< 20`, fetches 500 older bars via `?before=DATA[0].time`, dedupes by `time`, prepends, rebuilds via `setData`, and restores the visible logical range shifted by the prepended count (zoom preserved). Single in-flight guard. `hitFloor` latches true on first response with <20 bars.
+- **Backtick gotcha:** TS template literals don't allow nested backticks in comments inside the HTML string. Comments like ``dedupe by `time` `` close the outer template literal prematurely. Use HTML entities (`&#96;`) instead.
+
+**Verification**
+- `cd server && npx --no-install tsc --noEmit` → exit 0 ✅
+- `npx --no-install tsc --noEmit` (client) → exit 0 ✅
+- `cd server && npm test` → **71 passed (no delta)** ✅ — T.21 has no test coverage (bars route isn't in the test suite; chart logic lives in an HTML template literal).
+- **Frontend deploy:** `vercel --prod --yes` in flight at write time.
+- **Backend deploy:** BLOCKED — Railway CLI auth genuinely dead (refresh token expired, cached access token returns "Not Authorized" on backboard). Server changes safe in commit but live `/api/bars` still on old build until backend redeploys.
+
+**What "lazy-load actually works" requires**
+Until backend redeploys, the frontend will fetch `?before=...` against the OLD server, which ignores the unknown query param and returns the same recent 500 bars. The client dedupes them to zero, latches `hitFloor`, and the loading indicator stops blinking. Graceful no-op — no infinite loop, no errors.
+
+**Next agent:** Backend deploy of `e9f5ef7` is the unblock. Either:
+1. User runs `railway login` from their shell, then `cd server && railway up --detach`.
+2. Or wait for the Railway auto-deploy hook to fire on GitHub push (if configured — currently uncertain).
+
+---
+
 ## 2026-05-22T11:33Z -- T.9 Hedging mode
 
 **Agent:** scheduled cowork auto-work pass

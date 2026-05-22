@@ -276,7 +276,8 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** Quick mode has 7 duration options and category tabs.
 
 ## T.21 Chart history pan / lazy-load older bars
-- [ ] **Files:** `server/src/routes/bars.ts` (accept `before` param), `components/pro/Chart.tsx` (subscribe to visible range, prepend on near-edge), `lib/api.ts` (new `getBarsBefore(symbol, tf, beforeUnixSec, limit)` helper).
+- [x] **Files:** `server/src/routes/bars.ts` (accept `before` param), `components/pro/Chart.tsx` (subscribe to visible range, prepend on near-edge).
+- **Done:** 2026-05-22 — commit `e9f5ef7`. Server accepts `before=<unix-sec>` and returns the window ending at that timestamp. Chart iframe subscribes to `subscribeVisibleLogicalRangeChange`, fetches 500 older bars when within 20 of the left edge, dedupes by `time`, prepends, and shifts the visible logical range so zoom is preserved. `hitFloor` latches true if upstream returns <20 bars. Single in-flight guard. Frontend shipped to Vercel; backend deploy pending Railway CLI re-auth.
 - **Problem today:** `GET /api/bars/:symbol?tf=1h&limit=500` only fetches the most recent 500 bars peg-anchored to `now()`. When the user pans/scrolls the chart left past the initial window, Lightweight Charts has nothing to render and the timeline dead-ends. Visible on every symbol/timeframe.
 - **Server change:**
   - Add optional `before` query param (unix seconds). When supplied: `end = before`, `start = before - limit * granularity`. When absent: keep existing now-anchored behavior.
