@@ -221,7 +221,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** With hedging on: open 0.1 BTC buy + 0.1 BTC sell → both rows in Open Positions, P&L offsets in real time.
 
 ## T.10 Multiple accounts per user (demo + live tabs)
-- [ ] **Migration:** `accounts.is_primary boolean`. The user already has the schema for multiple accounts — just need UI to switch.
+- [x] **Migration:** `accounts.is_primary boolean`. The user already has the schema for multiple accounts — just need UI to switch.
 - **Files:** Account header strip becomes a dropdown / segmented control.
 - **What:** Users can switch between accounts (e.g., demo and live) without signing out. New "Open additional account" button in Profile.
 - **Acceptance:** Click switcher → second account loads → balance, trades, robots all swap to the new account's data.
