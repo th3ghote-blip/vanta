@@ -179,6 +179,25 @@ export const api = {
   getProfile: () =>
     request<{ profile: any }>('/api/account/profile'),
 
+  // T.10 — Multiple accounts
+  /** Return all accounts owned by the caller, sorted oldest-first. */
+  listAccounts: () =>
+    request<{ accounts: any[] }>('/api/account/all'),
+
+  /** Open an additional account (demo or live). Capped at 5 per user. */
+  openAdditionalAccount: (type: 'demo' | 'live' = 'demo') =>
+    request<{ account: any }>('/api/account/open', {
+      method: 'POST',
+      body: JSON.stringify({ type }),
+    }),
+
+  /** Persist the active account selection cross-device. */
+  setAccountPrimary: (accountId: string) =>
+    request<{ account: any }>('/api/account/set-primary', {
+      method: 'PATCH',
+      body: JSON.stringify({ accountId }),
+    }),
+
   // Notification preferences (Phase 6.5)
   getNotificationPrefs: async (): Promise<NotificationPrefs> => {
     const { profile } = await request<{ profile: any }>('/api/account/profile');
@@ -455,8 +474,9 @@ export async function removeFromWatchlist(symbol: string): Promise<void> {
   });
 }
 
-/** T.9 — Toggle hedging mode on an account. When disabled (default), opposing
- *  positions on the same symbol are netted out instead of coexisting. */
+/** T.9 — Toggle hedging mode on an account. When disabled (default), opposing *  positions on the same symbol are netted out (a buy on top of a sell reduces the position).
+ *  When enabled, both legs coexist — MT4 hedging mode.
+ */
 export async function setHedgingEnabled(accountId: string, enabled: boolean): Promise<void> {
   await request<{ account: unknown }>('/api/account/hedging', {
     method: 'PATCH',
@@ -464,10 +484,9 @@ export async function setHedgingEnabled(accountId: string, enabled: boolean): Pr
   });
 }
 
-
-// -- Trade journal (T.14) -----------------------------------------------------
-
-/** Save a free-text note on any trade (open, closed, or pending). Max 4000 chars. */
+/** T.14 — Save or update the note attached to a trade (any status).
+ *  Max 4000 chars. Verifies trade ownership server-side.
+ */
 export async function saveTradeNote(tradeId: number, notes: string): Promise<void> {
   await request<{ tradeId: number; notes: string }>(`/api/orders/note/${tradeId}`, {
     method: 'PATCH',

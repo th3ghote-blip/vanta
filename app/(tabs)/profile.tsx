@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, Switch } from 'react-native';
 import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
-import { Shield, Bell, MessageSquare, Phone, HelpCircle, LogOut, ChevronRight, BadgeCheck, ShieldCheck, Trophy, Sun, Moon, Monitor, FileText, type LucideIcon } from 'lucide-react-native';
+import { Shield, Bell, MessageSquare, Phone, HelpCircle, LogOut, ChevronRight, BadgeCheck, ShieldCheck, Trophy, Sun, Moon, Monitor, FileText, PlusCircle, type LucideIcon } from 'lucide-react-native';
 
 import { colors, radius, spacing, typography } from '@/lib/theme';
 import { useAuthStore } from '@/stores/auth';
@@ -24,12 +24,16 @@ const THEME_OPTIONS: { value: ThemePreference; label: string; Icon: LucideIcon }
 export default function Profile() {
   const { user, signOut } = useAuthStore();
   const account = useAccountStore((s) => s.account);
+  const allAccounts = useAccountStore((s) => s.allAccounts);
   const fetchAccount = useAccountStore((s) => s.fetch);
+  const addAndSwitch = useAccountStore((s) => s.addAndSwitch);
   const themePreference = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
   const [isAdmin, setIsAdmin] = useState(false);
   const [copied, setCopied] = useState(false);
   const [hedgingBusy, setHedgingBusy] = useState(false);
+  const [openingAccount, setOpeningAccount] = useState(false);
+  const [openAccountError, setOpenAccountError] = useState<string | null>(null);
   const [has2FA, setHas2FA] = useState(false);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [achievementMeta, setAchievementMeta] = useState<Record<string, AchievementMeta>>({});
@@ -141,6 +145,116 @@ export default function Profile() {
                 trackColor={{ false: colors.border, true: colors.primary }}
               />
             </View>
+          )}
+        </View>
+
+
+        {/* T.10 — Accounts card */}
+        <View
+          style={{
+            backgroundColor: colors.bgElevated,
+            borderRadius: radius.lg,
+            padding: spacing.md,
+            borderWidth: 1,
+            borderColor: colors.border,
+          }}
+        >
+          <Text style={{ ...typography.bodyBold, color: colors.textPrimary, fontSize: 14, marginBottom: spacing.sm }}>
+            Accounts
+          </Text>
+
+          {allAccounts.map((a, idx) => {
+            const isActive = a.id === account?.id;
+            const isLive = a.type === 'live';
+            return (
+              <View
+                key={a.id}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingVertical: 8,
+                  borderTopWidth: idx === 0 ? 0 : 1,
+                  borderTopColor: colors.border,
+                  gap: spacing.sm,
+                }}
+              >
+                <View
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 4,
+                    backgroundColor: isActive ? colors.profit : colors.border,
+                  }}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ ...typography.mono, fontSize: 13, color: isActive ? colors.textPrimary : colors.textSecondary }}>
+                    #{a.login ?? a.id.slice(0, 8)}
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    paddingHorizontal: 5,
+                    paddingVertical: 2,
+                    borderRadius: 3,
+                    backgroundColor: isLive ? colors.profit + '22' : colors.primary + '22',
+                    borderWidth: 1,
+                    borderColor: isLive ? colors.profit + '55' : colors.primary + '55',
+                  }}
+                >
+                  <Text style={{ ...typography.mono, fontSize: 9, color: isLive ? colors.profit : colors.primary }}>
+                    {isLive ? 'LIVE' : 'DEMO'}
+                  </Text>
+                </View>
+                <Text style={{ ...typography.mono, fontSize: 12, color: colors.textSecondary }}>
+                  ${Number(a.balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </Text>
+                {isActive && (
+                  <Text style={{ ...typography.body, fontSize: 10, color: colors.profit }}>Active</Text>
+                )}
+              </View>
+            );
+          })}
+
+          {allAccounts.length < 5 && (
+            <Pressable
+              onPress={async () => {
+                if (openingAccount) return;
+                setOpeningAccount(true);
+                setOpenAccountError(null);
+                try {
+                  const { account: newAcct } = await api.openAdditionalAccount('demo');
+                  addAndSwitch(newAcct);
+                } catch (err: any) {
+                  setOpenAccountError(err?.message ?? 'Could not open account');
+                } finally {
+                  setOpeningAccount(false);
+                }
+              }}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginTop: spacing.sm,
+                paddingVertical: 10,
+                borderRadius: radius.md,
+                borderWidth: 1,
+                borderColor: colors.primary + '55',
+                borderStyle: 'dashed',
+                gap: 6,
+                opacity: openingAccount ? 0.5 : 1,
+              }}
+            >
+              <PlusCircle size={15} color={colors.primary} />
+              <Text style={{ ...typography.body, fontSize: 13, color: colors.primary }}>
+                {openingAccount ? 'Opening account...' : 'Open additional demo account'}
+              </Text>
+            </Pressable>
+          )}
+
+          {openAccountError && (
+            <Text style={{ ...typography.body, fontSize: 11, color: colors.loss, marginTop: 6 }}>
+              {openAccountError}
+            </Text>
           )}
         </View>
 

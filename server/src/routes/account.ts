@@ -167,4 +167,124 @@ export async function accountRoutes(app: FastifyInstance) {
 
     return reply.send({ account: updated });
   });
+
+  /**
+   * GET /api/account/all
+   * Returns all accounts belonging to the caller, sorted oldest-first.
+   * T.10 — used by the account switcher in AccountHeader.
+   */
+  app.get('/all', async (req, reply) => {
+    const userId = await authUser(req.headers.authorization);
+    if (!userId) return reply.code(401).send({ error: 'unauthorized' });
+
+    const { data, error } = await supabaseAdmin
+      .from('accounts')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      app.log.error({ error }, 'account/all: query failed');
+      return reply.code(500).send({ error: error.message });
+    }
+    return reply.send({ accounts: data ?? [] });
+  });
+
+  /**
+   * POST /api/account/open
+   * Open an additional trading account for the caller (demo or live).
+   * Capped at 5 accounts per user.
+   * Body: { type?: 'demo' | 'live' }  — defaults to 'demo'.
+   * T.10
+   */
+  app.post('/open', async (req, reply) => {
+    const userId = await authUser(req.headers.authorization);
+    if (!userId) return reply.code(401).send({ error: 'unauthorized' });
+
+    const body = req.body as { type?: unknown };
+    const type: 'demo' | 'live' = body?.type === 'live' ? 'live' : 'demo';
+
+    // Cap at 5 accounts.
+    const { count, error: countErr } = await supabaseAdmin
+      .from('accounts')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId);
+
+    if (countErr) {
+      app.log.error({ countErr }, 'account/open: count failed');
+      return reply.code(500).send({ error: countErr.message });
+    }
+    if ((count ?? 0) >= 5) {
+      return reply.code(400).send({ error: 'account_limit', message: 'Maximum 5 accounts per user' });
+    }
+
+    const { data: newAccount, error } = await supabaseAdmin
+      .from('accounts')
+      .insert({
+        user_id: userId,
+        type,
+        status: 'active',
+        balance: 10_000,
+        equity: 10_000,
+        free_margin: 10_000,
+        currency: 'USD',
+        is_primary: false,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      app.log.error({ error }, 'account/open: insert failed');
+      return reply.code(500).send({ error: error.message });
+    }
+
+    return reply.code(201).send({ account: newAccount });
+  });
+
+  /**
+   * PATCH /api/account/set-primary
+   * Marks one account as the user's primary/active account (for cross-device sync).
+   * Clears is_primary on all other accounts belonging to the user.
+   * Body: { accountId: string }
+   * T.10
+   */
+  app.patch('/set-primary', async (req, reply) => {
+    const userId = await authUser(req.headers.authorization);
+    if (!userId) return reply.code(401).send({ error: 'unauthorized' });
+
+    const body = req.body as { accountId?: unknown };
+    if (typeof body?.accountId !== 'string') {
+      return reply.code(400).send({ error: 'invalid_body', message: 'accountId (string) required' });
+    }
+
+    // Verify ownership.
+    const { data: account } = await supabaseAdmin
+      .from('accounts')
+      .select('id, user_id')
+      .eq('id', body.accountId)
+      .eq('user_id', userId)
+      .single();
+
+    if (!account) return reply.code(403).send({ error: 'forbidden' });
+
+    // Clear all primary flags for this user, then promote the target.
+    await supabaseAdmin
+      .from('accounts')
+      .update({ is_primary: false })
+      .eq('user_id', userId);
+
+    const { data: updated, error } = await supabaseAdmin
+      .from('accounts')
+      .update({ is_primary: true })
+      .eq('id', body.accountId)
+      .select()
+      .single();
+
+    if (error) {
+      app.log.error({ error }, 'account/set-primary: update failed');
+      return reply.code(500).send({ error: error.message });
+    }
+
+    return reply.send({ account: updated });
+  });
 }
