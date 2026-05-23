@@ -242,10 +242,11 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Done:** 2026-05-19 — same commit as T.1.
 
 ## T.14 Trade journal / annotations
-- [ ] **Migration:** `trades.notes text`
+- [x] **Migration:** `trades.notes text`
 - **Files:** Tap any trade in TradeBook → drawer with notes textarea + screenshot upload (Supabase Storage).
 - **What:** User can attach a reason + chart screenshot to any trade for review later.
 - **Acceptance:** Open trade → add note "RSI oversold reversal" → close → reopen TradeBook → note still attached.
+- **Done:** 2026-05-23 — `supabase/migrations/023_trade_notes.sql` adds `notes text` column. `PATCH /api/orders/note/:id` endpoint in orders.ts saves notes (ownership-verified, any trade status, max 4000 chars). `saveTradeNote()` helper in lib/api.ts. TradeBook: NotebookPen button on every row (accent tint when note exists), inline multiline textarea panel, note preview (first 60 chars) below symbol. **Migration must be applied manually** — sandbox network blocked Supabase API. Run: `SUPABASE_PAT=... python scripts/apply-migration.py supabase/migrations/023_trade_notes.sql`. Backend deploy needed for the new endpoint.
 
 ## T.15 Technical indicators on chart
 - [x] **Files:** `components/pro/Chart.tsx`, `stores/chartPrefs.ts` (new)

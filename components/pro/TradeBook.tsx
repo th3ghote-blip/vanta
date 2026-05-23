@@ -1,13 +1,13 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { View, Text, Pressable, ScrollView, ActivityIndicator, TextInput } from 'react-native';
-import { X, ArrowUpRight, ArrowDownRight, Pencil, Check, Scissors } from 'lucide-react-native';
+import { X, ArrowUpRight, ArrowDownRight, Pencil, Check, Scissors, NotebookPen } from 'lucide-react-native';
 
 import { colors, radius, spacing, typography } from '@/lib/theme';
 import { TradeBookSkeleton } from '@/components/shared/SkeletonShimmer';
 import { supabase } from '@/lib/supabase';
 import { useAccountStore } from '@/stores/account';
 import { usePriceStore } from '@/stores/prices';
-import { api } from '@/lib/api';
+import { api, saveTradeNote } from '@/lib/api';
 import { calculatePnL, notionalUSD } from '@/lib/contracts';
 
 interface Trade {
@@ -31,6 +31,8 @@ interface Trade {
   trigger_price?: number | null;
   // T.8 — OCO (one-cancels-other) group id; shown as a badge on pending rows.
   oco_group_id?: string | null;
+  // T.14 — trade journal note
+  notes?: string | null;
 }
 
 type Tab = 'open' | 'pending' | 'closed' | 'all';
@@ -56,6 +58,11 @@ export function TradeBook({ onWinClose }: { onWinClose?: (profit: number) => voi
   const [partialVolumeStr, setPartialVolumeStr] = useState('');
   const [partialClosing, setPartialClosing] = useState(false);
   const [partialError, setPartialError] = useState<string | null>(null);
+
+  // T.14 — trade journal note state
+  const [noteId, setNoteId] = useState<number | null>(null);
+  const [noteText, setNoteText] = useState('');
+  const [noteSaving, setNoteSaving] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!account) {
@@ -204,6 +211,32 @@ export function TradeBook({ onWinClose }: { onWinClose?: (profit: number) => voi
     }
   };
 
+  // T.14 — open/close note panel
+  const startNote = (trade: Trade) => {
+    setNoteId(trade.id);
+    setNoteText(trade.notes ?? '');
+  };
+
+  const cancelNote = () => {
+    setNoteId(null);
+    setNoteText('');
+  };
+
+  const saveNote = async (tradeId: number) => {
+    setNoteSaving(true);
+    try {
+      await saveTradeNote(tradeId, noteText);
+      setTrades((prev) =>
+        prev.map((t) => (t.id === tradeId ? { ...t, notes: noteText } : t)),
+      );
+      cancelNote();
+    } catch {
+      // non-fatal
+    } finally {
+      setNoteSaving(false);
+    }
+  };
+
   const stats = useMemo(() => {
     const wins = trades.filter((t) => t.status === 'closed' && t.profit > 0).length;
     const closed = trades.filter((t) => t.status === 'closed').length;
@@ -333,6 +366,13 @@ export function TradeBook({ onWinClose }: { onWinClose?: (profit: number) => voi
                 onCancelPartialClose={cancelPartialClose}
                 partialClosingInFlight={partialClosing && partialCloseId === t.id}
                 partialError={partialCloseId === t.id ? partialError : null}
+                onNote={() => startNote(t)}
+                isNoting={noteId === t.id}
+                noteText={noteId === t.id ? noteText : ''}
+                onNoteTextChange={setNoteText}
+                onSaveNote={() => saveNote(t.id)}
+                onCancelNote={cancelNote}
+                noteSaving={noteSaving && noteId === t.id}
               />
             ))}
           </ScrollView>
@@ -366,6 +406,13 @@ function TradeRow({
   onCancelPartialClose,
   partialClosingInFlight,
   partialError,
+  onNote,
+  isNoting,
+  noteText,
+  onNoteTextChange,
+  onSaveNote,
+  onCancelNote,
+  noteSaving,
 }: {
   trade: Trade;
   quote?: { bid: number; ask: number };
@@ -390,6 +437,13 @@ function TradeRow({
   onCancelPartialClose: () => void;
   partialClosingInFlight: boolean;
   partialError: string | null;
+  onNote: () => void;
+  isNoting: boolean;
+  noteText: string;
+  onNoteTextChange: (v: string) => void;
+  onSaveNote: () => void;
+  onCancelNote: () => void;
+  noteSaving: boolean;
 }) {
   const isOpen = trade.status === 'open';
   const isPending = trade.status === 'pending';
@@ -465,6 +519,15 @@ function TradeRow({
                 </Text>
               );
             })()}
+            {/* T.14 — note preview */}
+            {trade.notes && !isNoting && (
+              <Text
+                numberOfLines={1}
+                style={{ ...typography.body, color: colors.primary, fontSize: 10, maxWidth: 160 }}
+              >
+                Note: {trade.notes.slice(0, 60)}{trade.notes.length > 60 ? '...' : ''}
+              </Text>
+            )}
             {/* T.5 — show current SL/TP when set and not in edit mode */}
             {isOpen && !isEditing && (trade.stop_loss != null || trade.take_profit != null) && (
               <Text style={{ ...typography.mono, color: colors.textMuted, fontSize: 10 }}>
@@ -517,8 +580,43 @@ function TradeRow({
           )}
         </View>
 
-        {/* Action buttons: edit (open only) + scissors (partial close) + close/cancel */}
-        <View style={{ width: onPartialClose ? 96 : 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+        {/* Action buttons: note + edit (open only) + scissors (partial close) + close/cancel */}
+        <View style={{ width: onPartialClose ? 124 : 96, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+          {/* T.14 — note button */}
+          {!isEditing && !isPartialClosing && !isNoting && (
+            <Pressable
+              onPress={onNote}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: radius.sm,
+                backgroundColor: trade.notes ? colors.primary + '22' : colors.bgSurface,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderWidth: 1,
+                borderColor: trade.notes ? colors.primary + '66' : colors.border,
+              }}
+            >
+              <NotebookPen color={trade.notes ? colors.primary : colors.textSecondary} size={13} />
+            </Pressable>
+          )}
+          {isNoting && (
+            <Pressable
+              onPress={onCancelNote}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: radius.sm,
+                backgroundColor: colors.bgSurface,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <X color={colors.textSecondary} size={13} />
+            </Pressable>
+          )}
           {onEdit && !isEditing && !isPartialClosing && (
             <Pressable
               onPress={onEdit}
@@ -773,6 +871,68 @@ function TradeRow({
                 <Check color="#fff" size={14} />
                 <Text style={{ ...typography.bodyBold, color: '#fff', fontSize: 13 }}>
                   Save SL / TP
+                </Text>
+              </>
+            )}
+          </Pressable>
+        </View>
+      )}
+
+      {/* T.14 — inline note panel */}
+      {isNoting && (
+        <View
+          style={{
+            paddingHorizontal: spacing.md,
+            paddingBottom: spacing.md,
+            gap: spacing.sm,
+            backgroundColor: colors.bgSurface,
+            borderTopWidth: 1,
+            borderTopColor: colors.border,
+          }}
+        >
+          <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 11, marginTop: spacing.sm }}>
+            TRADE NOTE
+          </Text>
+          <TextInput
+            value={noteText}
+            onChangeText={onNoteTextChange}
+            placeholder="e.g. RSI oversold reversal, strong support level..."
+            placeholderTextColor={colors.textMuted}
+            multiline
+            numberOfLines={3}
+            style={{
+              backgroundColor: colors.bgElevated,
+              borderWidth: 1,
+              borderColor: colors.border,
+              borderRadius: radius.sm,
+              paddingHorizontal: spacing.sm,
+              paddingVertical: 8,
+              color: colors.textPrimary,
+              fontSize: 13,
+              minHeight: 72,
+              textAlignVertical: 'top',
+            }}
+          />
+          <Pressable
+            onPress={onSaveNote}
+            disabled={noteSaving}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: spacing.sm,
+              paddingVertical: 8,
+              borderRadius: radius.sm,
+              backgroundColor: colors.primary,
+            }}
+          >
+            {noteSaving ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Check color="#fff" size={14} />
+                <Text style={{ ...typography.bodyBold, color: '#fff', fontSize: 13 }}>
+                  Save Note
                 </Text>
               </>
             )}

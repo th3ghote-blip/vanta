@@ -724,5 +724,47 @@ export async function ordersRoutes(app: FastifyInstance) {
     };
   });
 
-}
+  // PATCH /api/orders/note/:id  { notes: string }
+  // Saves a free-text journal note on any trade the user owns, regardless of status.
+  const NoteParamsSchema = z.object({
+    id: z.coerce.number().int().positive(),
+  });
 
+  const NoteBodySchema = z.object({
+    notes: z.string().max(4000),
+  });
+
+  app.patch('/note/:id', async (req, reply) => {
+    const userId = await authUser(req.headers.authorization);
+    if (!userId) return reply.code(401).send({ error: 'unauthorized' });
+
+    const parsedParams = NoteParamsSchema.safeParse(req.params);
+    if (!parsedParams.success) return reply.code(400).send({ error: 'invalid_input' });
+    const { id } = parsedParams.data;
+
+    const parsedBody = NoteBodySchema.safeParse(req.body);
+    if (!parsedBody.success) return reply.code(400).send({ error: 'invalid_input', issues: parsedBody.error.issues });
+    const { notes } = parsedBody.data;
+
+    // Verify ownership via accounts join — works for any trade status.
+    const { data: trade, error } = await supabaseAdmin
+      .from('trades')
+      .select('id, accounts!inner(user_id)')
+      .eq('id', id)
+      .single();
+
+    if (error || !trade || (trade as any).accounts.user_id !== userId) {
+      return reply.code(403).send({ error: 'forbidden' });
+    }
+
+    const { error: updErr } = await supabaseAdmin
+      .from('trades')
+      .update({ notes })
+      .eq('id', id);
+
+    if (updErr) return reply.code(500).send({ error: 'update_failed' });
+
+    return { tradeId: id, notes };
+  });
+
+}

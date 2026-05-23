@@ -463,3 +463,14 @@ export async function setHedgingEnabled(accountId: string, enabled: boolean): Pr
     body: JSON.stringify({ accountId, enabled }),
   });
 }
+
+
+// -- Trade journal (T.14) -----------------------------------------------------
+
+/** Save a free-text note on any trade (open, closed, or pending). Max 4000 chars. */
+export async function saveTradeNote(tradeId: number, notes: string): Promise<void> {
+  await request<{ tradeId: number; notes: string }>(`/api/orders/note/${tradeId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ notes }),
+  });
+}
