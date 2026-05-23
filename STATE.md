@@ -10,44 +10,39 @@ git config user.name "th3ghote-blip"
 
 ---
 
-## 2026-05-23T02:20Z -- T.10 Multiple accounts per user
+## 2026-05-23T12:57Z -- T.17 Bigger symbol catalog
 
-**TODO item picked:** **T.10 Multiple accounts per user**
-**Commit:** `f54326f`
+**TODO item picked:** **T.17 Bigger symbol catalog — real-time crypto on Coinbase**
 
 **Pre-run state**
-- Working tree clean (fresh index confirmed). Stale HEAD.lock / index.lock / main.lock as usual.
-- Previous run (T.14) left migration 023 unapplied and backend/frontend undeployed.
+- Working tree clean (fresh index confirmed). HEAD = `618268c`.
+- Migrations 023 + 024 still unapplied — sandbox network blocked (403). Backend/frontend still undeployed (no Railway/Vercel CLI).
 - Client tsc: exit 0. Server tsc: exit 0. Tests: 71 passed before starting.
 
 **What changed**
-- `supabase/migrations/024_account_is_primary.sql` (new): `ALTER TABLE accounts ADD COLUMN IF NOT EXISTS is_primary boolean NOT NULL DEFAULT false;` + backfill UPDATE setting oldest account per user as primary.
-- `server/src/routes/account.ts`: Three new endpoints:
-  - `GET /api/account/all` — returns all accounts for caller sorted oldest-first.
-  - `POST /api/account/open` — creates a new demo or live account (capped at 5 per user). Starts with $10k balance.
-  - `PATCH /api/account/set-primary` — clears is_primary on all user's accounts then sets it on the given accountId.
-- `lib/api.ts`: `listAccounts()`, `openAdditionalAccount(type)`, `setAccountPrimary(accountId)` added to the api object. Also restored `saveTradeNote()` (standalone export) which was lost in a prior truncation incident.
-- `stores/account.ts`: Interface gains `is_primary: boolean`. State gains `allAccounts: Account[]`, `switchAccount(id)` (optimistic + server persist, reverts on error), `addAndSwitch(newAccount)`. `fetch()` now queries without `.limit(1)` to get all accounts; picks `is_primary=true` or falls back to oldest.
-- `components/shared/AccountHeader.tsx`: Added `TypeBadge` (DEMO/LIVE pill). Account login number is now a `Pressable` that opens `AccountSwitcherModal` (fade Modal with account list, CheckCircle on active, switching... feedback) when `allAccounts.length > 1`. Single-account users see no change except the type badge.
-- `app/(tabs)/profile.tsx`: Accounts card added (between Trading Mode and Display cards). Lists all accounts with active indicator dot, type badge, balance. Dashed "Open additional demo account" button (hidden when at 5-account cap). Error text shown on failure.
+- `server/src/feed/pricefeed.ts`: Added 33 new crypto symbols to `CRYPTO_SYMBOLS` (47 → 80 total). New symbols subscribe to Coinbase Advanced Trade WS on startup via the existing `startCoinbase()` path. Added seed fallback prices for all 33. No Twelve Data or migration changes — pure Coinbase/frontend addition.
+  New symbols: ALGOUSD, XLMUSD, HBARUSD, FLOWUSD, EOSUSD, XTZUSD, BATUSD, ZECUSD, ZRXUSD, LRCUSD, ANKRUSD, IOTXUSD, SKLUSD, GRTUSD, IMXUSD, FETUSD, TAOUSD, ONDOUSD, KASUSD, RPLUSD, ENSUSD, DYDXUSD, CVXUSD, BLURUSD, KAVAUSD, ARUSD, NMRUSD, JASMYUSD, SUPERUSD, QNTUSD, CTSIUSD, ASTRUSD, CHZUSD.
+- `lib/symbolMeta.ts`: Added display name + category metadata for all 33 new symbols. Picker will show full names (e.g. "Bittensor (TAOUSD)").
+
+**T.16 skip reason**
+- T.16 (Drawing tools) requires a `chart_drawings` migration (sandbox blocked) plus substantial Lightweight Charts drawings API work (>60 min). Added a skip comment in TODO.md; try again when R.1 auto-deploy lands or migration can be applied manually.
 
 **Verification**
 - Client tsc: exit 0 ✅
 - Server tsc: exit 0 ✅
 - npm test: 71 passed ✅
-- Note: file truncation occurred during writes — fixed via Python. Both `saveTradeNote` (T.14) restored, AccountHeader and profile.tsx rebuilt from HEAD + patches.
+- Note: if any of the 33 new symbols are not on Coinbase, the subscription silently produces no ticks and the seed fallback price is used — graceful degradation.
 
-**Pending deploys (all 3 blocked by sandbox proxy/missing CLI)**
-1. Apply migration 023 (trade notes): `SUPABASE_PAT=$(grep SUPABASE_PAT server/.env | cut -d= -f2-) python scripts/apply-migration.py supabase/migrations/023_trade_notes.sql`
+**Pending deploys (blocked since T.14)**
+1. Apply migration 023 (trade notes): `SUPABASE_PAT=... python scripts/apply-migration.py supabase/migrations/023_trade_notes.sql`
 2. Apply migration 024 (is_primary): `SUPABASE_PAT=... python scripts/apply-migration.py supabase/migrations/024_account_is_primary.sql`
 3. Backend deploy: `cd server && railway up --detach`
 4. Frontend deploy: `cd /c/Claude/vanta && vercel --prod --yes`
 
 **Next agent**
-- Apply migrations 023 + 024 (see commands above).
-- Deploy backend + frontend.
-- Next code pick: **T.16 Drawing tools on chart** (trendlines/fib via Lightweight Charts drawings API + `chart_drawings` table) or **T.17 Bigger symbol catalog** (pure pricefeed.ts change, no migration, safest pick if deploys not yet done).
-- File truncation pattern: always use Python for files >200 lines. The Write and Edit tools truncate silently.
+- Apply migrations 023 + 024, deploy backend + frontend (commands above).
+- Next code pick: **T.18 Copy trading** (new migration + server logic + UI) or **T.20 Quick Mode durations/categories** (pure frontend, no migration, safe pick). T.16 is still blocked on migration/complexity.
+- File truncation pattern: always use Python for files >200 lines.
 
 ---
 

@@ -12,6 +12,7 @@ const TD_KEY = process.env.TWELVE_DATA_API_KEY ?? '';
 // Coinbase Advanced Trade WS is unblocked, simple ticker channel.
 // =================================================================
 const CRYPTO_SYMBOLS = [
+  // ── Tier 1: large-caps ──────────────────────────────────────────────
   'BTCUSD', 'ETHUSD', 'SOLUSD', 'XRPUSD', 'DOGEUSD', 'ADAUSD', 'AVAXUSD',
   'LINKUSD', 'DOTUSD', 'MATICUSD', 'SHIBUSD', 'LTCUSD', 'UNIUSD', 'ATOMUSD',
   'NEARUSD', 'APTUSD', 'ARBUSD', 'OPUSD', 'FILUSD', 'ICPUSD', 'INJUSD',
@@ -19,6 +20,13 @@ const CRYPTO_SYMBOLS = [
   'PEPEUSD', 'WIFUSD', 'BONKUSD', 'JUPUSD', 'PYTHUSD', 'WLDUSD', 'AAVEUSD',
   'MKRUSD', 'SNXUSD', 'CRVUSD', 'COMPUSD', 'LDOUSD', 'PENDLEUSD', 'ENAUSD',
   'SANDUSD', 'AXSUSD', 'MANAUSD', 'APEUSD', 'GALAUSD',
+  // ── Tier 2: mid-caps added by T.17 ──────────────────────────────────
+  'ALGOUSD', 'XLMUSD', 'HBARUSD', 'FLOWUSD', 'EOSUSD', 'XTZUSD',
+  'BATUSD', 'ZECUSD', 'ZRXUSD', 'LRCUSD', 'ANKRUSD', 'IOTXUSD', 'SKLUSD',
+  'GRTUSD', 'IMXUSD', 'FETUSD', 'TAOUSD', 'ONDOUSD', 'KASUSD',
+  'RPLUSD', 'ENSUSD', 'DYDXUSD', 'CVXUSD', 'BLURUSD',
+  'KAVAUSD', 'ARUSD', 'NMRUSD', 'JASMYUSD', 'SUPERUSD',
+  'QNTUSD', 'CTSIUSD', 'ASTRUSD', 'CHZUSD',
 ];
 
 /** Vanta crypto symbol → Coinbase product_id */
@@ -61,6 +69,13 @@ const SEED_FALLBACK: Record<string, number> = {
   JUPUSD: 0.85, PYTHUSD: 0.4, WLDUSD: 4.8, AAVEUSD: 105, MKRUSD: 2700,
   SNXUSD: 2.1, CRVUSD: 0.3, COMPUSD: 50, LDOUSD: 1.7, PENDLEUSD: 4.5,
   ENAUSD: 0.8, SANDUSD: 0.35, AXSUSD: 6, MANAUSD: 0.4, APEUSD: 0.95, GALAUSD: 0.025,
+  // T.17 additions
+  ALGOUSD: 0.22, XLMUSD: 0.13, HBARUSD: 0.11, FLOWUSD: 0.85, EOSUSD: 0.85, XTZUSD: 0.95,
+  BATUSD: 0.24, ZECUSD: 32, ZRXUSD: 0.55, LRCUSD: 0.32, ANKRUSD: 0.055, IOTXUSD: 0.055, SKLUSD: 0.085,
+  GRTUSD: 0.25, IMXUSD: 2.0, FETUSD: 2.3, TAOUSD: 450, ONDOUSD: 1.0, KASUSD: 0.12,
+  RPLUSD: 28, ENSUSD: 28, DYDXUSD: 2.2, CVXUSD: 3.5, BLURUSD: 0.45,
+  KAVAUSD: 0.65, ARUSD: 32, NMRUSD: 22, JASMYUSD: 0.006, SUPERUSD: 0.28,
+  QNTUSD: 100, CTSIUSD: 0.18, ASTRUSD: 0.08, CHZUSD: 0.11,
 };
 
 const ALL_SYMBOLS = [...NON_CRYPTO_SYMBOLS, ...CRYPTO_SYMBOLS];
