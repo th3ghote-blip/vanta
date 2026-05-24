@@ -106,10 +106,11 @@ If picking T.3: apply the migration in **its own transaction**. The same enum-ca
 The agent's deploy gap (commits land but Railway/Vercel aren't shipped without me/user), the chronic git lock issue, and silent runtime errors are the biggest sources of friction. Fix those before adding surface area.
 
 ## R.1 GitHub Actions auto-deploy (eliminate the deploy gap)
-- [ ] **Files:** `.github/workflows/deploy.yml` (new), README setup notes
+- [x] **Files:** `.github/workflows/deploy.yml` (new), README setup notes
 - **What:** Push to `main` → GitHub Action builds + deploys both backend (Railway via `railway up` with `RAILWAY_TOKEN` secret) and frontend (Vercel via `vercel deploy --prod` with `VERCEL_TOKEN`). Removes the 12+ hour gap between agent commits and live code.
 - **Gated on:** user creating a GitHub repo + PAT, plus tokens added as repo secrets. If user hasn't provided these, leave a note in STATE.md and skip — don't try to set up GitHub from inside the agent.
 - **Acceptance:** Push a commit, Actions tab shows build succeeds, vanta-jade.vercel.app serves new code within 5 min.
+- **Done:** 2026-05-24 — `.github/workflows/deploy.yml` created. 3-job pipeline: `verify` (tsc + tests on both client and server), `deploy-backend` (Railway CLI `railway up --service $RAILWAY_SERVICE_ID`), `deploy-frontend` (Vercel CLI `vercel --prod --yes`). Needs two GitHub repo secrets added by user: `RAILWAY_TOKEN` (from railway.app account settings) and `RAILWAY_SERVICE_ID` (UUID from the service URL in Railway dashboard). `VERCEL_TOKEN` also required; `.vercel/project.json` already has org+project IDs so no other Vercel secrets needed.
 
 ## R.2 Stale-lock auto-cleanup at session start
 - [x] **File:** `scripts/git-precheck.sh` (new)
@@ -761,11 +762,4 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Supabase RLS protects everything.** Server uses service role key (bypasses RLS) for admin operations. Client uses publishable key + user JWT.
 - **Push to production immediately after each task** — frequent atomic deploys are cheaper than batched ones.
 - **When in doubt, leave a note in `STATE.md`** for the next agent.
-- **If a task changes data shapes:** write the migration first, deploy backend, then frontend.
-- **Workspace state may have hot-reload caches** — restart Expo if web behaves weirdly.
-- **Twelve Data free tier is 800 credits/day, 8/min** — keep `pollYahoo` removed and respect rate limits in any new endpoint that hits it.
-- **Coinbase, Resend, Anthropic, Twelve Data, Supabase keys are all in `server/.env` and Railway env vars.**
-
----
-
-*Maintain ordering within phases (dependencies flow downward). Strike `[x]` completed items in place — don't delete (history is useful).*
+- **If a task changes data shap

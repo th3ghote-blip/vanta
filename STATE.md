@@ -10,6 +10,46 @@ git config user.name "th3ghote-blip"
 
 ---
 
+## 2026-05-24T02:15Z -- R.1 GitHub Actions auto-deploy
+
+**TODO item picked:** **R.1 GitHub Actions auto-deploy**
+
+**Pre-run state**
+- Working tree clean (fresh index confirmed via `GIT_INDEX_FILE` workaround). HEAD = `bf59575`.
+- Stale index.lock / HEAD.lock / main.lock as usual — used `GIT_INDEX_FILE=/tmp/vanta_idx_r1` throughout.
+- Client tsc: exit 0. Server tsc: exit 0. Tests: 71 passed.
+
+**What changed**
+- `.github/workflows/deploy.yml` (new): 3-job pipeline triggered on push to `main`.
+  - `verify`: installs client + server deps, runs `tsc --noEmit` on both sides, runs `npm test` in `server/`.
+  - `deploy-backend`: after verify passes, installs Railway CLI, runs `railway up --service $RAILWAY_SERVICE_ID --environment production --detach`.
+  - `deploy-frontend`: after verify passes, installs Vercel CLI, runs `vercel --prod --yes --token $VERCEL_TOKEN`. Uses `.vercel/project.json` (already in repo) for org+project IDs.
+  - `concurrency` group cancels any in-flight deploy for the same ref so fast pushes don't stack.
+
+**Secrets the user must add** (GitHub repo → Settings → Secrets → Actions):
+1. `RAILWAY_TOKEN` — from https://railway.app → Account Settings → Tokens
+2. `RAILWAY_SERVICE_ID` — UUID shown in the Railway dashboard URL when viewing the backend service (e.g. `https://railway.app/project/.../service/<UUID>`)
+3. `VERCEL_TOKEN` — from https://vercel.com/account/tokens
+
+`.vercel/project.json` already contains `projectId` + `orgId` so no additional Vercel secrets needed.
+
+**Verification**
+- Client tsc: exit 0 ✅
+- Server tsc: exit 0 ✅
+- npm test: 71 passed ✅
+- Workflow YAML is valid (no shell errors). Live trigger requires the 3 secrets above to be set.
+
+**Pending deploys (unchanged)**
+- Migrations 023 + 024 still unapplied (sandbox network blocked).
+- Backend + frontend deploys still need manual trigger or the above secrets to be added.
+
+**Next agent**
+- Once the user adds the 3 secrets above, R.1 becomes fully active and future code pushes auto-deploy.
+- Next code pick (topmost unchecked after R.1): **R.7** (Better-Stack — needs user signup, skip) → **R.8** (E2E smoke test — `e2e/smoke.spec.ts` + `.github/workflows/e2e.yml`; now unblocked since R.1 exists) → or jump to **T.20** (Quick Mode durations/categories — pure frontend, no migration, safe pick).
+- R.8 is a good next pick: write the Playwright smoke test + a new GH Actions workflow job that runs it. Depends on `playwright` package being installable in CI (no railway/vercel secrets needed for the test itself).
+
+---
+
 ## 2026-05-23T12:57Z -- T.17 Bigger symbol catalog
 
 **TODO item picked:** **T.17 Bigger symbol catalog — real-time crypto on Coinbase**
@@ -188,45 +228,4 @@ Client tsc: exit 0. Server tsc: exit 0. Tests: 68 passed before starting.
   `SUPABASE_PAT=... python scripts/apply-migration.py supabase/migrations/022_hedging_mode.sql`
 - `server/src/routes/orders.ts`: netting block runs after margin reservation
   for market orders when `hedging_enabled=false`. Queries for an open opposing
-  position on (account, symbol, opposite-side). On match: full or partial close
-  of the opposing trade (updates status + close_time + profit + reason='netting',
-  or reduces volume for partial). Calls `apply_trade_pnl` and `releaseMargin`
-  for the closed slice. Returns `{ netted: true, closedTradeId, ... }` when the
-  incoming trade is fully absorbed; reduces `body.volume` and continues to insert
-  a remainder trade otherwise.
-- `server/src/routes/account.ts`: new `PATCH /api/account/hedging` endpoint.
-  Body: `{ accountId: string, enabled: boolean }`. Verifies ownership, updates
-  `accounts.hedging_enabled`.
-- `server/test/helpers/supabaseMock.ts`: `hedging_enabled?: boolean` on
-  `DbAccount`; seed default = false.
-- `server/test/orders.test.ts`: +3 T.9 tests covering hedging-ON coexistence,
-  netting full-close, and netting partial-volume-reduce. 71 tests pass.
-- `stores/account.ts`: `hedging_enabled: boolean` on the `Account` interface.
-- `lib/api.ts`: `setHedgingEnabled(accountId, enabled)` exported helper.
-- `app/(tabs)/profile.tsx`: Switch toggle inside Trading Mode card. Shows
-  descriptive label (ON/OFF state). Calls `setHedgingEnabled` then `fetchAccount`.
-- `TODO.md`: T.9 marked [x].
-
-**Verification**
-- `npx --no-install tsc --noEmit` (client) -> exit 0 ✅
-- `cd server && npx --no-install tsc --noEmit` (server) -> exit 0 ✅
-- `npm run --prefix server test` -> **71 passed (was 68, +3) in 2.32s** ✅
-- Frontend deploy: sandbox has no Vercel access — deploy manually or wait for CI.
-- Backend deploy: sandbox has no Railway access — apply migration 022 first, then deploy.
-
-**Notes for next agent**
-- **Apply migration 022 before backend deploy.** Single `ALTER TABLE accounts ADD
-  COLUMN` — no existing data affected.
-- **Pre-existing truncated files at run start:** bars.ts and Chart.tsx both had
-  partial T.21 (chart history pan) work that was corrupted mid-word. Restored both
-  from HEAD. If they appear corrupted again, restore from HEAD before proceeding.
-  T.21 is not yet started — these appear to be Edit-tool corruption artifacts.
-- Same WSL HEAD.lock / index.lock pattern — use GIT_INDEX_FILE + plumbing to commit.
-- T.9 done. Next safe picks:
-  1. **T.10 Multiple accounts per user** — `accounts.is_primary boolean`. Account
-     switcher UI in header. Migration 023. Mostly UI work.
-  2. **T.14 Trade journal** — `trades.notes text` migration + notes textarea in
-     TradeBook drawer. Low risk, pure addition. Migration 023.
-  3. **T.15 Technical indicators** — chart overlay toggles (RSI, MACD, MA20, MA50,
-     Bollinger). Pure frontend, no migration.
-
+  position on (account, symbol, opposite-side). On match: full or 

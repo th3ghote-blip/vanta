@@ -1,0 +1,89 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+# Cancel any in-progress deploy for the same branch so fast pushes don't queue up
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── 1. Verify ────────────────────────────────────────────────────────────────
+  verify:
+    name: Type-check & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install client deps
+        run: npm ci
+
+      - name: Client TypeScript
+        run: npx tsc --noEmit
+
+      - name: Install server deps
+        run: npm ci
+        working-directory: server
+
+      - name: Server TypeScript
+        run: npx tsc --noEmit
+        working-directory: server
+
+      - name: Server tests
+        run: npm test
+        working-directory: server
+
+  # ── 2. Deploy backend (Railway) ──────────────────────────────────────────────
+  deploy-backend:
+    name: Deploy backend → Railway
+    needs: verify
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy
+        run: railway up --service "$RAILWAY_SERVICE_ID" --environment production --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
+
+  # ── 3. Deploy frontend (Vercel) ──────────────────────────────────────────────
+  deploy-frontend:
+    name: Deploy frontend → Vercel
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel
+
+      - name: Deploy
+        run: vercel --prod --yes --token "$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
