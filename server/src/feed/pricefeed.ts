@@ -36,10 +36,12 @@ const COINBASE_PRODUCT = (vSym: string) => vSym.slice(0, -3) + '-USD';
 // FOREX / STOCKS / GOLD — Yahoo Finance (no key, ~10s polling)
 // =================================================================
 const NON_CRYPTO_SYMBOLS = [
-  // Forex + metals (6)
-  'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'XAUUSD',
-  // Stocks (16) — every Stocks symbol in lib/symbolMeta.ts is also polled
-  // here so the picker shows live prices for all of them.
+  // Forex — 13 pairs in lib/symbolMeta.ts
+  'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'NZDUSD', 'USDCHF',
+  'EURJPY', 'GBPJPY', 'EURGBP', 'AUDJPY', 'EURCHF', 'GBPCHF',
+  // Metals — 2
+  'XAUUSD', 'XAGUSD',
+  // Stocks — 16
   'AAPL', 'MSFT', 'TSLA', 'AMZN', 'GOOGL', 'META', 'NVDA', 'NFLX',
   'AMD', 'INTC', 'CRM', 'ORCL', 'IBM', 'BA', 'JPM', 'BAC',
 ];
@@ -51,7 +53,16 @@ const TD_SYMBOL: Record<string, string> = {
   USDJPY: 'USD/JPY',
   AUDUSD: 'AUD/USD',
   USDCAD: 'USD/CAD',
+  NZDUSD: 'NZD/USD',
+  USDCHF: 'USD/CHF',
+  EURJPY: 'EUR/JPY',
+  GBPJPY: 'GBP/JPY',
+  EURGBP: 'EUR/GBP',
+  AUDJPY: 'AUD/JPY',
+  EURCHF: 'EUR/CHF',
+  GBPCHF: 'GBP/CHF',
   XAUUSD: 'XAU/USD',
+  XAGUSD: 'XAG/USD',
   AAPL: 'AAPL',
   MSFT: 'MSFT',
   TSLA: 'TSLA',
@@ -71,14 +82,17 @@ const TD_SYMBOL: Record<string, string> = {
 };
 
 // Twelve Data free tier: 800 credits/day, 8 req/min.
-// 22 symbols × 1 credit per fetched symbol. Polling every 40 min = 36
-// cycles/day × 22 symbols = 792 credits/day — just under the 800/day cap.
-// 30 min would be 1056/day (over). Random walk fills the gaps for chart feel.
-const TD_POLL_MS = 40 * 60_000;
+// 31 symbols × 1 credit per fetched symbol. Polling every 60 min = 24
+// cycles/day × 31 = 744 credits/day — under the 800/day cap with headroom
+// for the per-chart-load /api/bars hits. Random walk fills the gaps for
+// chart feel between TD polls.
+const TD_POLL_MS = 60 * 60_000;
 
 const SEED_FALLBACK: Record<string, number> = {
   EURUSD: 1.0851, GBPUSD: 1.2632, USDJPY: 156.42, AUDUSD: 0.6584,
-  USDCAD: 1.3712, XAUUSD: 2348.5,
+  USDCAD: 1.3712, NZDUSD: 0.6125, USDCHF: 0.8954, EURJPY: 169.74,
+  GBPJPY: 197.62, EURGBP: 0.8591, AUDJPY: 103.03, EURCHF: 0.9716,
+  GBPCHF: 1.1311, XAUUSD: 2348.5, XAGUSD: 28.65,
   AAPL: 224.8, MSFT: 415, TSLA: 252.3, AMZN: 184.2, GOOGL: 175, META: 502,
   NVDA: 122, NFLX: 685, AMD: 175, INTC: 32, CRM: 290, ORCL: 145, IBM: 200,
   BA: 175, JPM: 215, BAC: 41,
