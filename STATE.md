@@ -10,6 +10,41 @@ git config user.name "th3ghote-blip"
 
 ---
 
+## 2026-05-24T~10:00Z -- T.20 Quick Mode durations + category tabs
+
+**TODO item picked:** **T.20 Quick Mode — more durations + asset categories**
+
+**Pre-run state**
+- Working tree clean (GIT_INDEX_FILE=/tmp/vanta_idx workaround). HEAD = `205b242` (R.11 STATE chore).
+- Stale index.lock / HEAD.lock / main.lock as usual — GIT_INDEX_FILE + direct ref-write workaround used throughout.
+- Client tsc: exit 0. Server tsc: exit 0.
+- Sandbox network blocked — no deploy possible; R.1 GH Actions will deploy on push.
+
+**What changed**
+- `components/fun/QuickTradeScreen.tsx`: expanded DURATIONS from 3 → 8 entries:
+  5s (×2.00), 30s (×1.92), 60s (×1.85), 5min (×1.78), 15min (×1.72), 30min (×1.65), 4h (×1.55), 24h (×1.45).
+  Duration picker changed from rigid flex `<View>` to `<ScrollView horizontal>` (68px tile width) so all 8 tiles are accessible without wrapping.
+  Category tabs (All/Crypto/Forex/Metals/Stocks) were already implemented — no code change needed there.
+
+**Verification**
+- Client tsc: exit 0 ✅
+- Server tsc: exit 0 ✅
+- Commit: `2f76ec0`
+- No backend deploy needed — pure frontend change.
+- Vercel deploy will trigger via GH Actions on push.
+
+**⚠️ File truncation issue encountered**
+The Edit tool silently truncated `QuickTradeScreen.tsx` (280+ lines) mid-file. Fixed with Python append.
+**REMINDER: Always use Python for writes/edits to files >200 lines. Never use the Edit tool on large files.**
+
+**Next agent**
+- T.16 (Drawing tools) — blocked: needs `chart_drawings` migration (sandbox network blocked). Skip.
+- T.18 (Copy trading) — needs `copy_relationships` migration. Likely network-blocked. Skip unless migration can be applied.
+- T.19 (Spread-betting / micro-lot mode) — pure UI cosmetic, no migration. Could store in `profiles` JSONB. Safe pick.
+- Or pick any unchecked item in Phase 13–14 (monitoring/legal) that is pure code.
+
+---
+
 ## 2026-05-24T~09:00Z -- R.11 DB backup verification
 
 **TODO item picked:** **R.11 Database backup verification**
@@ -33,23 +68,3 @@ git config user.name "th3ghote-blip"
 **Action required by user**
 - Add `SUPABASE_PAT` as a GitHub repo secret (Settings → Secrets → Actions). Value: already in `server/.env` as `SUPABASE_PAT`.
 
-**Next agent**
-- R.7 (Better-Stack) — needs user signup at betterstack.com, skip.
-- T.20 (Quick Mode durations + categories) — pure frontend, no migration, safe pick. Add 5s/30s/30min/4h/24h durations + Crypto/Forex/Stocks tabs to `components/fun/QuickTradeScreen.tsx`.
-- File truncation pattern: ALWAYS use Python for writes to files >200 lines. Edit tool truncates large files silently.
-
----
-
-## 2026-05-24T~08:00Z -- R.8 E2E smoke test
-
-**TODO item picked:** **R.8 E2E smoke test in CI**
-
-**Pre-run state**
-- Working tree clean (fresh index via GIT_INDEX_FILE). HEAD = `ee992c9` (R.1 deploy workflow).
-- Stale index.lock / HEAD.lock / main.lock as usual — GIT_INDEX_FILE + direct ref-write workaround used throughout.
-- Client tsc: exit 0. Server tsc: exit 0. Tests: 71 passed before starting.
-
-**What changed**
-- `e2e/smoke.spec.ts` (new): Playwright test — registers fresh demo account via `/api/auth/register` (avoids fragile UI signup), signs in via login form, waits for live BTC price, places a 0.01 BTC market buy, closes via `getByRole('button', { name: 'Close trade' })`, signs out, asserts redirect to login.
-- `playwright.config.ts` (new): Chromium only, 60s timeout, HTML reporter, targets `VANTA_URL` env var (defaults to https://vanta-jade.vercel.app).
-- `.github/workflows/e2e.yml` (new): triggers on `workflow_run` completion of the Deploy workflow (so smoke tests always run against freshly-shipped code) + `workf

@@ -277,7 +277,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** Toggle preference → order entry shows "$10/pip" instead of "0.1 lots", math works out.
 
 ## T.20 Quick Mode — more durations + asset categories
-- [ ] **Files:** `components/fun/QuickTradeScreen.tsx`
+- [x] **Files:** `components/fun/QuickTradeScreen.tsx`
 - **What:** Add 5s, 30s, 30min, 4h, 24h durations (already have 60s/5min/15min). Add category filter (Crypto / Forex / Stocks tabs) the way Pro mode has.
 - **Acceptance:** Quick mode has 7 duration options and category tabs.
 
@@ -759,4 +759,16 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Never commit secrets.** All API keys live in `server/.env` (gitignored) and Vercel/Railway env vars.
 - **Database migrations are append-only.** Don't edit existing migration files; create new ones.
 - **Both deploys are atomic.** Vercel old version stays live until new build passes; same for Railway. Safe to deploy frequently.
-- **If a TypeScript error blocks deploy:** check Railway build logs (`
+- **If a TypeScript error blocks deploy:** check Railway build logs (`railway logs --build`), fix, redeploy. Don't comment out the type — fix it.
+- **CORS must be updated when domain changes** in `server/src/index.ts` `ALLOWED_ORIGINS`.
+- **Supabase RLS protects everything.** Server uses service role key (bypasses RLS) for admin operations. Client uses publishable key + user JWT.
+- **Push to production immediately after each task** — frequent atomic deploys are cheaper than batched ones.
+- **When in doubt, leave a note in `STATE.md`** for the next agent.
+- **If a task changes data shapes:** write the migration first, deploy backend, then frontend.
+- **Workspace state may have hot-reload caches** — restart Expo if web behaves weirdly.
+- **Twelve Data free tier is 800 credits/day, 8/min** — keep `pollYahoo` removed and respect rate limits in any new endpoint that hits it.
+- **Coinbase, Resend, Anthropic, Twelve Data, Supabase keys are all in `server/.env` and Railway env vars.**
+
+---
+
+*Maintain ordering within phases (dependencies flow downward). Strike `[x]` completed items in place — don't delete (history is useful).*
