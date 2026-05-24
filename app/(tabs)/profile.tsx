@@ -8,6 +8,7 @@ import { colors, radius, spacing, typography } from '@/lib/theme';
 import { useAuthStore } from '@/stores/auth';
 import { useAccountStore } from '@/stores/account';
 import { useThemeStore } from '@/stores/theme';
+import { usePrefsStore } from '@/stores/prefs';
 import type { ThemePreference } from '@/stores/theme';
 import { api, getAchievements, setHedgingEnabled } from '@/lib/api';
 import type { Achievement, AchievementMeta } from '@/lib/api';
@@ -29,6 +30,8 @@ export default function Profile() {
   const addAndSwitch = useAccountStore((s) => s.addAndSwitch);
   const themePreference = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
+  const spreadBet = usePrefsStore((s) => s.spreadBet);
+  const setSpreadBet = usePrefsStore((s) => s.setSpreadBet);
   const [isAdmin, setIsAdmin] = useState(false);
   const [copied, setCopied] = useState(false);
   const [hedgingBusy, setHedgingBusy] = useState(false);
@@ -305,6 +308,59 @@ export default function Profile() {
                 </Pressable>
               );
             })}
+          </View>
+
+          {/* T.19 — Spread-betting mode toggle */}
+          <View style={{ marginTop: spacing.md }}>
+            <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 12, marginBottom: spacing.sm }}>
+              Order sizing
+            </Text>
+            <Pressable
+              onPress={() => setSpreadBet(!spreadBet)}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                backgroundColor: colors.bgSurface,
+                borderRadius: radius.md,
+                paddingHorizontal: spacing.md,
+                paddingVertical: spacing.md,
+                borderWidth: 1,
+                borderColor: spreadBet ? colors.primary : colors.border,
+              }}
+            >
+              <View style={{ flex: 1, paddingRight: spacing.md }}>
+                <Text style={{ ...typography.bodyBold, color: colors.textPrimary, fontSize: 13 }}>
+                  Spread-bet mode
+                </Text>
+                <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 11, marginTop: 2 }}>
+                  {spreadBet
+                    ? 'Order entry shows $ per pip / point instead of lots'
+                    : 'Order entry shows lot size (e.g. 0.10 lots)'}
+                </Text>
+              </View>
+              {/* Toggle pill */}
+              <View
+                style={{
+                  width: 44,
+                  height: 24,
+                  borderRadius: 12,
+                  backgroundColor: spreadBet ? colors.primary : colors.border,
+                  justifyContent: 'center',
+                  paddingHorizontal: 3,
+                  alignItems: spreadBet ? 'flex-end' : 'flex-start',
+                }}
+              >
+                <View
+                  style={{
+                    width: 18,
+                    height: 18,
+                    borderRadius: 9,
+                    backgroundColor: '#fff',
+                  }}
+                />
+              </View>
+            </Pressable>
           </View>
         </View>
 

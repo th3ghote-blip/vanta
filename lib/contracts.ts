@@ -74,3 +74,43 @@ export function defaultVolumeFor(symbol: string): string {
   // Crypto and anything unrecognised
   return '0.01';
 }
+
+// =============================================================
+// T.19 — Spread-betting / micro-lot helpers
+// =============================================================
+
+/**
+ * Size of 1 "pip" (the smallest quoted price unit used in spread-bet display).
+ * Forex → 0.0001 (standard 4th decimal pip). Everything else → 1 (one dollar
+ * of price movement = one "point").
+ */
+export function pipSizeFor(symbol: string): number {
+  if (FOREX_PAIRS.has(symbol)) return 0.0001;
+  return 1;
+}
+
+/**
+ * How many USD you gain/lose per 1 pip/point move given a lot size.
+ * e.g. EURUSD 0.10 lots → 0.10 × 100,000 × 0.0001 = $1/pip
+ *      BTCUSD 0.01 lots → 0.01 × 1 × 1 = $0.01/pt
+ *      XAUUSD 0.10 lots → 0.10 × 100 × 1 = $10/pt
+ */
+export function pipValueFor(lots: number, symbol: string): number {
+  return lots * contractSize(symbol) * pipSizeFor(symbol);
+}
+
+/**
+ * Inverse of pipValueFor — convert a $/pip stake back to lots.
+ */
+export function lotsFromPipValue(stakePip: number, symbol: string): number {
+  const denom = contractSize(symbol) * pipSizeFor(symbol);
+  return denom > 0 ? stakePip / denom : 0;
+}
+
+/**
+ * Unit label for the smallest price move: "pip" for forex, "pt" for everything
+ * else (crypto, stocks, gold).
+ */
+export function pipLabel(symbol: string): string {
+  return FOREX_PAIRS.has(symbol) ? 'pip' : 'pt';
+}

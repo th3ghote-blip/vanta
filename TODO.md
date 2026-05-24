@@ -273,8 +273,15 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** Two test accounts. A opts in as leader, opens BTC buy. B follows A → B sees a copied BTC buy auto-appear in their Open Positions.
 
 ## T.19 Spread-betting / micro-lot mode
-- [ ] **What:** Account preference for "$ per pip" style sizing instead of lots. Cosmetic — converts under the hood — but matches the UK retail trader mental model.
+- [x] **What:** Account preference for "$ per pip" style sizing instead of lots. Cosmetic — converts under the hood — but matches the UK retail trader mental model.
 - **Acceptance:** Toggle preference → order entry shows "$10/pip" instead of "0.1 lots", math works out.
+- **Done:** 2026-05-25 — `stores/prefs.ts` (new): AsyncStorage-backed preference store.
+  `lib/contracts.ts`: added `pipSizeFor`, `pipValueFor`, `lotsFromPipValue`, `pipLabel` helpers.
+  `components/pro/OrderEntry.tsx`: when spread-bet mode on, Volume field becomes Stake ($/pip or $/pt);
+  display string (`sbRaw`) kept separate so cursor never jumps mid-type; notional line updated to show $/pip.
+  `app/(tabs)/profile.tsx`: Display section gets "Order sizing" toggle pill (slide-switch UI).
+  `app/_layout.tsx`: `usePrefsStore.hydrate()` called on startup so preference survives restarts.
+  No migration needed — preference stored in AsyncStorage only. No backend deploy needed.
 
 ## T.20 Quick Mode — more durations + asset categories
 - [x] **Files:** `components/fun/QuickTradeScreen.tsx`

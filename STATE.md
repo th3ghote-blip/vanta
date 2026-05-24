@@ -10,6 +10,56 @@ git config user.name "th3ghote-blip"
 
 ---
 
+## 2026-05-24T22:21Z — T.19 Spread-betting / micro-lot mode
+
+**TODO item picked:** **T.19 Spread-betting / micro-lot mode**
+
+**Pre-run state**
+- Working tree had truncated pricefeed.ts (321 vs 360 lines), bars.ts (208 vs 289 lines),
+  deploy.yml (86 vs 105 lines) — same Edit-tool truncation bug. Also refs/heads/main was
+  corrupted (warning line prepended to SHA). All fixed before picking the TODO item:
+  restored full files from HEAD + applied intentional changes (PAXGUSD, NON_CRYPTO_SYMBOLS=[]).
+  Used `git commit-tree` + manual mktree walk to build a correct commit (91bf917).
+- Client tsc: exit 0. Server tsc: exit 0.
+- Sandbox network blocked — no deploy possible; GH Actions deploys on push.
+
+**What changed**
+- `stores/prefs.ts` (new): AsyncStorage-backed preference store, starting with `spreadBet` bool.
+  Hydrated on app startup via `app/_layout.tsx`.
+- `lib/contracts.ts`: added `pipSizeFor()` (0.0001 for forex, 1 for everything else),
+  `pipValueFor()` (lots → $/pip), `lotsFromPipValue()` ($/pip → lots), `pipLabel()` ("pip"/"pt").
+- `components/pro/OrderEntry.tsx`: when spread-bet mode is on:
+  - Volume field becomes "Stake ($/pip)" or "Stake ($/pt)" with a separate `sbRaw` display
+    string so cursor never jumps mid-typing.
+  - Notional bar shows "\$1.00/pip · 0.1000 lots · ..." instead of "0.1 lots × ...".
+  - Internal `volume` stays in lots at all times; only the display converts.
+- `app/(tabs)/profile.tsx`: Display section gets "Order sizing" with a slide-switch toggle
+  for spread-bet mode.
+- `app/_layout.tsx`: `hydratePrefs()` added to startup effect.
+
+**Verification**
+- Client tsc: exit 0 ✅
+- Server tsc: exit 0 ✅
+- No backend deploy needed — pure frontend change.
+- GH Actions will deploy to Vercel on push.
+
+**⚠️ Persistent issues**
+- Edit tool does NOT write through to the WSL-mounted path (`C:\Claude\vanta`). Always use
+  Python (`open(..., 'w')`) for file writes — the Edit/Write tools only update the tool's
+  in-memory cache, not the actual filesystem that bash sees.
+- refs/heads/main continues to get corrupted (stray warning line). Always fix with Python
+  before doing git operations.
+- The GIT_INDEX_FILE workaround produces broken trees (only staged files, not full repo tree).
+  Use `git commit-tree` with proper `mktree` walk instead.
+
+**Next agent**
+- T.16 (Drawing tools) — still blocked on `chart_drawings` migration + significant
+  Lightweight Charts work. Skip unless network is available.
+- T.18 (Copy trading) — needs `copy_relationships` migration. Skip if network blocked.
+- 14.3 Cookie consent (web banner) — pure UI, no migration, no deploy. Safe pick.
+- Or any other unchecked non-PARKED item.
+
+
 ## 2026-05-24T~10:00Z -- T.20 Quick Mode durations + category tabs
 
 **TODO item picked:** **T.20 Quick Mode — more durations + asset categories**

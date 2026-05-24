@@ -7,7 +7,8 @@ import { usePriceStore } from '@/stores/prices';
 import { useAccountStore } from '@/stores/account';
 import { api, ApiError } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
-import { defaultVolumeFor, notionalUSD } from '@/lib/contracts';
+import { defaultVolumeFor, notionalUSD, pipValueFor, lotsFromPipValue, pipLabel } from '@/lib/contracts';
+import { usePrefsStore } from '@/stores/prefs';
 
 interface Props {
   symbol: string;
@@ -113,6 +114,11 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
   const [busy, setBusy] = useState<'buy' | 'sell' | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
 
+  // T.19 — spread-bet mode: separate display string for the $/pip field so
+  // cursor position doesn't jump while the user is typing.
+  const spreadBet = usePrefsStore((s) => s.spreadBet);
+  const [sbRaw, setSbRaw] = useState<string>('');
+
   // Track whether the user has manually typed a volume. If they haven't, we
   // auto-update the volume field whenever the symbol changes so the default
   // always matches the asset class (forex=0.10, crypto=0.01, stocks=1, gold=0.10).
@@ -123,6 +129,18 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
       setVolume(defaultVolumeFor(symbol));
     }
   }, [symbol]);
+
+  // When spread-bet mode is switched on, populate sbRaw from the current lots.
+  // When switched off, volume is already correct — no action needed.
+  const prevSpreadBetRef = useRef(spreadBet);
+  useEffect(() => {
+    if (spreadBet && !prevSpreadBetRef.current) {
+      const lots = Number(volume);
+      const pv = pipValueFor(Number.isFinite(lots) && lots > 0 ? lots : 0, symbol);
+      setSbRaw(pv > 0 ? pv.toFixed(2) : '');
+    }
+    prevSpreadBetRef.current = spreadBet;
+  }, [spreadBet]);
 
   const handleVolumeChange = (s: string) => {
     userEditedVolume.current = true;
@@ -325,7 +343,23 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
         <KindButton label="Limit" active={orderKind === 'limit'} onPress={() => setOrderKind('limit')} />
       </View>
 
-      <Field label="Volume (lots)" value={volume} onChangeText={handleVolumeChange} />
+      {spreadBet ? (
+        <Field
+          label={`Stake ($/${pipLabel(symbol)})`}
+          value={sbRaw}
+          onChangeText={(text) => {
+            setSbRaw(text);
+            userEditedVolume.current = true;
+            const pv = Number(text);
+            if (Number.isFinite(pv) && pv > 0) {
+              setVolume(lotsFromPipValue(pv, symbol).toFixed(6));
+            }
+          }}
+          placeholder={`e.g. ${pipValueFor(Number(defaultVolumeFor(symbol)), symbol).toFixed(2)}`}
+        />
+      ) : (
+        <Field label="Volume (lots)" value={volume} onChangeText={handleVolumeChange} />
+      )}
 
       {/* T.11 — live notional + leverage estimate */}
       {(() => {
@@ -352,8 +386,10 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
             }}
           >
             <Text style={{ ...typography.mono, color: colors.textSecondary, fontSize: 11, lineHeight: 16 }}>
-              {vol} lots × {fmtPrice} = ${notional.toFixed(2)} notional
-              {' · '}{lev}× leverage · ${margin.toFixed(2)} margin
+              {spreadBet
+                ? `$${pipValueFor(vol, symbol).toFixed(2)}/${pipLabel(symbol)} · ${vol.toFixed(4)} lots · $${notional.toFixed(2)} notional · ${lev}× · $${margin.toFixed(2)} margin`
+                : `${vol} lots × ${fmtPrice} = $${notional.toFixed(2)} notional · ${lev}× leverage · $${margin.toFixed(2)} margin`
+              }
             </Text>
           </View>
         );
