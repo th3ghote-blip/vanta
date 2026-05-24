@@ -82,11 +82,12 @@ const TD_SYMBOL: Record<string, string> = {
 };
 
 // Twelve Data free tier: 800 credits/day, 8 req/min.
-// 31 symbols × 1 credit per fetched symbol. Polling every 60 min = 24
-// cycles/day × 31 = 744 credits/day — under the 800/day cap with headroom
-// for the per-chart-load /api/bars hits. Random walk fills the gaps for
-// chart feel between TD polls.
-const TD_POLL_MS = 60 * 60_000;
+// 31 symbols × 1 credit per fetched symbol. At 60-min poll = 744 credits/day,
+// which sounds OK but leaves only 56 credits of headroom for chart-load
+// /api/bars hits AND every Railway restart re-runs the startup poll = 31
+// fresh credits gone. 90-min poll = 31 × 16 = 496/day, leaves 304 headroom
+// for chart loads + a couple of restarts. Bars-cache TTL covers the gap.
+const TD_POLL_MS = 90 * 60_000;
 
 const SEED_FALLBACK: Record<string, number> = {
   EURUSD: 1.0851, GBPUSD: 1.2632, USDJPY: 156.42, AUDUSD: 0.6584,

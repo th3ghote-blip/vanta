@@ -97,12 +97,14 @@ interface Bar {
 }
 
 // In-memory cache to avoid hammering upstreams. Bars are historical OHLC
-// and barely change minute-to-minute (only the rightmost candle moves), so
-// a long TTL is fine for chart-load freshness while protecting our TD
-// 8-credits/min rate budget. Historical pages (with ?before=) get an even
-// longer TTL since those windows are immutable.
-const CACHE_TTL_MS = 5 * 60_000; // 5 min for now-anchored
-const CACHE_TTL_HISTORICAL_MS = 60 * 60_000; // 1 hour for before=... pages
+// and barely change minute-to-minute (only the rightmost candle moves;
+// live WS ticks update the active candle in the chart iframe directly),
+// so a long TTL is fine. Bumped to 30min for now-anchored to give the TD
+// daily budget meaningful headroom — under TD free tier we have at most
+// ~500 credits/day of headroom across all chart loads. Historical pages
+// (?before=...) are immutable so they get a longer TTL.
+const CACHE_TTL_MS = 30 * 60_000; // 30 min for now-anchored
+const CACHE_TTL_HISTORICAL_MS = 6 * 60 * 60_000; // 6 hours for before=... pages
 
 interface CacheEntry { bars: Bar[]; ts: number; ttlMs: number }
 const cache = new Map<string, CacheEntry>();
