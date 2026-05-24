@@ -1,0 +1,31 @@
+name: DB Backup Check
+
+on:
+  schedule:
+    # Run daily at 06:15 UTC (after Supabase's nightly backup window ends)
+    - cron: '15 6 * * *'
+  workflow_dispatch:
+    inputs:
+      max_age_hours:
+        description: 'Alert if latest backup is older than N hours'
+        required: false
+        default: '30'
+
+jobs:
+  verify-backup:
+    name: Verify latest Supabase backup
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check backup freshness
+        run: python scripts/verify-backup.py
+        env:
+          SUPABASE_PAT: ${{ secrets.SUPABASE_PAT }}
+          SUPABASE_PROJECT_REF: auavcfwytrwurawcvrsc
+          MAX_AGE_HOURS: ${{ github.event.inputs.max_age_hours || '30' }}
