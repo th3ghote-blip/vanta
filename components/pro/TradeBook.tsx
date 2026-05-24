@@ -690,6 +690,7 @@ function TradeRow({
             <Pressable
               onPress={() => onClose(trade.id)}
               disabled={closing}
+              accessibilityLabel="Close trade"
               style={{
                 width: 28,
                 height: 28,

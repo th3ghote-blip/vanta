@@ -145,9 +145,10 @@ The agent's deploy gap (commits land but Railway/Vercel aren't shipped without m
 - **Acceptance:** Take Railway down → email arrives within 5 min.
 
 ## R.8 E2E smoke test in CI
-- [ ] **Files:** `e2e/smoke.spec.ts` (Playwright), `.github/workflows/e2e.yml`
+- [x] **Files:** `e2e/smoke.spec.ts` (Playwright), `.github/workflows/e2e.yml`, `playwright.config.ts`
 - **What:** Sign up → place a 0.01 BTC trade → close it → sign out. Runs on every push.
 - **Acceptance:** PR opens, CI runs the test green, fails if any step breaks.
+- **Done:** 2026-05-24 — `e2e/smoke.spec.ts` registers a fresh account via `/api/auth/register`, signs in via UI, places a 0.01 BTC market buy, closes it using the `accessibilityLabel="Close trade"` button, and signs out. `playwright.config.ts` targets `https://vanta-jade.vercel.app`. `.github/workflows/e2e.yml` triggers on `workflow_run` completion of Deploy (so it always tests the latest shipped code) and on manual dispatch. Chromium only; uploads Playwright HTML report as artifact. Added `accessibilityLabel="Close trade"` to close button in `components/pro/TradeBook.tsx`. Added `@playwright/test: ^1.44.0` to devDependencies and `test:e2e` script to `package.json`.
 
 ## R.9 Backend integration test suite
 - [x] **Files:** `server/test/*.test.ts`, install `vitest` — 2026-05-19 / `2d508b9` — 32 tests passing (hermetic, no Supabase project required).
@@ -760,6 +761,4 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **If a TypeScript error blocks deploy:** check Railway build logs (`railway logs --build`), fix, redeploy. Don't comment out the type — fix it.
 - **CORS must be updated when domain changes** in `server/src/index.ts` `ALLOWED_ORIGINS`.
 - **Supabase RLS protects everything.** Server uses service role key (bypasses RLS) for admin operations. Client uses publishable key + user JWT.
-- **Push to production immediately after each task** — frequent atomic deploys are cheaper than batched ones.
-- **When in doubt, leave a note in `STATE.md`** for the next agent.
-- **If a task changes data shap
+- **Push to production immediately after each task** — fr

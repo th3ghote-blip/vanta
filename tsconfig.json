@@ -17,6 +17,8 @@
     "server",
     "dist",
     ".expo",
-    ".vercel"
+    ".vercel",
+    "e2e",
+    "playwright.config.ts"
   ]
 }

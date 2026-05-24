@@ -1,0 +1,54 @@
+name: E2E Smoke
+
+# Run after the Deploy workflow completes on main, so we always test the
+# freshly-shipped code. Also supports manual triggers for ad-hoc runs.
+on:
+  workflow_run:
+    workflows: [Deploy]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# Only one smoke run at a time per branch.
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Playwright smoke test
+    runs-on: ubuntu-latest
+    # When triggered by workflow_run, only run if the deploy succeeded.
+    # When triggered manually (workflow_dispatch), always run.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Install Playwright + Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Run smoke test
+        run: npx playwright test e2e/smoke.spec.ts
+        env:
+          VANTA_URL: https://vanta-jade.vercel.app
+          VANTA_API_URL: https://vanta-server-production.up.railway.app
+        timeout-minutes: 5
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: playwright-report/
+          retention-days: 14
