@@ -161,9 +161,10 @@ The agent's deploy gap (commits land but Railway/Vercel aren't shipped without m
 - **Acceptance:** Visit `/admin/perf` → see real numbers updating live.
 
 ## R.11 Database backup verification
-- [ ] **File:** `scripts/verify-backup.py`
+- [x] **File:** `scripts/verify-backup.py`
 - **What:** Daily cron via GitHub Actions: query Supabase Management API for latest backup timestamp, alert if >30h old.
 - **Acceptance:** Cron runs, alerts when delayed.
+- **Done:** 2026-05-24 — `scripts/verify-backup.py` queries `GET /v1/projects/{ref}/database/backups`, finds the most recent completed backup, exits 1 if age > MAX_AGE_HOURS (default 30). `.github/workflows/backup-check.yml` runs daily at 06:15 UTC + supports `workflow_dispatch`. Requires `SUPABASE_PAT` added as a GitHub repo secret (same PAT already in `server/.env`).
 
 ## R.12 Legal pages (Terms / Privacy / Risk disclosure)
 - [x] **Files:** `app/legal/terms.tsx`, `app/legal/privacy.tsx`, `components/RiskDisclosureModal.tsx`
@@ -758,7 +759,4 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Never commit secrets.** All API keys live in `server/.env` (gitignored) and Vercel/Railway env vars.
 - **Database migrations are append-only.** Don't edit existing migration files; create new ones.
 - **Both deploys are atomic.** Vercel old version stays live until new build passes; same for Railway. Safe to deploy frequently.
-- **If a TypeScript error blocks deploy:** check Railway build logs (`railway logs --build`), fix, redeploy. Don't comment out the type — fix it.
-- **CORS must be updated when domain changes** in `server/src/index.ts` `ALLOWED_ORIGINS`.
-- **Supabase RLS protects everything.** Server uses service role key (bypasses RLS) for admin operations. Client uses publishable key + user JWT.
-- **Push to production immediately after each task** — fr
+- **If a TypeScript error blocks deploy:** check Railway build logs (`
