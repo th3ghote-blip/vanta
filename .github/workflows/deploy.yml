@@ -83,7 +83,23 @@ jobs:
       - name: Install Vercel CLI
         run: npm install -g vercel
 
-      - name: Deploy
-        run: vercel --prod --yes --token "$VERCEL_TOKEN"
+      # `vercel --prod` in CI pulls env vars at deploy time and historically
+      # returns them as empty strings under certain token scopes, producing
+      # a broken bundle (chart fetches go to vanta-jade.vercel.app instead
+      # of the Railway backend). Splitting into pull → build → deploy with
+      # --prebuilt makes env-var inlining happen at build time on the
+      # runner, where the token's project-read scope is sufficient.
+      - name: Pull Vercel env
+        run: vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build
+        run: vercel build --prod --token "$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy (prebuilt)
+        run: vercel deploy --prebuilt --prod --yes --token "$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
