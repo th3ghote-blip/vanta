@@ -34,6 +34,9 @@ const CRYPTO_SYMBOLS = new Set([
   'RPLUSD', 'ENSUSD', 'DYDXUSD', 'CVXUSD', 'BLURUSD',
   'KAVAUSD', 'ARUSD', 'NMRUSD', 'JASMYUSD', 'SUPERUSD',
   'QNTUSD', 'CTSIUSD', 'ASTRUSD', 'CHZUSD',
+  // PAXG (gold-backed token) — picker labels it "Gold (PAXG)" but
+  // /api/bars routes it through Coinbase like any other crypto.
+  'PAXGUSD',
 ]);
 
 /** Vanta symbol → Twelve Data symbol */

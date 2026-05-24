@@ -27,6 +27,10 @@ const CRYPTO_SYMBOLS = [
   'RPLUSD', 'ENSUSD', 'DYDXUSD', 'CVXUSD', 'BLURUSD',
   'KAVAUSD', 'ARUSD', 'NMRUSD', 'JASMYUSD', 'SUPERUSD',
   'QNTUSD', 'CTSIUSD', 'ASTRUSD', 'CHZUSD',
+  // PAXG (gold-backed token) — surfaces as "Gold (PAXG)" in the picker
+  // under the Metals category. Goes through Coinbase like every other
+  // crypto here, no TD/rate-limit involvement.
+  'PAXGUSD',
 ];
 
 /** Vanta crypto symbol → Coinbase product_id */
@@ -35,16 +39,12 @@ const COINBASE_PRODUCT = (vSym: string) => vSym.slice(0, -3) + '-USD';
 // =================================================================
 // FOREX / STOCKS / GOLD — Yahoo Finance (no key, ~10s polling)
 // =================================================================
-const NON_CRYPTO_SYMBOLS = [
-  // Forex — 13 pairs in lib/symbolMeta.ts
-  'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'NZDUSD', 'USDCHF',
-  'EURJPY', 'GBPJPY', 'EURGBP', 'AUDJPY', 'EURCHF', 'GBPCHF',
-  // Metals — 2
-  'XAUUSD', 'XAGUSD',
-  // Stocks — 16
-  'AAPL', 'MSFT', 'TSLA', 'AMZN', 'GOOGL', 'META', 'NVDA', 'NFLX',
-  'AMD', 'INTC', 'CRM', 'ORCL', 'IBM', 'BA', 'JPM', 'BAC',
-];
+// All non-crypto symbols (forex, stocks, XAU/XAG) are intentionally disabled
+// while we're on Twelve Data's free tier — the 800-credit/day cap was too
+// tight for steady-state polling + chart loads, and the picker now only
+// surfaces Coinbase-backed symbols (80 cryptos + PAXG as gold proxy).
+// Re-enable by adding entries below + upgrading TD or switching providers.
+const NON_CRYPTO_SYMBOLS: string[] = [];
 
 /** Vanta symbol → Twelve Data ticker */
 const TD_SYMBOL: Record<string, string> = {
@@ -90,13 +90,8 @@ const TD_SYMBOL: Record<string, string> = {
 const TD_POLL_MS = 90 * 60_000;
 
 const SEED_FALLBACK: Record<string, number> = {
-  EURUSD: 1.0851, GBPUSD: 1.2632, USDJPY: 156.42, AUDUSD: 0.6584,
-  USDCAD: 1.3712, NZDUSD: 0.6125, USDCHF: 0.8954, EURJPY: 169.74,
-  GBPJPY: 197.62, EURGBP: 0.8591, AUDJPY: 103.03, EURCHF: 0.9716,
-  GBPCHF: 1.1311, XAUUSD: 2348.5, XAGUSD: 28.65,
-  AAPL: 224.8, MSFT: 415, TSLA: 252.3, AMZN: 184.2, GOOGL: 175, META: 502,
-  NVDA: 122, NFLX: 685, AMD: 175, INTC: 32, CRM: 290, ORCL: 145, IBM: 200,
-  BA: 175, JPM: 215, BAC: 41,
+  // PAXG ~ spot gold ($/oz)
+  PAXGUSD: 2348.5,
   BTCUSD: 71240, ETHUSD: 3500, SOLUSD: 180, XRPUSD: 0.55, DOGEUSD: 0.15,
   ADAUSD: 0.45, AVAXUSD: 35, LINKUSD: 14, DOTUSD: 7.2, MATICUSD: 0.65,
   SHIBUSD: 0.000025, LTCUSD: 80, UNIUSD: 9, ATOMUSD: 8, NEARUSD: 5.5,
