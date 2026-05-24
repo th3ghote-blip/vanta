@@ -86,10 +86,16 @@ interface Bar {
   volume: number;
 }
 
-// In-memory cache to avoid hammering upstreams
-interface CacheEntry { bars: Bar[]; ts: number }
+// In-memory cache to avoid hammering upstreams. Bars are historical OHLC
+// and barely change minute-to-minute (only the rightmost candle moves), so
+// a long TTL is fine for chart-load freshness while protecting our TD
+// 8-credits/min rate budget. Historical pages (with ?before=) get an even
+// longer TTL since those windows are immutable.
+const CACHE_TTL_MS = 5 * 60_000; // 5 min for now-anchored
+const CACHE_TTL_HISTORICAL_MS = 60 * 60_000; // 1 hour for before=... pages
+
+interface CacheEntry { bars: Bar[]; ts: number; ttlMs: number }
 const cache = new Map<string, CacheEntry>();
-const CACHE_TTL_MS = 30_000;
 
 export async function barsRoutes(app: FastifyInstance) {
   app.get('/:symbol', async (req, reply) => {
@@ -117,7 +123,7 @@ export async function barsRoutes(app: FastifyInstance) {
     // live (now-anchored) window.
     const cacheKey = `${symbol}:${tf}:${limit}:${before ?? 'now'}`;
     const cached = cache.get(cacheKey);
-    if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+    if (cached && Date.now() - cached.ts < cached.ttlMs) {
       return { bars: cached.bars, source: cached.bars.length > 0 && (cached as any).source };
     }
 
@@ -126,10 +132,17 @@ export async function barsRoutes(app: FastifyInstance) {
         ? await fetchCoinbaseBars(symbol, seconds, limit, before)
         : await fetchTwelveDataBars(symbol, tf, limit, before);
 
-      cache.set(cacheKey, { bars, ts: Date.now() });
+      const ttlMs = before != null ? CACHE_TTL_HISTORICAL_MS : CACHE_TTL_MS;
+      cache.set(cacheKey, { bars, ts: Date.now(), ttlMs });
       return { bars, source: CRYPTO_SYMBOLS.has(symbol) ? 'coinbase' : 'twelvedata' };
     } catch (err) {
       app.log.warn({ err: (err as Error).message, symbol, tf, before }, 'bars: fetch failed');
+      // Serve stale cache rather than 502 when upstream rate-limits us — the
+      // historical bars are basically immutable so a few-minutes-old copy is
+      // still useful. Only error if there's literally nothing to serve.
+      if (cached) {
+        return { bars: cached.bars, source: 'cache-stale' };
+      }
       return reply.code(502).send({ error: 'fetch_failed', message: (err as Error).message });
     }
   });
