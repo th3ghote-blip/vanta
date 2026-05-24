@@ -35,7 +35,14 @@ const COINBASE_PRODUCT = (vSym: string) => vSym.slice(0, -3) + '-USD';
 // =================================================================
 // FOREX / STOCKS / GOLD — Yahoo Finance (no key, ~10s polling)
 // =================================================================
-const NON_CRYPTO_SYMBOLS = ['EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'XAUUSD', 'AAPL', 'TSLA', 'AMZN'];
+const NON_CRYPTO_SYMBOLS = [
+  // Forex + metals (6)
+  'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'XAUUSD',
+  // Stocks (16) — every Stocks symbol in lib/symbolMeta.ts is also polled
+  // here so the picker shows live prices for all of them.
+  'AAPL', 'MSFT', 'TSLA', 'AMZN', 'GOOGL', 'META', 'NVDA', 'NFLX',
+  'AMD', 'INTC', 'CRM', 'ORCL', 'IBM', 'BA', 'JPM', 'BAC',
+];
 
 /** Vanta symbol → Twelve Data ticker */
 const TD_SYMBOL: Record<string, string> = {
@@ -46,20 +53,35 @@ const TD_SYMBOL: Record<string, string> = {
   USDCAD: 'USD/CAD',
   XAUUSD: 'XAU/USD',
   AAPL: 'AAPL',
+  MSFT: 'MSFT',
   TSLA: 'TSLA',
   AMZN: 'AMZN',
+  GOOGL: 'GOOGL',
+  META: 'META',
+  NVDA: 'NVDA',
+  NFLX: 'NFLX',
+  AMD: 'AMD',
+  INTC: 'INTC',
+  CRM: 'CRM',
+  ORCL: 'ORCL',
+  IBM: 'IBM',
+  BA: 'BA',
+  JPM: 'JPM',
+  BAC: 'BAC',
 };
 
 // Twelve Data free tier: 800 credits/day, 8 req/min.
-// 9 symbols × 1 credit per call. Polling every 5 minutes = 12/hour × 24 = 288
-// requests/day × 9 symbols = 2,592 credits — over limit. Polling every 15 min
-// = 4/hour × 24 = 96 requests × 9 = 864 credits — just over. Polling every
-// 20 min = 648 credits/day — safe. Random walk fills the gaps for chart feel.
-const TD_POLL_MS = 20 * 60_000;
+// 22 symbols × 1 credit per fetched symbol. Polling every 40 min = 36
+// cycles/day × 22 symbols = 792 credits/day — just under the 800/day cap.
+// 30 min would be 1056/day (over). Random walk fills the gaps for chart feel.
+const TD_POLL_MS = 40 * 60_000;
 
 const SEED_FALLBACK: Record<string, number> = {
   EURUSD: 1.0851, GBPUSD: 1.2632, USDJPY: 156.42, AUDUSD: 0.6584,
-  USDCAD: 1.3712, XAUUSD: 2348.5, AAPL: 224.8, TSLA: 252.3, AMZN: 184.2,
+  USDCAD: 1.3712, XAUUSD: 2348.5,
+  AAPL: 224.8, MSFT: 415, TSLA: 252.3, AMZN: 184.2, GOOGL: 175, META: 502,
+  NVDA: 122, NFLX: 685, AMD: 175, INTC: 32, CRM: 290, ORCL: 145, IBM: 200,
+  BA: 175, JPM: 215, BAC: 41,
   BTCUSD: 71240, ETHUSD: 3500, SOLUSD: 180, XRPUSD: 0.55, DOGEUSD: 0.15,
   ADAUSD: 0.45, AVAXUSD: 35, LINKUSD: 14, DOTUSD: 7.2, MATICUSD: 0.65,
   SHIBUSD: 0.000025, LTCUSD: 80, UNIUSD: 9, ATOMUSD: 8, NEARUSD: 5.5,
@@ -220,7 +242,9 @@ function startCoinbase(app: FastifyInstance) {
 // 9 symbols costs 9 credits, so every batched poll fails. Split into chunks
 // of <=5 with a 65s gap so each chunk lands in a fresh window. Total cycle
 // takes ~65s but the poll only fires every 20 min anyway.
-const TD_CHUNK_SIZE = 5;
+// Bumped from 5 → 8 to match TD's 8 req/min limit and keep total cycle
+// time bounded: 22 symbols / 8-per-chunk = 3 chunks × 65s gap ≈ 130s/cycle.
+const TD_CHUNK_SIZE = 8;
 const TD_CHUNK_DELAY_MS = 65_000;
 
 async function pollTwelveData(app: FastifyInstance) {

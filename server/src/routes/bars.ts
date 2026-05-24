@@ -28,15 +28,31 @@ const CRYPTO_SYMBOLS = new Set([
 
 /** Vanta symbol → Twelve Data symbol */
 const TD_SYMBOL: Record<string, string> = {
+  // Forex + metals
   EURUSD: 'EUR/USD',
   GBPUSD: 'GBP/USD',
   USDJPY: 'USD/JPY',
   AUDUSD: 'AUD/USD',
   USDCAD: 'USD/CAD',
   XAUUSD: 'XAU/USD',
+  // Stocks — every ticker shown in the picker (lib/symbolMeta.ts) must
+  // map here or /api/bars returns 502 unsupported_symbol.
   AAPL: 'AAPL',
+  MSFT: 'MSFT',
   TSLA: 'TSLA',
   AMZN: 'AMZN',
+  GOOGL: 'GOOGL',
+  META: 'META',
+  NVDA: 'NVDA',
+  NFLX: 'NFLX',
+  AMD: 'AMD',
+  INTC: 'INTC',
+  CRM: 'CRM',
+  ORCL: 'ORCL',
+  IBM: 'IBM',
+  BA: 'BA',
+  JPM: 'JPM',
+  BAC: 'BAC',
 };
 
 /** Vanta tf → Twelve Data interval */
