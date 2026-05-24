@@ -14,9 +14,14 @@ import type { BinaryRound } from './ActiveRounds';
 import { RoundResultModal } from './RoundResultModal';
 
 const DURATIONS = [
-  { label: '60s',   seconds: 60,  multiplier: 1.85 },
-  { label: '5min',  seconds: 300, multiplier: 1.78 },
-  { label: '15min', seconds: 900, multiplier: 1.72 },
+  { label: '5s',    seconds: 5,     multiplier: 2.00 },
+  { label: '30s',   seconds: 30,    multiplier: 1.92 },
+  { label: '60s',   seconds: 60,    multiplier: 1.85 },
+  { label: '5min',  seconds: 300,   multiplier: 1.78 },
+  { label: '15min', seconds: 900,   multiplier: 1.72 },
+  { label: '30min', seconds: 1800,  multiplier: 1.65 },
+  { label: '4h',    seconds: 14400, multiplier: 1.55 },
+  { label: '24h',   seconds: 86400, multiplier: 1.45 },
 ];
 
 type CategoryTab = 'All' | SymbolCategory;
@@ -249,7 +254,11 @@ export function QuickTradeScreen() {
       <BinaryCard asset={selectedAsset} duration={duration} />
 
       {/* Duration picker */}
-      <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: spacing.sm }}
+      >
         {DURATIONS.map((d) => {
           const active = d.label === duration.label;
           return (
@@ -257,7 +266,7 @@ export function QuickTradeScreen() {
               key={d.label}
               onPress={() => setDuration(d)}
               style={{
-                flex: 1,
+                width: 68,
                 paddingVertical: spacing.sm,
                 alignItems: 'center',
                 borderRadius: radius.md,
@@ -273,7 +282,7 @@ export function QuickTradeScreen() {
             </Pressable>
           );
         })}
-      </View>
+      </ScrollView>
 
       {/* Stake selector */}
       <View>
