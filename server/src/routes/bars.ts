@@ -15,8 +15,11 @@ const TF_SECONDS: Record<string, number> = {
 
 const COINBASE_GRANULARITIES = [60, 300, 900, 3600, 21600, 86400];
 
-// Crypto symbols (must match the price feed list)
+// Crypto symbols — must match server/src/feed/pricefeed.ts CRYPTO_SYMBOLS.
+// T.17 expanded this from 47 → 80; if you add more here, also update the
+// price feed (and lib/symbolMeta.ts on the client).
 const CRYPTO_SYMBOLS = new Set([
+  // ── Tier 1: large-caps (47) ─────────────────────────────────────────
   'BTCUSD', 'ETHUSD', 'SOLUSD', 'XRPUSD', 'DOGEUSD', 'ADAUSD', 'AVAXUSD',
   'LINKUSD', 'DOTUSD', 'MATICUSD', 'SHIBUSD', 'LTCUSD', 'UNIUSD', 'ATOMUSD',
   'NEARUSD', 'APTUSD', 'ARBUSD', 'OPUSD', 'FILUSD', 'ICPUSD', 'INJUSD',
@@ -24,6 +27,13 @@ const CRYPTO_SYMBOLS = new Set([
   'PEPEUSD', 'WIFUSD', 'BONKUSD', 'JUPUSD', 'PYTHUSD', 'WLDUSD', 'AAVEUSD',
   'MKRUSD', 'SNXUSD', 'CRVUSD', 'COMPUSD', 'LDOUSD', 'PENDLEUSD', 'ENAUSD',
   'SANDUSD', 'AXSUSD', 'MANAUSD', 'APEUSD', 'GALAUSD',
+  // ── Tier 2: T.17 additions (33) ─────────────────────────────────────
+  'ALGOUSD', 'XLMUSD', 'HBARUSD', 'FLOWUSD', 'EOSUSD', 'XTZUSD',
+  'BATUSD', 'ZECUSD', 'ZRXUSD', 'LRCUSD', 'ANKRUSD', 'IOTXUSD', 'SKLUSD',
+  'GRTUSD', 'IMXUSD', 'FETUSD', 'TAOUSD', 'ONDOUSD', 'KASUSD',
+  'RPLUSD', 'ENSUSD', 'DYDXUSD', 'CVXUSD', 'BLURUSD',
+  'KAVAUSD', 'ARUSD', 'NMRUSD', 'JASMYUSD', 'SUPERUSD',
+  'QNTUSD', 'CTSIUSD', 'ASTRUSD', 'CHZUSD',
 ]);
 
 /** Vanta symbol → Twelve Data symbol */
