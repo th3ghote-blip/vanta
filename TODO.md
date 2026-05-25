@@ -695,8 +695,9 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** Blocks first deposit until acknowledged. Persisted to profile.
 
 ## 14.3 Cookie consent (web)
-- [ ] **What:** Banner asking for analytics cookies (when/if added).
+- [x] **What:** Banner asking for analytics cookies (when/if added).
 - **Acceptance:** Banner shows on first web visit.
+- **Done:** 2026-05-25 — `components/shared/CookieConsentBanner.tsx` (new): web-only bottom banner with "Accept all" / "Necessary only" buttons. Consent persisted via AsyncStorage (localStorage on web) under key `cookie_consent`. Banner is hidden on iOS/Android (Platform.OS guard). Wired into `app/_layout.tsx` as the last child of the QueryClientProvider View so it overlays all screens. No migration, no backend deploy needed.
 
 ---
 

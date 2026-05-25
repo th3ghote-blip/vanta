@@ -53,6 +53,7 @@ import {
   registerForPushNotificationsAsync,
   unregisterPushToken,
 } from '@/lib/notifications';
+import { CookieConsentBanner } from '@/components/shared/CookieConsentBanner';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -186,6 +187,7 @@ function RootLayout() {
               <Stack.Screen name="help" options={{ title: 'Help' }} />
               <Stack.Screen name="kyc" options={{ title: 'Identity Verification' }} />
             </Stack>
+            <CookieConsentBanner />
           </View>
         </QueryClientProvider>
       </SafeAreaProvider>
