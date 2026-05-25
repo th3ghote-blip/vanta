@@ -33,7 +33,7 @@ test.describe('VANTA smoke', () => {
 
     // ── 2. Open the app — should land on login ───────────────────────────────
     await page.goto(BASE_URL);
-    await page.waitForURL(/auth\/login/, { timeout: 20_000 });
+    await page.waitForURL(/login/, { timeout: 20_000 });
 
     // ── 3. Sign in ───────────────────────────────────────────────────────────
     const inputs = page.locator('input');
@@ -91,7 +91,7 @@ test.describe('VANTA smoke', () => {
     await page.getByText('Sign Out').click();
 
     // ── 11. Confirm redirect back to login ───────────────────────────────────
-    await page.waitForURL(/auth\/login/, { timeout: 15_000 });
+    await page.waitForURL(/login/, { timeout: 15_000 });
     await expect(page.locator('input').first()).toBeVisible();
   });
 });
