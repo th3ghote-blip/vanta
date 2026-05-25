@@ -10,6 +10,55 @@ git config user.name "th3ghote-blip"
 
 ---
 
+## 2026-05-25T~12:30Z — 14.3 Cookie consent (web banner)
+
+**TODO item picked:** **14.3 Cookie consent (web)**
+
+**Pre-run state**
+- Working tree clean (only untracked scripts/__pycache__). HEAD = `07e8377`.
+- Client tsc: exit 0. Server tsc: exit 0.
+- index.lock present and unremovable (permissions) — used GIT_INDEX_FILE=/tmp/vanta_fresh_idx + read-tree HEAD workaround throughout.
+
+**What changed**
+- `components/shared/CookieConsentBanner.tsx` (new): web-only bottom banner.
+  Platform.OS guard at top of useEffect — renders nothing on iOS/Android.
+  Uses AsyncStorage (`cookie_consent` key) to persist choice; banner hidden once
+  any choice is made. Two buttons: "Accept all" (stores `accepted`) and
+  "Necessary only" (stores `declined`). Privacy Policy link opens `/legal/privacy`
+  in a new tab. Respects `useThemeColors()` so it adapts to light/dark mode.
+- `app/_layout.tsx`: added `<CookieConsentBanner />` as last child of the
+  QueryClientProvider `<View>` (after `<Stack>`), so it overlays all screens at z=9999.
+- `TODO.md`: 14.3 marked `[x]`.
+
+**Verification**
+- Client tsc: exit 0 ✅
+- Server tsc: exit 0 ✅
+- Commit: `8d1ad45`
+- No backend deploy needed — pure frontend change.
+- GH Actions will deploy to Vercel on push.
+
+**⚠️ Persistent issues (same as before)**
+- index.lock is unremovable — always use `GIT_INDEX_FILE=/tmp/vanta_fresh_idx` +
+  `git read-tree HEAD` before staging.
+- Edit/Write tools do NOT write through to the WSL mount. Always use Python
+  `open(..., 'w')` for file writes.
+- refs/heads/main may get a stray warning line prepended — check before commits.
+
+**Next agent picks (in priority order)**
+- **T.16 Drawing tools** — trendline/fib on chart. Needs `chart_drawings` Supabase
+  migration + Lightweight Charts drawings API work (~2-3h). Now that R.1 auto-deploy
+  is live, migration can land via GH Actions after being committed. This is the
+  richest remaining trading feature. Skip only if the work estimate still feels
+  too large for one run.
+- **T.18 Copy trading** — needs `copy_relationships` migration + leader leaderboard UI.
+  Also substantial but self-contained.
+- **16.3 Load test** — k6 script against trade endpoints, document p95. Pure code/infra,
+  no migration, no deploy gate.
+- **Phase 13 duplicate items (13.1–13.4)** are already done as R.3/R.4/R.7/R.10 —
+  they can be marked [x] without code work (just housekeeping).
+- **Phase 14 duplicate items (14.1–14.2)** are already done as R.12 — same housekeeping.
+- **Phase 16 duplicate items (16.1–16.2)** are already done as R.8/R.9.
+
 ## 2026-05-24T22:21Z — T.19 Spread-betting / micro-lot mode
 
 **TODO item picked:** **T.19 Spread-betting / micro-lot mode**
