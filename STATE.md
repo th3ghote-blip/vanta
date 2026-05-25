@@ -25,6 +25,41 @@ and `0b/` cannot be removed (Operation not permitted).
 
 See the 16.3 run (2026-05-25) for the exact Python+bash sequence.
 
+
+---
+
+## 2026-05-25T~auto — Phase 13/14 housekeeping
+
+**TODO item picked:** Phase 13/14 duplicate-item housekeeping
+
+**Pre-run state**
+- HEAD was caffbf5 which accidentally dropped STATE.md content, TODO.md [x] marks, and
+  load-test scripts committed in e8e2d43. Recovery commit 458b233 restored those first.
+- Working tree clean after recovery. Client/server tsc not re-run (no code changed).
+
+**What changed**
+- `TODO.md`: marked the following Phase 13/14 items as `[x]` (all were completed in earlier R.x runs, just never reflected in these duplicate phase sections):
+  - 13.1 Sentry frontend → done as R.3
+  - 13.2 Sentry backend → done as R.4
+  - 13.4 Performance dashboard → done as R.10
+  - 14.1 Terms of Service + Privacy Policy → done as R.12
+  - 14.2 Risk disclosure modal → done as R.12
+- **13.3 BetterStack** left unchecked — still requires external account signup (https://betterstack.com/sign-up). Human action needed.
+- No code changes. No deploy needed.
+
+**⚠️ Persistent issues (same as before)**
+- maintenance.lock in .git/objects is unremovable — use /tmp/v2 staging clone + pack-copy workflow.
+- index.lock may reappear — clear before git ops.
+- Edit/Write tools do NOT write through to the WSL mount. Always use Python open().
+- refs/heads/main: always update the loose ref at .git/refs/heads/main.
+
+**Next agent picks (in priority order)**
+- **T.16 Drawing tools** — trendline/fib on chart. Needs `chart_drawings` Supabase migration
+  (can write SQL file + commit; user applies manually via Supabase dashboard) + Lightweight
+  Charts drawings API work. Substantial but the migration blocker is manageable.
+- **T.18 Copy trading** — needs `copy_relationships` migration + leaderboard UI.
+- **R.7 / 13.3 BetterStack** — requires human to sign up at https://betterstack.com/sign-up.
+  Cannot be done by agent.
 ---
 
 ## 2026-05-25T~14:15Z — 16.3 Load test

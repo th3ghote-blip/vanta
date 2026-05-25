@@ -664,35 +664,40 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 # Phase 13 — Monitoring
 
 ## 13.1 Sentry integration (frontend)
-- [ ] **Files:** Add `sentry-expo` (or `@sentry/react-native`)
+- [x] **Files:** Add `sentry-expo` (or `@sentry/react-native`)
 - **What:** Capture client errors. Configure release tracking. Tag with user login number.
 - **Acceptance:** Trigger an error → appears in Sentry.
+- **Done:** Completed as R.3 (2026-05-19) — `sentry-expo` installed, init in `app/_layout.tsx`, user login number tagged on sign-in. Web crash captured in Sentry dashboard to verify.
 
 ## 13.2 Sentry integration (backend)
-- [ ] **Files:** `@sentry/node` in server, `sentry.ts` init
+- [x] **Files:** `@sentry/node` in server, `sentry.ts` init
 - **What:** Capture server exceptions, slow request alerts.
 - **Acceptance:** Throw in a route → appears in Sentry.
+- **Done:** Completed as R.4 (2026-05-19) — `@sentry/node` installed, init in `server/src/index.ts`, same DSN as frontend with runtime tag. Verified via test endpoint hitting Sentry dashboard.
 
 ## 13.3 Uptime monitoring
 - [ ] **What:** Set up Better Stack (free tier) → ping `/health` every 5 min → alerts to email/Slack on downtime.
 - **Acceptance:** Take Railway down → alert fires within 5 min.
 
 ## 13.4 Performance dashboard
-- [ ] **What:** Track response times of `/api/quotes`, `/api/orders/open`, etc. Surface in admin dashboard.
+- [x] **What:** Track response times of `/api/quotes`, `/api/orders/open`, etc. Surface in admin dashboard.
 - **Acceptance:** Slow endpoint visible in admin.
+- **Done:** Completed as R.10 — `server/src/middleware/timing.ts` (p50/p95/p99 per route, rolling 5-min window) + `app/admin/perf.tsx` (live numbers in admin panel).
 
 ---
 
 # Phase 14 — Legal & compliance
 
 ## 14.1 Terms of Service + Privacy Policy
-- [ ] **Files:** `app/legal/terms.tsx`, `app/legal/privacy.tsx`
+- [x] **Files:** `app/legal/terms.tsx`, `app/legal/privacy.tsx`
 - **What:** Use TermsFeed generator or hand-write. Link from Profile + signup screen.
 - **Acceptance:** Both accessible in-app.
+- **Done:** Completed as R.12 — static pages rendered from markdown, linked from Profile → Help.
 
 ## 14.2 Risk disclosure modal
-- [ ] **What:** "X% of retail traders lose money. Trading is high risk. By using Vanta you acknowledge..." Required acceptance on first sign-in or first deposit.
+- [x] **What:** "X% of retail traders lose money. Trading is high risk. By using Vanta you acknowledge..." Required acceptance on first sign-in or first deposit.
 - **Acceptance:** Blocks first deposit until acknowledged. Persisted to profile.
+- **Done:** Completed as R.12 — `components/RiskDisclosureModal.tsx` shown on first deposit/sign-in, acceptance persisted to `profiles.risk_accepted`.
 
 ## 14.3 Cookie consent (web)
 - [x] **What:** Banner asking for analytics cookies (when/if added).
