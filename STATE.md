@@ -28,6 +28,51 @@ See the 16.3 run (2026-05-25) for the exact Python+bash sequence.
 
 ---
 
+## 2026-05-26T~auto — T.18 Copy trading (basic)
+
+**TODO item picked:** **T.18 Copy trading (basic)**
+
+**Pre-run state**
+- HEAD was f0834bf (Phase 13/14 housekeeping). Working tree showed MM on STATE.md/TODO.md
+  (stale index from prior run — WSL mount artifact, not user edits). Verified via `git diff HEAD`
+  returning nothing meaningful. Proceeded.
+- T.16 (Drawing tools) skipped again — prior skip note explicitly flags 2-3h, exceeds 60-min rule.
+- Client tsc: exit 0. Server tsc: exit 0.
+
+**What changed**
+- `supabase/migrations/025_copy_relationships.sql` (new): adds `copy_leader_enabled bool` to
+  profiles; creates `copy_relationships` table with RLS. **Must be applied manually via
+  Supabase dashboard SQL editor — network blocked in sandbox.**
+- `server/src/routes/traders.ts` (new): 6 endpoints at `/api/traders`:
+  leaderboard, opt-in toggle, follow, unfollow, following list, me.
+- `server/src/index.ts`: registered `tradersRoutes` at `/api/traders`.
+- `server/src/routes/orders.ts`: `mirrorTradeForFollowers()` — fire-and-forget after every
+  market open; scales lot size by allocation_pct, checks follower margin before inserting.
+- `components/robots/CopyTrading.tsx` (new): leaderboard + Copy/Unfollow buttons +
+  allocation modal + "Share my trades" toggle.
+- `app/(tabs)/robots.tsx`: third "Copy" tab added (alongside My Robots + Leaderboard).
+- `TODO.md`: T.18 marked [x].
+
+**Commit:** `e377654` (via staging clone + pack-copy workaround)
+
+**⚠️ Human action required**
+- Apply `supabase/migrations/025_copy_relationships.sql` in Supabase dashboard SQL editor.
+  Without this migration the `/api/traders/*` endpoints will return db_error on every call.
+- No Railway/Vercel deploy ran (network blocked in sandbox). GH Actions will deploy on push.
+
+**⚠️ Persistent issues (same as before)**
+- maintenance.lock in .git/objects is unremovable — use /tmp/vanta_stage2 (or fresh name) + pack-copy.
+- index.lock may reappear — clear before git ops with GIT_INDEX_FILE workaround if needed.
+- Edit/Write tools do NOT write through to the WSL mount. Always use Python open().
+- refs/heads/main: always update the loose ref at .git/refs/heads/main.
+
+**Next agent picks (in priority order)**
+- **T.16 Drawing tools** — trendline/fib. Still flagged as 2-3h; skip unless feeling ambitious.
+- **13.3 BetterStack** — requires human to sign up at https://betterstack.com/sign-up first.
+- **All other items** in TODO.md are PARKED (domain, iOS, Android, OANDA, Sumsub).
+
+---
+
 ## 2026-05-25T~auto — Phase 13/14 housekeeping
 
 **TODO item picked:** Phase 13/14 duplicate-item housekeeping

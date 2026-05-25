@@ -268,7 +268,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** Picker shows 80+ symbols. All have live prices.
 
 ## T.18 Copy trading (basic)
-- [ ] **Migration:** `copy_relationships (follower_id, leader_id, allocation_pct, started_at)`.
+- [x] **Migration:** `copy_relationships (follower_id, leader_id, allocation_pct, started_at)`.
 - **What:** Robots tab → "Top Traders" leaderboard (ranked by 30-day P&L from public-opted-in users). Tap → "Copy" → for every trade the leader opens, mirror it at allocation_pct of your balance.
 - **Acceptance:** Two test accounts. A opts in as leader, opens BTC buy. B follows A → B sees a copied BTC buy auto-appear in their Open Positions.
 
