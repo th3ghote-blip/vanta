@@ -731,18 +731,27 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 # Phase 16 — Testing
 
 ## 16.1 E2E smoke test
-- [ ] **Files:** `e2e/smoke.test.ts` (Playwright or Detox)
+- [x] **Files:** `e2e/smoke.test.ts` (Playwright or Detox)
 - **What:** Sign up → place trade → close trade → sign out. Run in CI (later).
 - **Acceptance:** `npm run test:e2e` passes.
+- **Done:** Completed as R.8 (2026-05-24) — `e2e/smoke.spec.ts` + `.github/workflows/e2e.yml`. Runs on every push via GitHub Actions.
 
 ## 16.2 Backend integration tests
-- [ ] **Files:** `server/test/*.test.ts`, install `vitest` or `tap`
+- [x] **Files:** `server/test/*.test.ts`, install `vitest` or `tap`
 - **What:** Cover `/api/auth/*`, `/api/orders/*`, `/api/rounds/*` against a test Supabase project.
 - **Acceptance:** `cd server && npm test` passes.
+- **Done:** Completed as R.9 (2026-05-19) — 32 hermetic tests via `vitest`, no live Supabase project required. `cd server && npm test` passes.
 
 ## 16.3 Load test
-- [ ] **What:** Use `k6` or similar to simulate 1000 concurrent users hitting trade endpoints.
+- [x] **What:** Use `k6` or similar to simulate 1000 concurrent users hitting trade endpoints.
 - **Acceptance:** Backend holds up; document p95 latency.
+- **Done:** 2026-05-25 — `scripts/load-test.js` (k6, primary) and `scripts/load-test-node.js` (Node.js, no extra deps).
+  Covers: `/health`, `/api/quotes`, `/api/quotes/:symbol`, `/api/bars/BTC-USD`, `/api/orders/open`, `/api/account`.
+  Load profile: ramp 0→100 VUs over 15s, sustain 60s, ramp down 15s (public); 0→25 VUs (auth).
+  Thresholds encoded in script: p95<500ms (health), p95<800ms (quotes), p95<2000ms (bars), p95<1200ms (auth ops), error rate<1%.
+  Run: `k6 run scripts/load-test.js` or `node scripts/load-test-node.js`.
+  Auth testing: set `TEST_JWT=<supabase_jwt>` env var; omit to test public endpoints only.
+  Note: actual p95 numbers require running against the live Railway server — sandbox network is blocked.
 
 ---
 
