@@ -96,42 +96,12 @@ const META: Record<string, Omit<SymbolMeta, 'ticker'>> = {
   ASTRUSD:   { name: 'Astar',                 category: 'Crypto' },
   CHZUSD:    { name: 'Chiliz',                category: 'Crypto' },
 
-  // ── Forex ────────────────────────────────────────────────────────────
-  EURUSD: { name: 'Euro / US Dollar',              category: 'Forex' },
-  GBPUSD: { name: 'British Pound / US Dollar',     category: 'Forex' },
-  USDJPY: { name: 'US Dollar / Japanese Yen',      category: 'Forex' },
-  AUDUSD: { name: 'Australian Dollar / US Dollar', category: 'Forex' },
-  USDCAD: { name: 'US Dollar / Canadian Dollar',   category: 'Forex' },
-  NZDUSD: { name: 'New Zealand Dollar / US Dollar',category: 'Forex' },
-  USDCHF: { name: 'US Dollar / Swiss Franc',       category: 'Forex' },
-  EURJPY: { name: 'Euro / Japanese Yen',           category: 'Forex' },
-  GBPJPY: { name: 'British Pound / Japanese Yen',  category: 'Forex' },
-  EURGBP: { name: 'Euro / British Pound',          category: 'Forex' },
-  AUDJPY: { name: 'Australian Dollar / Japanese Yen', category: 'Forex' },
-  EURCHF: { name: 'Euro / Swiss Franc',            category: 'Forex' },
-  GBPCHF: { name: 'British Pound / Swiss Franc',   category: 'Forex' },
 
-  // ── Metals ───────────────────────────────────────────────────────────
-  XAUUSD: { name: 'Gold',   category: 'Metals' },
-  XAGUSD: { name: 'Silver', category: 'Metals' },
+  // ── Metals (Coinbase-backed only) ───────────────────────────────────
+  // PAXG (Paxos Gold) — 1 token = 1 troy oz London Good Delivery gold.
+  // Trades on Coinbase Advanced. No silver proxy on Coinbase.
+  PAXGUSD: { name: 'Gold (PAXG)', category: 'Metals' },
 
-  // ── Stocks ───────────────────────────────────────────────────────────
-  AAPL:  { name: 'Apple Inc.',              category: 'Stocks' },
-  MSFT:  { name: 'Microsoft Corp.',         category: 'Stocks' },
-  TSLA:  { name: 'Tesla, Inc.',             category: 'Stocks' },
-  AMZN:  { name: 'Amazon.com, Inc.',        category: 'Stocks' },
-  GOOGL: { name: 'Alphabet Inc.',           category: 'Stocks' },
-  META:  { name: 'Meta Platforms, Inc.',    category: 'Stocks' },
-  NVDA:  { name: 'NVIDIA Corp.',            category: 'Stocks' },
-  NFLX:  { name: 'Netflix, Inc.',           category: 'Stocks' },
-  AMD:   { name: 'Advanced Micro Devices',  category: 'Stocks' },
-  INTC:  { name: 'Intel Corp.',             category: 'Stocks' },
-  CRM:   { name: 'Salesforce, Inc.',        category: 'Stocks' },
-  ORCL:  { name: 'Oracle Corp.',            category: 'Stocks' },
-  IBM:   { name: 'IBM Corp.',               category: 'Stocks' },
-  BA:    { name: 'Boeing Co.',              category: 'Stocks' },
-  JPM:   { name: 'JPMorgan Chase & Co.',   category: 'Stocks' },
-  BAC:   { name: 'Bank of America Corp.',  category: 'Stocks' },
 };
 
 export function symbolMeta(ticker: string): SymbolMeta {
