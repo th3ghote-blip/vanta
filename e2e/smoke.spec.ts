@@ -39,7 +39,7 @@ test.describe('VANTA smoke', () => {
     const inputs = page.locator('input');
     await inputs.first().fill(String(login));
     await inputs.nth(1).fill(password);
-    await page.getByRole('button', { name: /sign in/i }).click();
+    await page.getByText('Sign In', { exact: true }).click();
 
     // ── 4. Wait for redirect to trade tab ────────────────────────────────────
     await page.waitForURL(/tabs\/trade/, { timeout: 25_000 });
