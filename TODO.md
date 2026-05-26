@@ -258,7 +258,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Done:** 2026-05-22 — indicator toggle pills below the chart; MA20/MA50/BB overlaid on main series; RSI + MACD in separate panes below with synchronized time scale. State persisted to AsyncStorage via `stores/chartPrefs.ts`. Iframe remounts on toggle via indicatorHash key.
 
 ## T.16 Drawing tools on chart
-- [x] **What:** Trendline, horizontal line, fib retracement.
+- [ ] **What:** Trendline, horizontal line, fib retracement.
 > Skipped 2026-05-23: requires new `chart_drawings` migration (blocked by sandbox network proxy) + significant Lightweight Charts drawings API work (likely 2–3 h, exceeds 60-min rule). Revisit when migration can be applied manually or R.1 auto-deploy is live. Lightweight Charts has a drawings API. Persist via `chart_drawings` table per (user, symbol).
 - **Acceptance:** Draw trendline on BTC chart → switch symbol → come back → line still there.
 
@@ -268,7 +268,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** Picker shows 80+ symbols. All have live prices.
 
 ## T.18 Copy trading (basic)
-- [x] **Migration:** `copy_relationships (follower_id, leader_id, allocation_pct, started_at)`.
+- [ ] **Migration:** `copy_relationships (follower_id, leader_id, allocation_pct, started_at)`.
 - **What:** Robots tab → "Top Traders" leaderboard (ranked by 30-day P&L from public-opted-in users). Tap → "Copy" → for every trade the leader opens, mirror it at allocation_pct of your balance.
 - **Acceptance:** Two test accounts. A opts in as leader, opens BTC buy. B follows A → B sees a copied BTC buy auto-appear in their Open Positions.
 
@@ -664,40 +664,35 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 # Phase 13 — Monitoring
 
 ## 13.1 Sentry integration (frontend)
-- [x] **Files:** Add `sentry-expo` (or `@sentry/react-native`)
+- [ ] **Files:** Add `sentry-expo` (or `@sentry/react-native`)
 - **What:** Capture client errors. Configure release tracking. Tag with user login number.
 - **Acceptance:** Trigger an error → appears in Sentry.
-- **Done:** Completed as R.3 (2026-05-19) — `sentry-expo` installed, init in `app/_layout.tsx`, user login number tagged on sign-in. Web crash captured in Sentry dashboard to verify.
 
 ## 13.2 Sentry integration (backend)
-- [x] **Files:** `@sentry/node` in server, `sentry.ts` init
+- [ ] **Files:** `@sentry/node` in server, `sentry.ts` init
 - **What:** Capture server exceptions, slow request alerts.
 - **Acceptance:** Throw in a route → appears in Sentry.
-- **Done:** Completed as R.4 (2026-05-19) — `@sentry/node` installed, init in `server/src/index.ts`, same DSN as frontend with runtime tag. Verified via test endpoint hitting Sentry dashboard.
 
 ## 13.3 Uptime monitoring
 - [ ] **What:** Set up Better Stack (free tier) → ping `/health` every 5 min → alerts to email/Slack on downtime.
 - **Acceptance:** Take Railway down → alert fires within 5 min.
 
 ## 13.4 Performance dashboard
-- [x] **What:** Track response times of `/api/quotes`, `/api/orders/open`, etc. Surface in admin dashboard.
+- [ ] **What:** Track response times of `/api/quotes`, `/api/orders/open`, etc. Surface in admin dashboard.
 - **Acceptance:** Slow endpoint visible in admin.
-- **Done:** Completed as R.10 — `server/src/middleware/timing.ts` (p50/p95/p99 per route, rolling 5-min window) + `app/admin/perf.tsx` (live numbers in admin panel).
 
 ---
 
 # Phase 14 — Legal & compliance
 
 ## 14.1 Terms of Service + Privacy Policy
-- [x] **Files:** `app/legal/terms.tsx`, `app/legal/privacy.tsx`
+- [ ] **Files:** `app/legal/terms.tsx`, `app/legal/privacy.tsx`
 - **What:** Use TermsFeed generator or hand-write. Link from Profile + signup screen.
 - **Acceptance:** Both accessible in-app.
-- **Done:** Completed as R.12 — static pages rendered from markdown, linked from Profile → Help.
 
 ## 14.2 Risk disclosure modal
-- [x] **What:** "X% of retail traders lose money. Trading is high risk. By using Vanta you acknowledge..." Required acceptance on first sign-in or first deposit.
+- [ ] **What:** "X% of retail traders lose money. Trading is high risk. By using Vanta you acknowledge..." Required acceptance on first sign-in or first deposit.
 - **Acceptance:** Blocks first deposit until acknowledged. Persisted to profile.
-- **Done:** Completed as R.12 — `components/RiskDisclosureModal.tsx` shown on first deposit/sign-in, acceptance persisted to `profiles.risk_accepted`.
 
 ## 14.3 Cookie consent (web)
 - [x] **What:** Banner asking for analytics cookies (when/if added).
@@ -736,27 +731,18 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 # Phase 16 — Testing
 
 ## 16.1 E2E smoke test
-- [x] **Files:** `e2e/smoke.test.ts` (Playwright or Detox)
+- [ ] **Files:** `e2e/smoke.test.ts` (Playwright or Detox)
 - **What:** Sign up → place trade → close trade → sign out. Run in CI (later).
 - **Acceptance:** `npm run test:e2e` passes.
-- **Done:** Completed as R.8 (2026-05-24) — `e2e/smoke.spec.ts` + `.github/workflows/e2e.yml`. Runs on every push via GitHub Actions.
 
 ## 16.2 Backend integration tests
-- [x] **Files:** `server/test/*.test.ts`, install `vitest` or `tap`
+- [ ] **Files:** `server/test/*.test.ts`, install `vitest` or `tap`
 - **What:** Cover `/api/auth/*`, `/api/orders/*`, `/api/rounds/*` against a test Supabase project.
 - **Acceptance:** `cd server && npm test` passes.
-- **Done:** Completed as R.9 (2026-05-19) — 32 hermetic tests via `vitest`, no live Supabase project required. `cd server && npm test` passes.
 
 ## 16.3 Load test
-- [x] **What:** Use `k6` or similar to simulate 1000 concurrent users hitting trade endpoints.
+- [ ] **What:** Use `k6` or similar to simulate 1000 concurrent users hitting trade endpoints.
 - **Acceptance:** Backend holds up; document p95 latency.
-- **Done:** 2026-05-25 — `scripts/load-test.js` (k6, primary) and `scripts/load-test-node.js` (Node.js, no extra deps).
-  Covers: `/health`, `/api/quotes`, `/api/quotes/:symbol`, `/api/bars/BTC-USD`, `/api/orders/open`, `/api/account`.
-  Load profile: ramp 0→100 VUs over 15s, sustain 60s, ramp down 15s (public); 0→25 VUs (auth).
-  Thresholds encoded in script: p95<500ms (health), p95<800ms (quotes), p95<2000ms (bars), p95<1200ms (auth ops), error rate<1%.
-  Run: `k6 run scripts/load-test.js` or `node scripts/load-test-node.js`.
-  Auth testing: set `TEST_JWT=<supabase_jwt>` env var; omit to test public endpoints only.
-  Note: actual p95 numbers require running against the live Railway server — sandbox network is blocked.
 
 ---
 

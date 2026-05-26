@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Platform, View, Text, ActivityIndicator, TouchableOpacity, ScrollView } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebView } from 'react-native-webview';
 
 import { colors, radius, spacing, typography } from '@/lib/theme';
@@ -22,15 +21,6 @@ interface Bar {
   low:     number;
   close:   number;
   volume?: number;
-}
-
-interface ChartDrawing {
-  id:     string;
-  type:   'horizontal' | 'trendline' | 'fib';
-  price?: number;
-  p1?:    { time: number; price: number };
-  p2?:    { time: number; price: number };
-  color?: string;
 }
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000';
@@ -107,33 +97,6 @@ export function Chart({ symbol, timeframe, height = 360 }: Props) {
 
   const { bars, loading, error } = barsState;
 
-  // ── T.16 Drawing persistence ─────────────────────────────────────────────
-  const drawingsRef    = useRef<Record<string, ChartDrawing[]>>({});
-  const [drawingsLoaded, setDrawingsLoaded] = useState(false);
-
-  useEffect(() => {
-    AsyncStorage.getItem('vanta:chart-drawings')
-      .then((s) => { if (s) { try { drawingsRef.current = JSON.parse(s); } catch {} } })
-      .catch(() => {})
-      .finally(() => setDrawingsLoaded(true));
-  }, []);
-
-  // Web: receive drawing updates postMessage'd from the iframe
-  useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    const handler = (e: MessageEvent) => {
-      try {
-        const d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
-        if (d?.type === 'drawings_update') {
-          drawingsRef.current = { ...drawingsRef.current, [d.symbol ?? symbol]: d.drawings };
-          AsyncStorage.setItem('vanta:chart-drawings', JSON.stringify(drawingsRef.current)).catch(() => {});
-        }
-      } catch {}
-    };
-    window.addEventListener('message', handler);
-    return () => window.removeEventListener('message', handler);
-  }, [symbol]);
-
   // Encode indicator state in the iframe key so it fully remounts on toggle
   const indicatorHash = hydrated
     ? INDICATOR_ORDER.map((k) => (indicators[k] ? '1' : '0')).join('')
@@ -166,9 +129,8 @@ export function Chart({ symbol, timeframe, height = 360 }: Props) {
   }
 
   const tfSeconds  = TF_SECONDS[timeframe];
-  const drawings   = drawingsLoaded ? (drawingsRef.current[symbol] ?? []) : [];
-  const html       = buildChartHtml(symbol, timeframe, tfSeconds, bars, fallbackPrice, indicators, drawings);
-  const iframeKey  = `${symbol}-${timeframe}-${indicatorHash}-${drawingsLoaded ? '1' : '0'}`;
+  const html       = buildChartHtml(symbol, timeframe, tfSeconds, bars, fallbackPrice, indicators);
+  const iframeKey  = `${symbol}-${timeframe}-${indicatorHash}`;
 
   return (
     <View>
@@ -189,15 +151,6 @@ export function Chart({ symbol, timeframe, height = 360 }: Props) {
             source={{ html }}
             style={{ backgroundColor: colors.bgElevated }}
             scrollEnabled={false}
-            onMessage={(e) => {
-              try {
-                const d = JSON.parse(e.nativeEvent.data);
-                if (d?.type === 'drawings_update') {
-                  drawingsRef.current = { ...drawingsRef.current, [d.symbol ?? symbol]: d.drawings };
-                  AsyncStorage.setItem('vanta:chart-drawings', JSON.stringify(drawingsRef.current)).catch(() => {});
-                }
-              } catch {}
-            }}
           />
         )}
       </View>
@@ -257,7 +210,6 @@ function buildChartHtml(
   bars:       Bar[],
   fallback:   number,
   indicators: { ma20: boolean; ma50: boolean; bb: boolean; rsi: boolean; macd: boolean },
-  drawings:   ChartDrawing[] = [],
 ) {
   const sample          = bars.length > 0 ? bars[bars.length - 1].close : fallback;
   const decimals        = decimalsFor(sample);
@@ -290,11 +242,6 @@ function buildChartHtml(
     '  .dot{animation:pulse 1.5s ease-in-out infinite;}\n' +
     '  .loading-left{position:absolute;top:50%;left:12px;transform:translateY(-50%);color:' + colors.textMuted + ';font:500 11px Inter,sans-serif;z-index:2;opacity:0;transition:opacity .15s;background:' + colors.bgElevated + ';padding:4px 8px;border-radius:4px;pointer-events:none;}\n' +
     '  .loading-left.on{opacity:1;}\n' +
-    '  #draw-toolbar{position:absolute;top:8px;left:50%;transform:translateX(-50%);display:flex;gap:3px;z-index:10;opacity:.85;}\n' +
-    '  #draw-toolbar:hover{opacity:1;}\n' +
-    '  .dtool{width:26px;height:26px;border:1px solid ' + colors.border + ';background:' + colors.bgElevated + ';color:' + colors.textSecondary + ';border-radius:4px;cursor:pointer;font:700 13px Inter,monospace;display:flex;align-items:center;justify-content:center;padding:0;line-height:1;}\n' +
-    '  .dtool-del{color:' + colors.loss + '!important;border-color:' + colors.loss + '!important;}\n' +
-    '  #draw-overlay{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:visible;}\n' +
     '</style>\n' +
     '<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>\n' +
     '</head><body>\n' +
@@ -304,8 +251,6 @@ function buildChartHtml(
     '    <div class="live"><span class="dot"></span><span id="status">connecting…</span></div>\n' +
     '    <div id="loading-left" class="loading-left">loading history…</div>\n' +
     '  </div>\n' +
-    '    <div id="draw-toolbar"></div>\n' +
-    '    <svg id="draw-overlay"></svg>\n' +
     rsiDiv + '\n' +
     macdDiv + '\n' +
     '</div>\n' +
@@ -323,7 +268,6 @@ function buildChartHtml(
     '  var SHOW_BB    = ' + indicators.bb   + ';\n' +
     '  var SHOW_RSI   = ' + indicators.rsi  + ';\n' +
     '  var SHOW_MACD  = ' + indicators.macd + ';\n' +
-    '  var INITIAL_DRAWINGS = ' + JSON.stringify(drawings) + ';\n' +
     '  var PROFIT_COLOR = ' + JSON.stringify(colors.profit) + ';\n' +
     '  var LOSS_COLOR   = ' + JSON.stringify(colors.loss)   + ';\n' +
     '\n' +
@@ -675,42 +619,6 @@ function buildChartHtml(
     '      } catch(err) {}\n' +
     '    };\n' +
     '  }\n' +
-    '  // ── T.16 Drawing tools ──────────────────────────────────────────\n' +
-    '  var DRAWINGS=(function(){try{return JSON.parse(JSON.stringify(INITIAL_DRAWINGS));}catch(e){return [];}})();\n' +
-    '  var drawMode="select";\n' +
-    '  var pending=null;\n' +
-    '  var drawSvg=document.getElementById("draw-overlay");\n' +
-    '  var drawBar=document.getElementById("draw-toolbar");\n' +
-    '  var PRIC="' + colors.primary + '";\n' +
-    '  var BORD="' + colors.border + '";\n' +
-    '  var BGC="' + colors.bgElevated + '";\n' +
-    '  var TEXC="' + colors.textSecondary + '";\n' +
-    '  var DTOOLS=[{id:"select",lbl:"\u2196"},{id:"horizontal",lbl:"\u2014"},{id:"trendline",lbl:"\u2571"},{id:"fib",lbl:"F"}];\n' +
-    '  DTOOLS.forEach(function(t){var b=document.createElement("button");b.className="dtool";b.dataset.id=t.id;b.textContent=t.lbl;b.title=t.id;b.onclick=function(){setDMode(t.id);};drawBar.appendChild(b);});\n' +
-    '  var clrBtn=document.createElement("button");clrBtn.className="dtool dtool-del";clrBtn.title="Clear";clrBtn.textContent="\xd7";clrBtn.onclick=function(){DRAWINGS=[];pending=null;renderSvg();notifyDraw();};drawBar.appendChild(clrBtn);\n' +
-    '  function setDMode(m){drawMode=m;pending=null;drawSvg.style.pointerEvents=(m==="select")?"none":"all";drawSvg.style.cursor=(m==="select")?"default":"crosshair";drawBar.querySelectorAll(".dtool[data-id]").forEach(function(b){var on=(b.dataset.id===m);b.style.borderColor=on?PRIC:BORD;b.style.background=on?PRIC+"33":BGC;b.style.color=on?PRIC:TEXC;});}\n' +
-    '  setDMode("select");\n' +
-    '  function duid(){return Math.random().toString(36).slice(2,9);}\n' +
-    '  function getdc(e){var rect=drawSvg.getBoundingClientRect();var cx=e.clientX-rect.left;var cy=e.clientY-rect.top;var t=mainChart.timeScale().coordinateToTime(cx);var p=series.coordinateToPrice(cy);return(t!==null&&p!==null)?{time:Number(t),price:p}:null;}\n' +
-    '  drawSvg.addEventListener("click",function(e){var c=getdc(e);if(!c)return;if(drawMode==="horizontal"){DRAWINGS.push({id:duid(),type:"horizontal",price:c.price,color:"#f59e0b"});renderSvg();notifyDraw();}else if(drawMode==="trendline"||drawMode==="fib"){if(!pending){pending={time:c.time,price:c.price};renderSvg();}else{DRAWINGS.push({id:duid(),type:drawMode,p1:pending,p2:{time:c.time,price:c.price},color:drawMode==="trendline"?"#818cf8":"#22d3ee"});pending=null;renderSvg();notifyDraw();}}});\n' +
-    '  function renderSvg(){\n' +
-    '    while(drawSvg.firstChild)drawSvg.removeChild(drawSvg.firstChild);\n' +
-    '    var W=drawSvg.parentElement?drawSvg.parentElement.clientWidth:400;\n' +
-    '    var H=drawSvg.parentElement?drawSvg.parentElement.clientHeight:300;\n' +
-    '    drawSvg.setAttribute("viewBox","0 0 "+W+" "+H);\n' +
-    '    function mkL(x1,y1,x2,y2,col,dash,sw){var el=document.createElementNS("http://www.w3.org/2000/svg","line");el.setAttribute("x1",x1);el.setAttribute("y1",y1);el.setAttribute("x2",x2);el.setAttribute("y2",y2);el.setAttribute("stroke",col||"#f59e0b");el.setAttribute("stroke-width",sw||"1");if(dash&&dash!=="none")el.setAttribute("stroke-dasharray",dash);return el;}\n' +
-    '    function mkT(x,y,s,col,a){var el=document.createElementNS("http://www.w3.org/2000/svg","text");el.setAttribute("x",x);el.setAttribute("y",y);el.setAttribute("fill",col||"#f59e0b");el.setAttribute("font-size","9");el.setAttribute("font-family","Inter,sans-serif");if(a)el.setAttribute("text-anchor",a);el.textContent=s;return el;}\n' +
-    '    DRAWINGS.forEach(function(d){\n' +
-    '      if(d.type==="horizontal"&&d.price!=null){var yh=series.priceToCoordinate(d.price);if(yh===null)return;drawSvg.appendChild(mkL(0,yh,W,yh,d.color,"4 3","1.5"));drawSvg.appendChild(mkT(W-4,yh-3,Number(d.price).toFixed(DECIMALS),d.color,"end"));}\n' +
-    '      else if(d.type==="trendline"&&d.p1&&d.p2){var x1t=mainChart.timeScale().timeToCoordinate(d.p1.time);var y1t=series.priceToCoordinate(d.p1.price);var x2t=mainChart.timeScale().timeToCoordinate(d.p2.time);var y2t=series.priceToCoordinate(d.p2.price);if(x1t===null||y1t===null||x2t===null||y2t===null)return;if(x2t!==x1t){var sl=(y2t-y1t)/(x2t-x1t);drawSvg.appendChild(mkL(0,y1t+sl*(0-x1t),W,y1t+sl*(W-x1t),d.color,"none","1.5"));}else{drawSvg.appendChild(mkL(x1t,0,x1t,H,d.color,"none","1.5"));}}\n' +
-    '      else if(d.type==="fib"&&d.p1&&d.p2){var FIBS=[0,0.236,0.382,0.5,0.618,0.786,1];var FCLR=["#22d3ee","#34d399","#a78bfa","#f59e0b","#a78bfa","#34d399","#22d3ee"];var hiP=Math.max(d.p1.price,d.p2.price);var loP=Math.min(d.p1.price,d.p2.price);var rng=hiP-loP;FIBS.forEach(function(lvl,i){var p=hiP-lvl*rng;var yf=series.priceToCoordinate(p);if(yf===null||yf<-20||yf>H+20)return;var dash=(lvl===0||lvl===1)?"none":"3 3";drawSvg.appendChild(mkL(0,yf,W,yf,FCLR[i],dash,"1"));drawSvg.appendChild(mkT(6,yf-3,(lvl*100).toFixed(1)+"%  "+Number(p).toFixed(DECIMALS),FCLR[i]));});}\n' +
-    '    });\n' +
-    '    if(pending){var px=mainChart.timeScale().timeToCoordinate(pending.time);var py=series.priceToCoordinate(pending.price);if(px!==null&&py!==null){var pc=(drawMode==="fib")?"#22d3ee":"#818cf8";drawSvg.appendChild(mkL(px-6,py,px+6,py,pc,"none","2"));drawSvg.appendChild(mkL(px,py-6,px,py+6,pc,"none","2"));}}\n' +
-    '  }\n' +
-    '  function notifyDraw(){var msg=JSON.stringify({type:"drawings_update",symbol:SYMBOL,drawings:DRAWINGS});try{if(window.ReactNativeWebView)window.ReactNativeWebView.postMessage(msg);else window.parent.postMessage(msg,"*");}catch(ex){}}\n' +
-    '  mainChart.timeScale().subscribeVisibleTimeRangeChange(function(){renderSvg();});\n' +
-    '  renderSvg();\n' +
-    '\n' +
     '  connect();\n' +
     '</script>\n' +
     '</body></html>'

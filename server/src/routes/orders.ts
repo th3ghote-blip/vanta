@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyBaseLogger } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 
 import { authUser, supabaseAdmin } from '../lib/supabase.js';
@@ -44,75 +44,6 @@ const CloseOrderSchema = z.object({
 const CancelPendingParamsSchema = z.object({
   id: z.coerce.number().int().positive(),
 });
-
-
-// T.18 — Copy trading: mirror a leader's market order to all active followers.
-// Fire-and-forget — errors are logged but never surface to the leader's response.
-async function mirrorTradeForFollowers(
-  leaderId: string,
-  leaderTrade: Record<string, any>,
-  log: FastifyBaseLogger,
-): Promise<void> {
-  // Find everyone copying this leader.
-  const { data: rels, error: relErr } = await supabaseAdmin
-    .from('copy_relationships')
-    .select('follower_id, follower_account_id, allocation_pct')
-    .eq('leader_id', leaderId);
-
-  if (relErr || !rels || rels.length === 0) return;
-
-  for (const rel of rels) {
-    try {
-      // Fetch follower account for margin check.
-      const { data: acct } = await supabaseAdmin
-        .from('accounts')
-        .select('id, free_margin, margin_used, leverage')
-        .eq('id', rel.follower_account_id)
-        .single();
-      if (!acct) continue;
-
-      const copyVolume = +((leaderTrade.volume as number) * (Number(rel.allocation_pct) / 100)).toFixed(8);
-      if (copyVolume <= 0) continue;
-
-      const openPrice = Number(leaderTrade.open_price);
-      const acctLeverage = Number(acct.leverage) || 1;
-      const { requiredMargin, reserveMargin } = await import('../lib/margin.js');
-      const required = +requiredMargin(copyVolume, openPrice, leaderTrade.symbol as string, acctLeverage).toFixed(2);
-      const available = Number(acct.free_margin) || 0;
-      if (available < required) continue; // skip if insufficient margin
-
-      const reserve = await reserveMargin(
-        { id: acct.id, free_margin: available, margin_used: Number(acct.margin_used) || 0 },
-        required,
-        log,
-      );
-      if (!reserve.ok) continue;
-
-      const mirrorRow = {
-        account_id: rel.follower_account_id,
-        symbol: leaderTrade.symbol,
-        side: leaderTrade.side,
-        volume: copyVolume,
-        open_price: openPrice,
-        current_price: openPrice,
-        status: 'open',
-        reason: 'copy',
-        order_type: 'market',
-        stop_loss: leaderTrade.stop_loss ?? null,
-        take_profit: leaderTrade.take_profit ?? null,
-      };
-
-      const { error: insErr } = await supabaseAdmin.from('trades').insert(mirrorRow);
-      if (insErr) {
-        // Roll back margin reservation on insert failure.
-        try { const { releaseMargin } = await import('../lib/margin.js'); await releaseMargin(acct.id, required, log); } catch {}
-        log.error({ insErr, followerId: rel.follower_id }, 'copy-trade insert failed');
-      }
-    } catch (err) {
-      log.error({ err, followerId: rel.follower_id }, 'copy-trade mirror error');
-    }
-  }
-}
 
 export async function ordersRoutes(app: FastifyInstance) {
   app.post('/open', async (req, reply) => {
@@ -471,8 +402,6 @@ export async function ordersRoutes(app: FastifyInstance) {
     // immediate-fill market orders; pending orders count once they fill.
     if (!isPending) {
       void checkFirstTrade(userId).catch(() => {});
-      // T.18 — mirror trade to copy followers (fire-and-forget, never blocks the leader).
-      void mirrorTradeForFollowers(userId, trade as Record<string, any>, app.log).catch(() => {});
     }
 
     return { trade };
