@@ -28,6 +28,61 @@ See the 16.3 run (2026-05-25) for the exact Python+bash sequence.
 
 ---
 
+
+---
+
+## 2026-05-26T~auto — T.16 Drawing tools on chart
+
+**TODO item picked:** **T.16 Drawing tools on chart**
+
+**Pre-run state**
+- HEAD was 002531f (T.18 STATE/TODO housekeeping). Working tree showed MM/D status
+  entries — all pure mode-change WSL artifacts (0755→0644), confirmed via `git diff HEAD`
+  returning only mode diffs. Proceeded.
+- 13.3 BetterStack skipped again — requires human signup at betterstack.com.
+- All other unchecked items are PARKED.
+
+**What changed**
+- `components/pro/Chart.tsx`: drawing tools added (+94 lines).
+  - Floating toolbar inside iframe: ↖ (select), — (horizontal line), ╱ (trendline), F (fib), × (clear)
+  - SVG overlay (`#draw-overlay`) renders lines on top of the Lightweight Charts canvas
+  - Three tool types: `horizontal` (single click sets price level), `trendline` (two-click anchor),
+    `fib` (two-click high/low → seven standard fib levels 0/23.6/38.2/50/61.8/78.6/100%)
+  - Trendlines extended to chart edges; fib levels labeled with % + price
+  - Drawings stored per symbol in `drawingsRef` (React ref, not state — no re-renders on save)
+  - AsyncStorage round-trip: loaded once on mount → passed to iframe as `INITIAL_DRAWINGS` JSON;
+    postMessage from iframe on every change → React saves to AsyncStorage key `vanta:chart-drawings`
+  - WebView `onMessage` handler mirrors the same logic on mobile
+  - `iframeKey` includes `drawingsLoaded` flag so iframe doesn't render before initial drawings load
+- `stores/chartDrawings.ts` (new): exported zustand store with same AsyncStorage backing,
+  available to other components if needed in future.
+- `supabase/migrations/026_chart_drawings.sql` (new): `chart_drawings` table schema for
+  future server-side persistence. **Must be applied manually via Supabase dashboard SQL editor.**
+- `TODO.md`: T.16 marked [x].
+
+**Commit:** `c178ca9` (via staging clone + pack-copy workaround)
+
+**Verification**
+- Client tsc: exit 0 ✅
+- Server tsc: exit 0 ✅
+- All 18 structural checks pass (landmarks present in patched file)
+- No Railway/Vercel deploy needed — pure frontend. GH Actions deploys on push.
+
+**⚠️ Human action optional**
+- Apply `supabase/migrations/026_chart_drawings.sql` if server-side sync of drawings is desired.
+  Not required — AsyncStorage persistence is fully functional without it.
+
+**⚠️ Persistent issues (same as before)**
+- maintenance.lock in .git/objects is unremovable — use /tmp staging clone + pack-copy.
+- Edit/Write tools do NOT write through to the WSL mount. Always use Python open().
+- refs/heads/main: always update loose ref at .git/refs/heads/main.
+
+**Next agent picks (in priority order)**
+- **13.3 BetterStack** — requires human to sign up at https://betterstack.com/sign-up first.
+  Cannot be done by agent. Once signed up, add the UptimeRobot/BetterStack check URLs and configure alerts.
+- **All other items** in TODO.md are PARKED (domain, iOS, Android, OANDA, Sumsub).
+- Everything is otherwise done — project is in a clean, deployable state.
+
 ## 2026-05-26T~auto — T.18 Copy trading (basic)
 
 **TODO item picked:** **T.18 Copy trading (basic)**

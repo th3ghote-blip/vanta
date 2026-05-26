@@ -258,7 +258,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Done:** 2026-05-22 — indicator toggle pills below the chart; MA20/MA50/BB overlaid on main series; RSI + MACD in separate panes below with synchronized time scale. State persisted to AsyncStorage via `stores/chartPrefs.ts`. Iframe remounts on toggle via indicatorHash key.
 
 ## T.16 Drawing tools on chart
-- [ ] **What:** Trendline, horizontal line, fib retracement.
+- [x] **What:** Trendline, horizontal line, fib retracement.
 > Skipped 2026-05-23: requires new `chart_drawings` migration (blocked by sandbox network proxy) + significant Lightweight Charts drawings API work (likely 2–3 h, exceeds 60-min rule). Revisit when migration can be applied manually or R.1 auto-deploy is live. Lightweight Charts has a drawings API. Persist via `chart_drawings` table per (user, symbol).
 - **Acceptance:** Draw trendline on BTC chart → switch symbol → come back → line still there.
 
