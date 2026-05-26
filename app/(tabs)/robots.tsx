@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
-import { Sparkles, Plus, Trophy } from 'lucide-react-native';
+import { Sparkles, Plus, Trophy, Users } from 'lucide-react-native';
 
 import { colors, radius, spacing, typography } from '@/lib/theme';
 import { EnvBanner } from '@/components/shared/EnvBanner';
@@ -9,10 +9,11 @@ import { RobotCard } from '@/components/robots/RobotCard';
 import { RobotPromptBuilder } from '@/components/robots/RobotPromptBuilder';
 import { RobotLeaderboard } from '@/components/robots/RobotLeaderboard';
 import { RobotTemplates } from '@/components/robots/RobotTemplates';
+import { CopyTrading } from '@/components/robots/CopyTrading';
 import { useAccountStore } from '@/stores/account';
 import { useRobotsStore } from '@/stores/robots';
 
-type Tab = 'my_robots' | 'leaderboard';
+type Tab = 'my_robots' | 'leaderboard' | 'copy';
 
 export default function Robots() {
   const { account } = useAccountStore();
@@ -77,6 +78,12 @@ export default function Robots() {
           icon={<Trophy size={13} color={activeTab === 'leaderboard' ? '#fff' : colors.textSecondary} />}
           active={activeTab === 'leaderboard'}
           onPress={() => setActiveTab('leaderboard')}
+        />
+        <TabPill
+          label="Copy"
+          icon={<Users size={13} color={activeTab === 'copy' ? '#fff' : colors.textSecondary} />}
+          active={activeTab === 'copy'}
+          onPress={() => setActiveTab('copy')}
         />
       </View>
 
@@ -146,9 +153,13 @@ export default function Robots() {
             </Text>
           </Pressable>
         </ScrollView>
-      ) : (
+      ) : activeTab === 'leaderboard' ? (
         <View style={{ flex: 1, padding: spacing.md }}>
           <RobotLeaderboard />
+        </View>
+      ) : (
+        <View style={{ flex: 1, padding: spacing.md }}>
+          <CopyTrading />
         </View>
       )}
     </View>
