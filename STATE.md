@@ -27,6 +27,42 @@ See the 16.3 run (2026-05-25) for the exact Python+bash sequence.
 
 ---
 
+## 2026-05-27T~auto — No actionable work; all items PARKED or externally blocked (run #2)
+
+**TODO item picked:** (none)
+
+**Pre-run state**
+- HEAD was `8e612e8` (auto: STATE.md — no actionable work, all items PARKED).
+- Working tree: `STATE.md` staged-vs-HEAD diff (104 lines) — WSL stale index artifact.
+  `git diff HEAD -- STATE.md` returns empty; on-disk file matches HEAD exactly. Not user edits.
+- Proceeded per known persistent WSL stale-index behavior.
+
+**What was assessed**
+- Scanned all unchecked `- [ ]` items in TODO.md.
+- Non-PARKED items requiring agent work: **none found**.
+- R.7 BetterStack (line 144) — needs human signup at https://betterstack.com/sign-up.
+- 13.3 BetterStack (line 679) — same, duplicate entry.
+- 5.3 Sumsub — PARKED, requires sales call + contract.
+- 8.1 OANDA — PARKED, requires user-provided API token.
+- 9.3 TestFlight — PARKED, requires Apple Developer account ($99/yr).
+- 9.4 Play Store — PARKED, requires Google Play account ($25).
+- Phase 10.x — all PARKED, requires domain purchase.
+- Phase 17 — backlog/optional future items only.
+
+**No work done. No deploy. No code changed.**
+
+**Next agent picks**
+- Nothing agent-actionable until user takes one of these steps:
+  1. Sign up at https://betterstack.com/sign-up (free tier) → R.7/13.3 unblocked.
+  2. Purchase `vanta.markets` domain → unblocks Phase 10 items.
+  3. Create Apple Developer account → unblocks 9.3 TestFlight.
+  4. Create Google Play account → unblocks 9.4.
+  5. Sumsub sales call / contract → unblocks 5.3.
+  6. Provide OANDA API token → unblocks 8.1.
+
+
+---
+
 ## 2026-05-27T~auto — No actionable work; all items PARKED or externally blocked
 
 **TODO item picked:** (none)
