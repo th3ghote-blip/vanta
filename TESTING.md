@@ -113,7 +113,7 @@ curl -sf https://vanta-server-production.up.railway.app/health | grep -q '"ok":t
 - **Acceptance:** `docs/performance.md` exists with real numbers from a live run.
 
 ### QA-3.2 WebSocket price feed stability test
-- [ ] **File:** `scripts/ws-stability-test.js` (new)
+- [x] **File:** `scripts/ws-stability-test.js` (new)
 - **What:** Node.js script that connects to `wss://vanta-server-production.up.railway.app` (or the WS endpoint), subscribes to BTCUSD, and:
   - Measures time between price ticks
   - Detects gaps > 10s (stale feed)
@@ -150,7 +150,7 @@ curl -sf https://vanta-server-production.up.railway.app/health | grep -q '"ok":t
 - **Acceptance:** All bad inputs return 400, no 500s, no SQL injection surface.
 
 ### QA-4.3 Rate limit tests
-- [ ] **File:** `server/test/rateLimit.test.ts` (new)
+- [x] **File:** `server/test/rateLimit.test.ts` (new)
 - **What:** Verify rate limiting on auth endpoints:
   - POST `/api/auth/login` 11 times in quick succession → 11th returns 429
   - POST `/api/auth/register` 6 times → 6th returns 429
