@@ -36,10 +36,9 @@ test.describe('VANTA smoke', () => {
     await page.waitForURL(/login/, { timeout: 20_000 });
 
     // ── 3. Sign in ───────────────────────────────────────────────────────────
-    const inputs = page.locator('input');
-    await inputs.first().fill(String(login));
-    await inputs.nth(1).fill(password);
-    await page.getByText('Sign In', { exact: true }).click();
+    await page.locator('[data-testid="login-account-input"]').fill(String(login));
+    await page.locator('[data-testid="login-password-input"]').fill(password);
+    await page.locator('[data-testid="login-submit"]').click();
 
     // ── 4. Wait for redirect to trade tab ────────────────────────────────────
     await page.waitForURL(/tabs\/trade/, { timeout: 25_000 });
@@ -62,8 +61,7 @@ test.describe('VANTA smoke', () => {
     }
 
     // ── 6. Wait for a live BTC buy-price to appear in the OrderEntry ──────────
-    // The buy button renders as "Buy <price>" once the price feed is live.
-    const buyBtn = page.getByText(/^Buy \d/).first();
+    const buyBtn = page.locator('[data-testid="buy-button"]');
     await expect(buyBtn).toBeVisible({ timeout: 30_000 });
 
     // ── 7. Place the trade (default volume is 0.01 BTC for BTCUSD) ───────────
@@ -76,7 +74,7 @@ test.describe('VANTA smoke', () => {
     // ── 9. Close the position ────────────────────────────────────────────────
     // The close button carries accessibilityLabel="Close trade" (maps to
     // aria-label in the browser) — added in the same commit as this test.
-    const closeBtn = page.getByRole('button', { name: 'Close trade' }).first();
+    const closeBtn = page.locator('[data-testid="close-trade-button"]').first();
     await expect(closeBtn).toBeVisible({ timeout: 10_000 });
     await closeBtn.click();
 

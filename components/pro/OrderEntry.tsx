@@ -477,6 +477,7 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
           onPress={() => submit('sell')}
         />
         <ActionButton
+          testID="buy-button"
           label={
             orderKind === 'limit'
               ? `Buy-limit ${triggerPrice || '@'}`
@@ -566,14 +567,17 @@ function ActionButton({
   color,
   busy,
   onPress,
+  testID,
 }: {
   label: string;
   color: string;
   busy: boolean;
   onPress: () => void;
+  testID?: string;
 }) {
   return (
     <Pressable
+      testID={testID}
       onPress={onPress}
       disabled={busy}
       style={{

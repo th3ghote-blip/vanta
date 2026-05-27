@@ -146,6 +146,7 @@ export default function Login() {
         Account number
       </Text>
       <TextInput
+        testID="login-account-input"
         value={login}
         onChangeText={(t) => setLogin(t.replace(/[^\d]/g, ''))}
         autoCapitalize="none"
@@ -159,6 +160,7 @@ export default function Login() {
         Password
       </Text>
       <TextInput
+        testID="login-password-input"
         value={password}
         onChangeText={setPassword}
         secureTextEntry
@@ -173,6 +175,7 @@ export default function Login() {
       ) : null}
 
       <Pressable
+        testID="login-submit"
         onPress={onSubmit}
         disabled={busy}
         style={{
