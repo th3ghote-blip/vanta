@@ -27,6 +27,42 @@ See the 16.3 run (2026-05-25) for the exact Python+bash sequence.
 
 ---
 
+## 2026-05-27T~auto — No actionable work; all items PARKED or externally blocked
+
+**TODO item picked:** (none)
+
+**Pre-run state**
+- HEAD was `63498ba` (auto: STATE.md handoff note for 2026-05-27 restore run).
+- Working tree showed `STATE.md` modified (staged + unstaged) — WSL mount/index
+  artifact only. No user code edits. Verified: only STATE.md differs, and the
+  differences are stale index vs. actual file (known persistent WSL issue).
+- Client tsc: not re-run (no code changes).
+- Server tsc: not re-run (no code changes).
+
+**What was assessed**
+- Scanned all 34 unchecked `- [ ]` items in TODO.md.
+- Non-PARKED items requiring agent work: **none found**.
+- R.7 BetterStack (line 144) — needs human signup at betterstack.com.
+- 13.3 BetterStack (line 679) — same. Duplicate of R.7.
+- All other unchecked items are PARKED pending user-purchased domain, Apple
+  Developer account ($99/yr), Google Play account ($25), Sumsub contract, or
+  OANDA API token.
+- Phase 17 "Optional / future" items (copy social, chat, AI copilot, etc.) are
+  backlog only.
+
+**No work done. No deploy. No code changed.**
+
+**Next agent picks**
+- Nothing agent-actionable until the user takes one of these steps:
+  1. Sign up at https://betterstack.com/sign-up (free tier) → then R.7/13.3
+     can be completed (agent wires up the monitor URL + alert email).
+  2. Purchase `vanta.markets` domain → unblocks Phase 10 items.
+  3. Create Apple Developer account → unblocks 9.3 TestFlight.
+  4. Create Google Play account → unblocks 9.4.
+  5. Sumsub sales call / contract → unblocks 5.3.
+
+---
+
 ## 2026-05-27T~auto — RESTORE: T.16+T.18 work dropped by 1934e5b
 
 **TODO item picked:** (none) — restoration of lost work. Per the hard-rule "If
@@ -369,4 +405,53 @@ analogous to 458b233 fixing caffbf5.
 - Working tree clean (GIT_INDEX_FILE=/tmp/vanta_idx workaround). HEAD = `205b242` (R.11 STATE chore).
 - Stale index.lock / HEAD.lock / main.lock as usual — GIT_INDEX_FILE + direct ref-write workaround used throughout.
 - Client tsc: exit 0. Server tsc: exit 0.
-- Sandbox network blocked — no deploy possible; R.1 G
+- Sandbox network blocked — no deploy possible; R.1 GH Actions will deploy on push.
+
+**What changed**
+- `components/fun/QuickTradeScreen.tsx`: expanded DURATIONS from 3 → 8 entries:
+  5s (×2.00), 30s (×1.92), 60s (×1.85), 5min (×1.78), 15min (×1.72), 30min (×1.65), 4h (×1.55), 24h (×1.45).
+  Duration picker changed from rigid flex `<View>` to `<ScrollView horizontal>` (68px tile width) so all 8 tiles are accessible without wrapping.
+  Category tabs (All/Crypto/Forex/Metals/Stocks) were already implemented — no code change needed there.
+
+**Verification**
+- Client tsc: exit 0 ✅
+- Server tsc: exit 0 ✅
+- Commit: `2f76ec0`
+- No backend deploy needed — pure frontend change.
+- Vercel deploy will trigger via GH Actions on push.
+
+**⚠️ File truncation issue encountered**
+The Edit tool silently truncated `QuickTradeScreen.tsx` (280+ lines) mid-file. Fixed with Python append.
+**REMINDER: Always use Python for writes/edits to files >200 lines. Never use the Edit tool on large files.**
+
+**Next agent**
+- T.16 (Drawing tools) — blocked: needs `chart_drawings` migration (sandbox network blocked). Skip.
+- T.18 (Copy trading) — needs `copy_relationships` migration. Likely network-blocked. Skip unless migration can be applied.
+- T.19 (Spread-betting / micro-lot mode) — pure UI cosmetic, no migration. Could store in `profiles` JSONB. Safe pick.
+- Or pick any unchecked item in Phase 13–14 (monitoring/legal) that is pure code.
+
+---
+
+## 2026-05-24T~09:00Z -- R.11 DB backup verification
+
+**TODO item picked:** **R.11 Database backup verification**
+
+**Pre-run state**
+- Working tree clean (GIT_INDEX_FILE=/tmp/vanta_fresh/idx). HEAD = `087534c` (R.8 STATE chore).
+- Stale index.lock / HEAD.lock / main.lock as usual — GIT_INDEX_FILE + direct ref-write workaround used throughout.
+- Client tsc: exit 0. Server tsc: exit 0.
+- Sandbox network blocked (curl to Railway/Vercel timed out) — no deploy required for this item.
+
+**What changed**
+- `scripts/verify-backup.py` (new): queries `GET https://api.supabase.com/v1/projects/{ref}/database/backups`, finds the most recent completed backup across `backups` + `tiered_backups` arrays, exits 1 if age > MAX_AGE_HOURS (default 30). Prints clear human-readable output with timestamps, age, and total backup count.
+- `.github/workflows/backup-check.yml` (new): daily cron at 06:15 UTC (after Supabase's nightly backup window). Also supports `workflow_dispatch` with optional `max_age_hours` input. Uses `SUPABASE_PAT` GitHub repo secret (same PAT already in `server/.env`).
+
+**Verification**
+- Python syntax: OK (`python3 -m py_compile`)
+- Missing-PAT guard: correctly prints error and exits 1
+- Commit: `8d9cbbb` (direct ref-write to bypass HEAD.lock)
+- No deploy needed — pure CI infrastructure.
+
+**Action required by user**
+- Add `SUPABASE_PAT` as a GitHub repo secret (Settings → Secrets → Actions). Value: already in `server/.env` as `SUPABASE_PAT`.
+
