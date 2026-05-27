@@ -68,7 +68,7 @@ curl -sf https://vanta-server-production.up.railway.app/health | grep -q '"ok":t
 - **Acceptance:** `cd server && npm test` covers all cases above. 0 failures.
 
 ### QA-2.2 Risk worker unit tests (SL/TP/stop-out)
-- [ ] **File:** `server/test/risk.test.ts` (new)
+- [x] **File:** `server/test/risk.test.ts` (new)
 - **What:** Test the risk worker logic in isolation using the existing mock infrastructure.
   - Buy trade with SL=74000, price ticks to 73999 → trade auto-closes with reason='stopout'
   - Buy trade with TP=78000, price ticks to 78001 → trade auto-closes with reason='takeprofit'
@@ -78,7 +78,7 @@ curl -sf https://vanta-server-production.up.railway.app/health | grep -q '"ok":t
 - **Acceptance:** All risk scenarios pass without a live Supabase connection.
 
 ### QA-2.3 Orders trigger worker tests (pending → open)
-- [ ] **File:** `server/test/ordersTrigger.test.ts` (new)
+- [x] **File:** `server/test/ordersTrigger.test.ts` (new)
 - **What:** Test pending order fill logic.
   - Buy-limit at 74000, price ticks to 74000 → status flips to 'open'
   - Buy-limit at 74000, price ticks to 74100 (above) → stays pending

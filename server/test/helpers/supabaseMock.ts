@@ -19,6 +19,7 @@ export interface DbAccount {
   user_id: string;
   login: number;
   balance: number;
+  equity: number;
   free_margin: number;
   margin_used: number;
   leverage: number;
@@ -132,11 +133,13 @@ export const seed = {
   },
   account(overrides: Partial<DbAccount> = {}): DbAccount {
     loginSeq += 1;
+    const balance = overrides.balance ?? 10_000;
     const a: DbAccount = {
       id: overrides.id ?? `acct-${tables.accounts.length + 1}`,
       user_id: overrides.user_id ?? 'user-1',
       login: overrides.login ?? loginSeq,
-      balance: overrides.balance ?? 10_000,
+      balance,
+      equity: overrides.equity ?? balance,
       free_margin: overrides.free_margin ?? 10_000,
       margin_used: overrides.margin_used ?? 0,
       leverage: overrides.leverage ?? 100,

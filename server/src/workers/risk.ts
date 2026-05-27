@@ -337,6 +337,9 @@ async function tick(app: FastifyInstance): Promise<void> {
   }
 }
 
+// Exported for hermetic tests — drive a single tick without the setInterval.
+export const _riskInternals = { tick };
+
 export function startRiskWorker(app: FastifyInstance): NodeJS.Timeout {
   let running = false;
 
