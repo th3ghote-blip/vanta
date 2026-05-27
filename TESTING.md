@@ -29,7 +29,7 @@ curl -sf https://vanta-server-production.up.railway.app/health | grep -q '"ok":t
 ## Phase QA-1 — Fix & harden E2E smoke test
 
 ### QA-1.1 Make smoke test reliably green
-- [ ] **File:** `e2e/smoke.spec.ts`
+- [x] **File:** `e2e/smoke.spec.ts`
 - **Problem:** Test has broken 4 times in a row on selector issues (`/auth/login` URL, strict-mode button clash, `Pressable` role lookup). Each fix reveals the next fragile selector.
 - **What:** Audit every `waitForURL`, `getByText`, `getByRole`, `locator` in the test. Replace fragile selectors with `data-testid` attributes:
   - Add `testID="login-account-input"` to account number input in `app/(auth)/login.tsx`
@@ -55,7 +55,7 @@ curl -sf https://vanta-server-production.up.railway.app/health | grep -q '"ok":t
 ## Phase QA-2 — Expand server unit tests
 
 ### QA-2.1 P&L and margin calculation tests
-- [ ] **File:** `server/test/calculations.test.ts` (new)
+- [x] **File:** `server/test/calculations.test.ts` (new)
 - **What:** Pure unit tests for `lib/contracts.ts` and `lib/margin.ts`. No mocks needed — pure math.
   - `contractSize('EURUSD')` = 100000, `contractSize('BTCUSD')` = 1, `contractSize('XAUUSD')` = 100
   - `calculatePnL('buy', 0.1, 1.1000, 1.1050, 'EURUSD')` = +50 USD
@@ -126,7 +126,7 @@ curl -sf https://vanta-server-production.up.railway.app/health | grep -q '"ok":t
 ## Phase QA-4 — Security & correctness
 
 ### QA-4.1 Auth boundary tests
-- [ ] **File:** `server/test/auth-boundaries.test.ts` (new)
+- [x] **File:** `server/test/auth-boundaries.test.ts` (new)
 - **What:** Verify RLS and auth guards hold:
   - Unauthenticated request to `/api/orders/open` → 401
   - User A's JWT cannot read User B's trades via `/api/orders`
@@ -137,7 +137,7 @@ curl -sf https://vanta-server-production.up.railway.app/health | grep -q '"ok":t
 - **Acceptance:** All boundary checks return the correct HTTP status in hermetic tests.
 
 ### QA-4.2 Input validation fuzz tests
-- [ ] **File:** `server/test/validation.test.ts` (new)
+- [x] **File:** `server/test/validation.test.ts` (new)
 - **What:** Feed bad inputs to order endpoints and verify they're rejected cleanly:
   - `volume: -1` → 400
   - `volume: 0` → 400

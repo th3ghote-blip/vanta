@@ -13,6 +13,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 
 import { authRoutes } from '../../src/routes/auth.js';
+import { accountRoutes } from '../../src/routes/account.js';
 import { ordersRoutes } from '../../src/routes/orders.js';
 import { roundsRoutes } from '../../src/routes/rounds.js';
 import { robotsRoutes } from '../../src/routes/robots.js';
@@ -20,6 +21,7 @@ import { robotsRoutes } from '../../src/routes/robots.js';
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
   await app.register(authRoutes, { prefix: '/api/auth' });
+  await app.register(accountRoutes, { prefix: '/api/account' });
   await app.register(ordersRoutes, { prefix: '/api/orders' });
   await app.register(roundsRoutes, { prefix: '/api/rounds' });
   await app.register(robotsRoutes, { prefix: '/api/robots' });

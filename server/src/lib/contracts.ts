@@ -62,3 +62,28 @@ export function defaultVolumeFor(symbol: string): string {
   if (STOCK_SYMBOLS.has(symbol)) return '1';
   return '0.01';
 }
+
+export function isCrypto(symbol: string): boolean {
+  if (FOREX_PAIRS.has(symbol)) return false;
+  if (symbol === 'XAUUSD' || symbol === 'XAGUSD') return false;
+  if (STOCK_SYMBOLS.has(symbol)) return false;
+  return symbol.endsWith('USD');
+}
+
+export function pipSizeFor(symbol: string): number {
+  if (FOREX_PAIRS.has(symbol)) return 0.0001;
+  return 1;
+}
+
+export function pipValueFor(lots: number, symbol: string): number {
+  return lots * contractSize(symbol) * pipSizeFor(symbol);
+}
+
+export function lotsFromPipValue(stakePip: number, symbol: string): number {
+  const denom = contractSize(symbol) * pipSizeFor(symbol);
+  return denom > 0 ? stakePip / denom : 0;
+}
+
+export function pipLabel(symbol: string): string {
+  return FOREX_PAIRS.has(symbol) ? 'pip' : 'pt';
+}
