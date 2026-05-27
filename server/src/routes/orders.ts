@@ -114,6 +114,9 @@ async function mirrorTradeForFollowers(
   }
 }
 
+// Exported for hermetic tests — call directly without the route wrapper.
+export const _copyTradeInternals = { mirrorTradeForFollowers };
+
 export async function ordersRoutes(app: FastifyInstance) {
   app.post('/open', async (req, reply) => {
     const userId = await authUser(req.headers.authorization);

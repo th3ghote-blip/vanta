@@ -88,7 +88,7 @@ curl -sf https://vanta-server-production.up.railway.app/health | grep -q '"ok":t
 - **Acceptance:** All trigger scenarios pass hermetically.
 
 ### QA-2.4 Copy trading mirror logic tests
-- [ ] **File:** `server/test/copyTrading.test.ts` (new)
+- [x] **File:** `server/test/copyTrading.test.ts` (new)
 - **What:** Test that when a leader opens a trade, followers get mirrored trades at correct allocation.
   - Leader opens 0.1 BTC buy. Follower has allocation_pct=50 → follower gets 0.05 BTC buy.
   - Follower has insufficient margin → mirror skipped, no error thrown.

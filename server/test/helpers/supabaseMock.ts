@@ -63,6 +63,15 @@ export interface DbProfile {
   id: string;
   last_login_date?: string;
   login_streak?: number;
+  copy_leader_enabled?: boolean;
+}
+
+export interface DbCopyRelationship {
+  follower_id: string;
+  leader_id: string;
+  follower_account_id: string;
+  allocation_pct: number;
+  started_at?: string;
 }
 
 interface Tables {
@@ -70,6 +79,7 @@ interface Tables {
   trades: DbTrade[];
   binary_rounds: DbRound[];
   profiles: DbProfile[];
+  copy_relationships: DbCopyRelationship[];
   login_attempts: any[];
   achievements: any[];
   robots: any[];
@@ -82,6 +92,7 @@ let tables: Tables = {
   trades: [],
   binary_rounds: [],
   profiles: [],
+  copy_relationships: [],
   login_attempts: [],
   achievements: [],
   robots: [],
@@ -98,6 +109,7 @@ export function resetDb() {
     trades: [],
     binary_rounds: [],
     profiles: [],
+    copy_relationships: [],
     login_attempts: [],
     achievements: [],
     robots: [],
@@ -181,6 +193,17 @@ export const seed = {
     };
     tables.trades.push(t);
     return t;
+  },
+  copyRelationship(overrides: Partial<DbCopyRelationship> & { follower_id: string; leader_id: string; follower_account_id: string; allocation_pct: number }): DbCopyRelationship {
+    const r: DbCopyRelationship = {
+      follower_id: overrides.follower_id,
+      leader_id: overrides.leader_id,
+      follower_account_id: overrides.follower_account_id,
+      allocation_pct: overrides.allocation_pct,
+      started_at: overrides.started_at ?? new Date().toISOString(),
+    };
+    tables.copy_relationships.push(r);
+    return r;
   },
 };
 
