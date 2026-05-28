@@ -68,26 +68,35 @@ The platform's surface area is wide (Phase 1–4, 6–7, 11–12, 15 are done) b
 
 **Work order from here:** Phase R (Robustness) first, then Phase T (Trading depth). Inside each phase, top-to-bottom.
 
-## Status snapshot — 2026-05-20
+## Status snapshot — 2026-05-28
 
-- **Phase R:** 8/12 done. Remaining 4 are all externally gated:
-  - R.1 GH Actions auto-deploy — needs `RAILWAY_TOKEN` + `VERCEL_TOKEN` in GitHub repo secrets (user action).
-  - R.7 Better-Stack uptime — needs user signup at betterstack.com.
-  - R.8 E2E smoke test — Playwright + CI; best done after R.1 lands.
-  - R.11 DB backup verification — needs GH Actions cron (depends on R.1).
-- **Phase T:** 3/20 done — T.1 limit, T.2 stop, T.13 pending dashboard (side effect of T.1).
+**The app is feature-complete and launch-ready on web.** All R/T/numbered phases are done except explicitly PARKED items.
+
+### Done ✅
+- Phase R (robustness): 12/12 — GH Actions deploy, Sentry, Better Stack, E2E CI, backup check, all workers
+- Phase T (trading features): 21/21 — all order types, chart tools, copy trading, watchlists, etc.
+- Phases 1–16: all checked off except PARKED items (see below)
+- TESTING.md: 100% — unit tests, E2E, load test baselines, schema check, security tests
+
+### Parked — needs your action
+| Item | Blocker | Cost |
+|---|---|---|
+| Custom domain (10.1–10.6) | Buy `vanta.markets` at Cloudflare Registrar | ~$30/yr |
+| iOS TestFlight (9.3) | Apple Developer account | $99/yr |
+| Android Play Store (9.4) | Google Play Developer account | $25 one-time |
+| Sumsub KYC (5.3) | Not needed yet | ~$2/verification |
+| OANDA price feed (8.1) | Not needed yet | Free demo |
+
+### Domain chain (buy domain first, rest follows in order)
+1. Buy `vanta.markets` at https://www.cloudflare.com/products/registrar/
+2. `vercel domains add vanta.markets` → update CORS + `app.json`
+3. Railway dashboard → add `api.vanta.markets` → update env vars
+4. Resend.com → verify `vanta.markets` → update Supabase SMTP sender
+5. Supabase Auth → re-enable email confirmation
 
 ## Next pick for the cowork agent
 
-**READ `STATE.md` FIRST.** The most recent entry flags a Railway outage that must be cleared before any code ship. If `/health` is still 404, do not start a task — leave a note and exit.
-
-Once backend is green, pick in this order:
-
-1. **T.11 Position notional + leverage display** — pure frontend, no migration, no backend deploy needed. Highest UX/effort ratio. Safe pick even if Railway is flaky.
-2. **T.5 Modify open positions (SL/TP after open)** — server PATCH endpoint + edit button. No migration. Requires backend deploy to be live.
-3. **T.3 Stop-limit orders** — needs new migration adding `trades.limit_price numeric(18,5)`. Then remove the 501 guard in `orders.ts` for `stop_limit`, extend `shouldFill()` (two-stage: trigger trips → limit fills when price crosses limit). Number the migration **018** (016 + 017 are taken).
-
-If picking T.3: apply the migration in **its own transaction**. The same enum-cannot-be-used-in-same-tx trap doesn't apply to a simple column add, so 018 can be a single file.
+No unchecked non-parked items remain. Wait for user to unblock a PARKED item, then pick up the domain chain starting at 10.1.
 
 ## Migrations already applied to live DB
 
@@ -676,8 +685,9 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Done:** Completed as R.4 (2026-05-19) — `@sentry/node` installed, init in `server/src/index.ts`, same DSN as frontend with runtime tag. Verified via test endpoint hitting Sentry dashboard.
 
 ## 13.3 Uptime monitoring
-- [ ] **What:** Set up Better Stack (free tier) → ping `/health` every 5 min → alerts to email/Slack on downtime.
+- [x] **What:** Set up Better Stack (free tier) → ping `/health` every 5 min → alerts to email/Slack on downtime.
 - **Acceptance:** Take Railway down → alert fires within 5 min.
+- **Done:** 2026-05-28 — Both monitors live and green: `vanta-jade.vercel.app` + `vanta-server-production.up.railway.app/health`, 3-min checks, email alerts.
 
 ## 13.4 Performance dashboard
 - [x] **What:** Track response times of `/api/quotes`, `/api/orders/open`, etc. Surface in admin dashboard.
