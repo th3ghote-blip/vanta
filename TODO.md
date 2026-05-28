@@ -799,6 +799,24 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **What:** Audit every component that uses hardcoded dark hex values instead of theme tokens. Replace with token references. Light theme tokens already defined — just need components to read them.
 - **Acceptance:** Toggle Profile → Light → entire app goes light. Toggle back → dark. Persists across reload.
 
+## 18.7 Replace support chat with AI platform assistant
+- [ ] **Files:** `app/help.tsx` (replace), `server/src/routes/assistant.ts` (new), `app/(tabs)/profile.tsx` (update link)
+- **What:** Remove the existing support chat. Replace with a Claude-powered AI assistant that knows the entire platform and can guide users through anything:
+  - How to place trades (market, limit, stop, bracket)
+  - What the numbers mean (margin, notional, leverage, P&L, equity)
+  - How robots work and how to write prompts for them
+  - What Quick Mode is and how binary rounds work
+  - How to read charts and use drawing tools
+  - How deposits and withdrawals work
+  - How KYC works and why it's required
+  - Account settings (2FA, hedging mode, leverage)
+  - Anything else — fallback to honest "I don't know" rather than hallucinating
+  - The assistant has READ access to the user's own open positions and account balance so it can give context-aware answers ("you have 2 open BTC trades, here's how to close one...")
+- **Backend:** `POST /api/assistant/chat` — takes `{ messages, context }` where context includes user's current balance/positions. Streams Claude Haiku response (~$0.001/call). System prompt encodes full platform knowledge.
+- **Frontend:** Chat UI in `app/help.tsx` — floating button or bottom tab entry. Conversation history in local state (not persisted). Suggested starter questions shown on first open.
+- **Cost:** Haiku at ~$0.001/message. 1000 messages/day = ~$1/day. Acceptable.
+- **Acceptance:** User can ask "how do I place a stop loss?" and get a correct, step-by-step answer. User can ask "what are my open trades?" and get their actual positions listed.
+
 ## 18.6 "Share my trades" toggle — default ON
 - [ ] **Files:** `server/supabase/migrations/` (new migration), `app/(tabs)/profile.tsx`, `server/src/routes/`
 - **What:** Add `profiles.share_trades boolean default true`. New users get sharing on automatically. Profile → Privacy → "Share my trades" toggle (default ON). When on, the user's closed trade history is visible to other logged-in users (for copy trading discovery and leaderboards). When off, trades are private.
