@@ -770,6 +770,37 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 
 ---
 
+# Phase 18 — UX fixes (reported 2026-05-28)
+
+## 18.1 Order entry simplification
+- [ ] **Files:** `components/pro/OrderEntry.tsx`
+- **Problem:** Too many fields shown at once (Stake $/pt label, lots + notional + margin summary all on one dense line, Trail Distance visible by default). New users don't know what any of it means.
+- **What:**
+  - Rename "Stake ($/pt)" → "Volume" (or show a toggle: Lots / $ stake)
+  - Collapse the summary line: show only the two most important numbers (notional + margin), hide lots unless expanded
+  - Hide "Trail Distance" behind an "Advanced" toggle — 95% of users never use it
+  - Add a simple $ risk indicator: "risking ~$X" based on SL distance
+- **Acceptance:** A first-time user can place a BTC market buy without confusion. Summary line is one short sentence.
+
+## 18.2 Chart drawing tools overhaul
+- [ ] **Files:** `components/pro/Chart.tsx`
+- **Problem:** The 4 toolbar buttons (cursor, horizontal line, pencil, F, delete) are present but drawing tools either don't work or produce no visible output. No trendlines, no fib retracement.
+- **What:**
+  - Fix horizontal line tool — click on chart → draws a draggable horizontal price line
+  - Add trendline tool — click two points → draws a line
+  - Add fib retracement — click two points → draws standard fib levels (0, 23.6, 38.2, 50, 61.8, 100)
+  - Persist drawings to `chart_drawings` table (migration already exists)
+  - Load drawings on mount, delete button clears all for that symbol
+- **Acceptance:** Draw a horizontal line → refresh → line still there. Draw trendline → fib → all render correctly.
+
+## 18.3 Light / dark mode fix
+- [ ] **Files:** `stores/theme.ts` (or equivalent), `constants/colors.ts`
+- **Problem:** Theme toggle exists in Profile → Display but switching to Light has no visible effect — the app stays dark.
+- **What:** Audit every component that uses hardcoded dark hex values instead of theme tokens. Replace with token references. Light theme tokens already defined — just need components to read them.
+- **Acceptance:** Toggle Profile → Light → entire app goes light. Toggle back → dark. Persists across reload.
+
+---
+
 # Phase 17 — Optional / future
 
 - [ ] Copy trading (follow another trader's positions)
