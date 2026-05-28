@@ -799,6 +799,19 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **What:** Audit every component that uses hardcoded dark hex values instead of theme tokens. Replace with token references. Light theme tokens already defined — just need components to read them.
 - **Acceptance:** Toggle Profile → Light → entire app goes light. Toggle back → dark. Persists across reload.
 
+## 18.5 Robot execution engine unit tests
+- [ ] **File:** `server/test/robotEngine.test.ts` (new)
+- **What:** The existing `robots.test.ts` only covers `/api/robots/compile` (5 tests). The engine in `server/src/ai/robotEngine.ts` — `shouldFire`, `matchesCron`, `processRobot`, `openRobotTrade` — has zero test coverage.
+  - Export `_robotInternals = { shouldFire, matchesCron, processRobot }` from `robotEngine.ts` (same pattern as `_riskInternals`, `_ordersTriggerInternals`)
+  - `shouldFire` — interval robot: fires when `now - last_run >= interval`; doesn't fire when called too soon
+  - `shouldFire` — cron `"0 9 * * 1-5"`: fires at 09:00 Mon–Fri; does not fire at 09:01 or on Saturday
+  - `shouldFire` — paused robot → never fires
+  - `processRobot` — active robot with `always` condition → `openRobotTrade` called; trade inserted; `robot_runs` row logged; `robots.total_trades` incremented
+  - `processRobot` — `max_concurrent=1`, one open robot trade already exists → skips open, logs `skipped`
+  - `processRobot` — tip-only robot (`kind='tip'`) → no trade inserted, push notification sent
+  - `openRobotTrade` — inserts trade with `reason='robot'`, correct symbol/side/volume
+- **Acceptance:** `cd server && npm test` covers all above cases, 0 failures, no live DB needed.
+
 ## 18.4 Forex + stock price feed (or hide empty categories)
 - [ ] **Files:** `server/src/feed/pricefeed.ts`, `components/pro/SymbolPicker.tsx` (or equivalent)
 - **Problem:** Symbol picker shows Forex (0) and Stocks (0) — categories exist but `NON_CRYPTO_SYMBOLS = []` because Twelve Data free tier (800 credits/day) ran dry with chart loads + polling combined.
