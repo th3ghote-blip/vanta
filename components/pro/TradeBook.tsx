@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { useAccountStore } from '@/stores/account';
 import { usePriceStore } from '@/stores/prices';
 import { api, saveTradeNote } from '@/lib/api';
-import { calculatePnL, notionalUSD } from '@/lib/contracts';
+import { calculatePnL } from '@/lib/contracts';
 
 interface Trade {
   id: number;
@@ -333,10 +333,9 @@ export function TradeBook({ onWinClose }: { onWinClose?: (profit: number) => voi
               borderBottomColor: colors.border,
             }}
           >
-            <HeaderCell flex={1.4}>Symbol / Side</HeaderCell>
-            <HeaderCell flex={1} align="right">Open → Now</HeaderCell>
-            <HeaderCell flex={0.9} align="right">P&L</HeaderCell>
-            <View style={{ width: 64 }} />
+            <HeaderCell flex={2}>Symbol / Side</HeaderCell>
+            <HeaderCell flex={1} align="right">P&L</HeaderCell>
+            <View style={{ width: 72 }} />
           </View>
 
           <ScrollView style={{ maxHeight: 480 }}>
@@ -480,10 +479,12 @@ function TradeRow({
           flexDirection: 'row',
           padding: spacing.md,
           alignItems: 'center',
+          minHeight: 56,
           gap: spacing.sm,
         }}
       >
-        <View style={{ flex: 1.4, flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+        {/* Left: side icon + symbol info */}
+        <View style={{ flex: 2, flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
           <View
             style={{
               width: 28,
@@ -492,71 +493,73 @@ function TradeRow({
               backgroundColor: trade.side === 'buy' ? colors.profit + '22' : colors.loss + '22',
               alignItems: 'center',
               justifyContent: 'center',
+              flexShrink: 0,
             }}
           >
             <SideIcon color={trade.side === 'buy' ? colors.profit : colors.loss} size={14} />
           </View>
-          <View>
-            <Text style={{ ...typography.bodyBold, color: colors.textPrimary, fontSize: 14 }}>
-              {trade.symbol}
-            </Text>
-            <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 11 }}>
-              {trade.side.toUpperCase()}
-              {isPending && trade.order_type ? ` ${trade.order_type.toUpperCase()}` : ''}
-              {isPending && trade.oco_group_id ? ' · OCO' : ''}
-              {' · '}{trade.volume} · {timeAgo(trade.open_time)}
-            </Text>
-            {/* T.11 — notional + leverage for open positions */}
-            {isOpen && leverage && openPrice > 0 && (() => {
-              const notional = notionalUSD(trade.volume, openPrice, trade.symbol);
-              const margin = notional / leverage;
-              return (
-                <Text style={{ ...typography.mono, color: colors.textMuted, fontSize: 10 }}>
-                  ${notional >= 1000
-                    ? notional.toLocaleString('en-US', { maximumFractionDigits: 0 })
-                    : notional.toFixed(2)
-                  } notional · {leverage}× · ${margin.toFixed(2)} margin
-                </Text>
-              );
-            })()}
-            {/* T.14 — note preview */}
+          <View style={{ flex: 1 }}>
+            {/* Line 1: symbol + side badge + volume */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+              <Text style={{ ...typography.bodyBold, color: colors.textPrimary, fontSize: 15 }}>
+                {trade.symbol}
+              </Text>
+              <Text
+                style={{
+                  fontSize: 9,
+                  fontWeight: '600',
+                  color: trade.side === 'buy' ? colors.profit : colors.loss,
+                  letterSpacing: 0.3,
+                }}
+              >
+                {trade.side.toUpperCase()}
+                {isPending && trade.order_type ? ` ${trade.order_type.toUpperCase()}` : ''}
+                {isPending && trade.oco_group_id ? ' OCO' : ''}
+              </Text>
+              <Text style={{ ...typography.mono, color: colors.textMuted, fontSize: 10 }}>
+                {trade.volume}
+              </Text>
+            </View>
+            {/* Line 2: open → current price · time */}
+            {isPending ? (
+              <Text style={{ ...typography.mono, color: colors.textMuted, fontSize: 11 }}>
+                target {trade.trigger_price ?? '—'} · {timeAgo(trade.open_time)}
+              </Text>
+            ) : (
+              <Text style={{ ...typography.mono, color: colors.textMuted, fontSize: 11 }}>
+                {trade.open_price ?? '—'} → {livePrice} · {timeAgo(trade.open_time)}
+              </Text>
+            )}
+            {/* T.5 — SL/TP hint (tiny, only when set and not in edit mode) */}
+            {isOpen && !isEditing && (trade.stop_loss != null || trade.take_profit != null) && (
+              <Text style={{ ...typography.mono, color: colors.textMuted, fontSize: 9 }}>
+                {trade.stop_loss != null ? `SL ${trade.stop_loss}` : ''}
+                {trade.stop_loss != null && trade.take_profit != null ? ' · ' : ''}
+                {trade.take_profit != null ? `TP ${trade.take_profit}` : ''}
+              </Text>
+            )}
+            {/* T.14 — note preview (tiny) */}
             {trade.notes && !isNoting && (
               <Text
                 numberOfLines={1}
-                style={{ ...typography.body, color: colors.primary, fontSize: 10, maxWidth: 160 }}
+                style={{ ...typography.body, color: colors.primary, fontSize: 9, maxWidth: 180 }}
               >
-                Note: {trade.notes.slice(0, 60)}{trade.notes.length > 60 ? '...' : ''}
-              </Text>
-            )}
-            {/* T.5 — show current SL/TP when set and not in edit mode */}
-            {isOpen && !isEditing && (trade.stop_loss != null || trade.take_profit != null) && (
-              <Text style={{ ...typography.mono, color: colors.textMuted, fontSize: 10 }}>
-                {trade.stop_loss != null ? `SL ${trade.stop_loss}` : ''}
-                {trade.stop_loss != null && trade.take_profit != null ? '  ' : ''}
-                {trade.take_profit != null ? `TP ${trade.take_profit}` : ''}
+                ✎ {trade.notes.slice(0, 50)}{trade.notes.length > 50 ? '…' : ''}
               </Text>
             )}
           </View>
         </View>
 
-        <View style={{ flex: 1, alignItems: 'flex-end' }}>
-          <Text style={{ ...typography.mono, color: colors.textPrimary, fontSize: 12 }}>
-            {isPending ? trade.trigger_price ?? '—' : trade.open_price ?? '—'}
-          </Text>
-          <Text style={{ ...typography.mono, color: colors.textMuted, fontSize: 11 }}>
-            → {isPending ? (liveMid != null ? liveMid.toFixed(5) : '—') : livePrice}
-          </Text>
-        </View>
-
-        <View style={{ flex: 0.9, alignItems: 'flex-end' }}>
+        {/* P&L — prominent, right-aligned */}
+        <View style={{ width: 72, alignItems: 'flex-end' }}>
           {isPending ? (
             <>
-              <Text style={{ ...typography.monoBold, color: colors.textSecondary, fontSize: 12 }}>
+              <Text style={{ ...typography.monoBold, color: colors.textSecondary, fontSize: 13 }}>
                 {triggerGap != null
                   ? `${triggerGap > 0 ? '+' : ''}${triggerGap.toFixed(5)}`
                   : '—'}
               </Text>
-              <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 10 }}>
+              <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 9 }}>
                 AWAY
               </Text>
             </>
@@ -566,13 +569,13 @@ function TradeRow({
                 style={{
                   ...typography.monoBold,
                   color: positive ? colors.profit : colors.loss,
-                  fontSize: 14,
+                  fontSize: 18,
                 }}
               >
                 {positive ? '+' : ''}{profit.toFixed(2)}
               </Text>
               {!isOpen && (
-                <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 10 }}>
+                <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 9 }}>
                   {trade.status === 'cancelled' ? 'CANCELLED' : 'CLOSED'}
                 </Text>
               )}
@@ -581,7 +584,7 @@ function TradeRow({
         </View>
 
         {/* Action buttons: note + edit (open only) + scissors (partial close) + close/cancel */}
-        <View style={{ width: onPartialClose ? 124 : 96, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+        <View style={{ width: onPartialClose ? 140 : 108, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
           {/* T.14 — note button */}
           {!isEditing && !isPartialClosing && !isNoting && (
             <Pressable
@@ -590,8 +593,8 @@ function TradeRow({
               // @ts-expect-error web-only title tooltip
               title={trade.notes ? 'Edit note' : 'Add note'}
               style={{
-                width: 28,
-                height: 28,
+                width: 32,
+                height: 32,
                 borderRadius: radius.sm,
                 backgroundColor: trade.notes ? colors.primary + '22' : colors.bgSurface,
                 alignItems: 'center',
@@ -600,15 +603,15 @@ function TradeRow({
                 borderColor: trade.notes ? colors.primary + '66' : colors.border,
               }}
             >
-              <NotebookPen color={trade.notes ? colors.primary : colors.textSecondary} size={13} />
+              <NotebookPen color={trade.notes ? colors.primary : colors.textSecondary} size={14} />
             </Pressable>
           )}
           {isNoting && (
             <Pressable
               onPress={onCancelNote}
               style={{
-                width: 28,
-                height: 28,
+                width: 32,
+                height: 32,
                 borderRadius: radius.sm,
                 backgroundColor: colors.bgSurface,
                 alignItems: 'center',
@@ -617,7 +620,7 @@ function TradeRow({
                 borderColor: colors.border,
               }}
             >
-              <X color={colors.textSecondary} size={13} />
+              <X color={colors.textSecondary} size={14} />
             </Pressable>
           )}
           {onEdit && !isEditing && !isPartialClosing && (
@@ -627,8 +630,8 @@ function TradeRow({
               // @ts-expect-error web-only title tooltip
               title="Edit SL / TP"
               style={{
-                width: 28,
-                height: 28,
+                width: 32,
+                height: 32,
                 borderRadius: radius.sm,
                 backgroundColor: colors.bgSurface,
                 alignItems: 'center',
@@ -637,15 +640,15 @@ function TradeRow({
                 borderColor: colors.border,
               }}
             >
-              <Pencil color={colors.textSecondary} size={13} />
+              <Pencil color={colors.textSecondary} size={14} />
             </Pressable>
           )}
           {isEditing && (
             <Pressable
               onPress={onCancelEdit}
               style={{
-                width: 28,
-                height: 28,
+                width: 32,
+                height: 32,
                 borderRadius: radius.sm,
                 backgroundColor: colors.bgSurface,
                 alignItems: 'center',
@@ -654,7 +657,7 @@ function TradeRow({
                 borderColor: colors.border,
               }}
             >
-              <X color={colors.textSecondary} size={13} />
+              <X color={colors.textSecondary} size={14} />
             </Pressable>
           )}
           {/* T.6 — partial close button (scissors) for open positions */}
@@ -665,8 +668,8 @@ function TradeRow({
               // @ts-expect-error web-only title tooltip
               title="Partial close"
               style={{
-                width: 28,
-                height: 28,
+                width: 32,
+                height: 32,
                 borderRadius: radius.sm,
                 backgroundColor: colors.bgSurface,
                 alignItems: 'center',
@@ -675,15 +678,15 @@ function TradeRow({
                 borderColor: colors.border,
               }}
             >
-              <Scissors color={colors.textSecondary} size={13} />
+              <Scissors color={colors.textSecondary} size={14} />
             </Pressable>
           )}
           {isPartialClosing && (
             <Pressable
               onPress={onCancelPartialClose}
               style={{
-                width: 28,
-                height: 28,
+                width: 32,
+                height: 32,
                 borderRadius: radius.sm,
                 backgroundColor: colors.bgSurface,
                 alignItems: 'center',
@@ -692,7 +695,7 @@ function TradeRow({
                 borderColor: colors.border,
               }}
             >
-              <X color={colors.textSecondary} size={13} />
+              <X color={colors.textSecondary} size={14} />
             </Pressable>
           )}
           {onClose ? (
@@ -704,8 +707,8 @@ function TradeRow({
               // @ts-expect-error web-only title tooltip
               title="Close trade"
               style={{
-                width: 28,
-                height: 28,
+                width: 32,
+                height: 32,
                 borderRadius: radius.sm,
                 backgroundColor: colors.bgSurface,
                 alignItems: 'center',
@@ -717,7 +720,7 @@ function TradeRow({
               {closing ? (
                 <ActivityIndicator size="small" color={colors.textSecondary} />
               ) : (
-                <X color={colors.textSecondary} size={14} />
+                <X color={colors.textSecondary} size={15} />
               )}
             </Pressable>
           ) : null}

@@ -773,7 +773,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 # Phase 18 — UX fixes (reported 2026-05-28)
 
 ## 18.13 Trade row density — text too small, too many lines
-- [ ] **Files:** `components/pro/TradeBook.tsx`
+- [x] **Files:** `components/pro/TradeBook.tsx`
 - **Problem:** Each open trade row shows 5 lines of small text (symbol + age, notional · leverage · margin, TP value, open→now price, P&L). Too much information crammed into too little space. Hard to scan quickly.
 - **What:**
   - Reduce to 2 lines max per row: Line 1 = symbol + side + volume (large); Line 2 = open price → current price + P&L (prominent, colour-coded)
