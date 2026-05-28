@@ -162,7 +162,7 @@ curl -sf https://vanta-server-production.up.railway.app/health | grep -q '"ok":t
 ## Phase QA-5 — Monitoring & alerting
 
 ### QA-5.1 Better Stack uptime monitoring — NEEDS USER ACTION
-- [ ] **Externally gated:** User must sign up at https://betterstack.com/sign-up (free tier, no card).
+- [x] **Externally gated:** User must sign up at https://betterstack.com/sign-up (free tier, no card).
   Once signed up, add two monitors:
   1. `https://vanta-server-production.up.railway.app/health` — every 3 min, keyword check `"ok":true`
   2. `https://vanta-jade.vercel.app` — every 3 min, HTTP 200 check
