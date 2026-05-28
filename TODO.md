@@ -799,6 +799,40 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **What:** Audit every component that uses hardcoded dark hex values instead of theme tokens. Replace with token references. Light theme tokens already defined — just need components to read them.
 - **Acceptance:** Toggle Profile → Light → entire app goes light. Toggle back → dark. Persists across reload.
 
+## 18.10 Risk disclosure — fix accept flow
+- [ ] **Files:** `app/legal/` (risk disclosure page), `app/(auth)/` or onboarding flow
+- **Problem:** The risk disclosure modal/page cannot be read and accepted — user gets stuck. Likely a scroll lock, missing Accept button, or the button fires but doesn't record acceptance.
+- **What:**
+  - Risk disclosure must be fully scrollable
+  - "I understand and accept" button only enables after user has scrolled to bottom
+  - Acceptance recorded in `profiles.risk_accepted_at timestamp` (migration needed if column missing)
+  - On first login, block access to trading until accepted
+  - Re-acceptance not required on every login — check `risk_accepted_at IS NOT NULL`
+- **Acceptance:** New user can read the full disclosure, scroll to bottom, tap Accept, and proceed to trade. Existing users with acceptance recorded go straight through.
+
+## 18.11 Share winning trade + chart to X (Twitter)
+- [ ] **Files:** `components/pro/TradeBook.tsx` (closed trade row), new `lib/shareCard.ts`
+- **What:** On a closed profitable trade, show a "Share" button. Tapping it:
+  1. Generates a trade card image: symbol, side, open→close price, P&L in $, P&L %, duration, VANTA logo/watermark
+  2. Optionally overlays a chart screenshot of the trade period (use the existing chart iframe screenshot or a server-rendered sparkline)
+  3. Opens native share sheet on mobile / opens `https://x.com/intent/tweet?text=...&url=...` on web with pre-filled text: "Just closed +$X on BTCUSD 🚀 #VANTA #crypto" and attached image
+- **Scope:** X.com only. No other social platforms.
+- **Acceptance:** Close a profitable trade → Share button appears → tapping opens X compose with pre-filled text and card image attached.
+
+## 18.12 Security audit + trading exploit fixes
+- [ ] **Files:** `server/src/routes/orders.ts`, `server/src/routes/auth.ts`, `server/src/routes/admin.ts`, `server/src/middleware/`
+- **What:** Full audit of the backend for exploitable holes. Known areas to check:
+  - **Double-spend on order open:** Can two simultaneous requests open trades that together exceed available margin? Add DB-level margin reservation or a per-account mutex.
+  - **Close same trade twice:** Can a race condition allow double-close? Verify `status='open'` check is atomic (SELECT + UPDATE in one query or use `RETURNING` with status filter).
+  - **Negative/zero volume orders:** Confirm validation rejects `volume ≤ 0` at route level before hitting DB.
+  - **Price manipulation:** Can `open_price` be passed in by the client and trusted? Must always use server-side quote, never client-supplied price.
+  - **Admin endpoint exposure:** Verify `requireAdmin` middleware is on every `/api/admin/*` route — check no route is accidentally unguarded.
+  - **JWT expiry not checked:** Confirm expired JWTs return 401, not 200 with stale data.
+  - **Withdraw more than balance:** Withdrawal request must check `balance >= amount` server-side, not just client-side.
+  - **Rate limiting gaps:** Identify any high-value endpoints (order open, withdraw) with no rate limit and add one.
+  - **Hardcoded secrets scan:** `grep -r "sk_\|secret\|password\|apikey" server/src --include="*.ts"` — verify nothing leaked.
+- **Acceptance:** All above checks pass. Any bugs found are fixed in the same session. Document findings in `docs/security-audit.md`.
+
 ## 18.9 CI pipeline health fixes
 - [ ] **Files:** `.github/workflows/deploy.yml`, `.github/workflows/e2e.yml`
 - **Problem 1 — Doc-only commits cancel real deploys.** Every push to main triggers a full deploy (type-check + Railway + Vercel, ~2 min). When we push 8 TODO.md-only commits rapidly, each one cancels the previous, so the actual code change never deploys cleanly and E2E never runs. Fix: add `paths-ignore` to deploy trigger so commits touching only `*.md`, `docs/`, `scripts/` don't trigger a deploy.
@@ -859,7 +893,33 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
   - `GET /api/admin/alerts` — all price alerts
   - All guarded by `requireAdmin` middleware (already exists)
 
-- **Acceptance:** Admin can see every open trade live, force-close one, see all KYC photos, browse robot run history, and read AI chat logs — all from `/admin`.
+  **Deposit management** (`app/admin/deposits.tsx`)
+  - List all deposit requests with user, amount, method, status (pending / approved / rejected)
+  - Approve button → credits user balance via existing manual balance adjustment endpoint
+  - Reject button with reason field
+  - Filter by status
+
+  **Withdrawal management** (`app/admin/withdrawals.tsx`)
+  - List all withdrawal requests with user, amount, wallet/bank details, requested_at, status
+  - Approve / Reject buttons
+  - Shows user's current balance alongside the request so admin can confirm funds available
+  - Approved withdrawal deducts from balance, logs transaction
+
+  **Admin nav additions**
+  - Add tiles: Deposits (badge = pending count), Withdrawals (badge = pending count)
+
+- **Backend additions:**
+  - `GET /api/admin/positions` — all open trades joined with user login
+  - `POST /api/admin/positions/:id/close` — force close with reason
+  - `GET /api/admin/exposure` — aggregate by symbol
+  - `GET /api/admin/robot-runs` — paginated robot_runs with user info
+  - `GET /api/admin/chat-logs` — paginated assistant conversations
+  - `GET /api/admin/alerts` — all price alerts
+  - `GET /api/admin/deposits` + `POST /api/admin/deposits/:id/approve|reject`
+  - `GET /api/admin/withdrawals` + `POST /api/admin/withdrawals/:id/approve|reject`
+  - All guarded by `requireAdmin` middleware (already exists)
+
+- **Acceptance:** Admin can see every open trade live, force-close one, see all KYC photos, browse robot run history, read AI chat logs, approve deposits, and action withdrawal requests — all from `/admin`.
 
 ## 18.7 Replace support chat with AI platform assistant
 - [ ] **Files:** `app/help.tsx` (replace), `server/src/routes/assistant.ts` (new), `app/(tabs)/profile.tsx` (update link)
