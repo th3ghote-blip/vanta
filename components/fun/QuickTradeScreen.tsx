@@ -264,6 +264,7 @@ export function QuickTradeScreen() {
           return (
             <Pressable
               key={d.label}
+              testID={`duration-${d.label}`}
               onPress={() => setDuration(d)}
               style={{
                 width: 68,
@@ -295,6 +296,7 @@ export function QuickTradeScreen() {
             return (
               <Pressable
                 key={amt}
+                testID={`stake-${amt}`}
                 onPress={() => setStake(amt)}
                 style={{
                   flex: 1,
@@ -324,6 +326,7 @@ export function QuickTradeScreen() {
       {/* Feedback banner */}
       {feedback && (
         <View
+          testID={feedback.ok ? 'quick-feedback-ok' : 'quick-feedback-error'}
           style={{
             backgroundColor: feedback.ok ? '#0d2e1e' : '#2e0d12',
             borderRadius: radius.md,
@@ -348,6 +351,7 @@ export function QuickTradeScreen() {
       {/* Up / Down buttons */}
       <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm }}>
         <Pressable
+          testID="quick-down-button"
           disabled={!!busy}
           onPress={() => openRound('sell')}
           style={{
@@ -373,6 +377,7 @@ export function QuickTradeScreen() {
         </Pressable>
 
         <Pressable
+          testID="quick-up-button"
           disabled={!!busy}
           onPress={() => openRound('buy')}
           style={{

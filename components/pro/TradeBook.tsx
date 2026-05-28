@@ -280,10 +280,10 @@ export function TradeBook({ onWinClose }: { onWinClose?: (profit: number) => voi
             borderColor: colors.border,
           }}
         >
-          <TabButton label="Open" active={tab === 'open'} onPress={() => setTab('open')} />
-          <TabButton label="Pending" active={tab === 'pending'} onPress={() => setTab('pending')} />
-          <TabButton label="Closed" active={tab === 'closed'} onPress={() => setTab('closed')} />
-          <TabButton label="All" active={tab === 'all'} onPress={() => setTab('all')} />
+          <TabButton label="Open" testID="tab-open" active={tab === 'open'} onPress={() => setTab('open')} />
+          <TabButton label="Pending" testID="tab-pending" active={tab === 'pending'} onPress={() => setTab('pending')} />
+          <TabButton label="Closed" testID="tab-closed" active={tab === 'closed'} onPress={() => setTab('closed')} />
+          <TabButton label="All" testID="tab-all" active={tab === 'all'} onPress={() => setTab('all')} />
         </View>
 
         <View style={{ flexDirection: 'row', gap: spacing.lg }}>
@@ -945,9 +945,10 @@ function TradeRow({
   );
 }
 
-function TabButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+function TabButton({ label, active, onPress, testID }: { label: string; active: boolean; onPress: () => void; testID?: string }) {
   return (
     <Pressable
+      testID={testID}
       onPress={onPress}
       style={{
         paddingHorizontal: spacing.md,

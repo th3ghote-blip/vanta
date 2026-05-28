@@ -763,7 +763,11 @@ export async function adminRoutes(app: FastifyInstance) {
 
   /**
    * GET /api/admin/perf
-   * Returns p50/p95/p99 latency per route over the last 5 minutes.
+   * Returns:
+   * - p50/p95/p99 latency per route over the last 5 minutes
+   * - worker health (last tick per worker, stale if >30s)
+   * - price feed health (last tick per symbol, stale if >10s)
+   * - WebSocket connection count
    * Admin-only.
    */
   app.get('/perf', async (req, reply) => {
@@ -771,10 +775,25 @@ export async function adminRoutes(app: FastifyInstance) {
     if (!adminId) return reply.code(403).send({ error: 'forbidden' });
 
     const { getTimingStats } = await import('../middleware/timing.js');
+    const { getWorkerHealth } = await import('../lib/workerHealth.js');
+    const { getPriceFeedHealth } = await import('../lib/quoteCache.js');
+    const { getWsConnectionCount } = await import('../feed/pricefeed.js');
+
+    const feedHealth = getPriceFeedHealth();
+    const staleSymbols = feedHealth.filter((s) => s.stale).map((s) => s.symbol);
+
     return reply.send({
       window_minutes: 5,
       generated_at: new Date().toISOString(),
       routes: getTimingStats(),
+      workers: getWorkerHealth(),
+      price_feed: {
+        total_symbols: feedHealth.length,
+        stale_count: staleSymbols.length,
+        stale_symbols: staleSymbols,
+        symbols: feedHealth,
+      },
+      ws_connections: getWsConnectionCount(),
     });
   });
 

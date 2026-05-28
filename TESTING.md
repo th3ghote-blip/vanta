@@ -41,12 +41,12 @@ curl -sf https://vanta-server-production.up.railway.app/health | grep -q '"ok":t
 - **Acceptance:** `npx playwright test` passes locally. CI goes green and stays green for 3 consecutive pushes.
 
 ### QA-1.2 Add E2E test for Quick Mode round
-- [ ] **File:** `e2e/quick-mode.spec.ts` (new)
+- [x] **File:** `e2e/quick-mode.spec.ts` (new)
 - **What:** Register fresh account → navigate to Quick tab → place a $10 BTC Up 60s round → verify round appears in active list with countdown → wait for settlement (mock or fast-forward if possible; if not, verify the round row exists and has correct data). Sign out.
 - **Acceptance:** Test passes in CI. Covers the binary rounds flow end-to-end.
 
 ### QA-1.3 Add E2E test for pending limit order
-- [ ] **File:** `e2e/limit-order.spec.ts` (new)
+- [x] **File:** `e2e/limit-order.spec.ts` (new)
 - **What:** Register → sign in → switch to Limit tab in OrderEntry → place a BTC buy-limit 5% below current price (guaranteed not to fill immediately) → verify it appears in the Pending tab of TradeBook → cancel it → verify it disappears → sign out.
 - **Acceptance:** Test passes in CI. Covers the pending orders flow.
 
@@ -101,7 +101,7 @@ curl -sf https://vanta-server-production.up.railway.app/health | grep -q '"ok":t
 ## Phase QA-3 — Performance & load
 
 ### QA-3.1 Run load test and document p95 baselines
-- [ ] **File:** `docs/performance.md` (new), `scripts/load-test.js` (minor updates if needed)
+- [x] **File:** `docs/performance.md` (new), `scripts/load-test.js` (minor updates if needed)
 - **What:** Run `k6 run scripts/load-test.js` against the live Railway backend with `TEST_JWT` set. Record actual p95 numbers for:
   - `/health` p95 target: <100ms
   - `/api/quotes` p95 target: <300ms
@@ -179,7 +179,7 @@ curl -sf https://vanta-server-production.up.railway.app/health | grep -q '"ok":t
 - **Acceptance:** Alerts configured in Sentry. Trigger a test error → email received.
 
 ### QA-5.3 Admin health dashboard improvements
-- [ ] **File:** `app/admin/perf.tsx` (extend), `server/src/middleware/timing.ts` (extend)
+- [x] **File:** `app/admin/perf.tsx` (extend), `server/src/middleware/timing.ts` (extend)
 - **What:** Add to the existing perf dashboard:
   - Worker health: last tick time for risk worker, orders trigger worker, rounds worker (are they running?)
   - Price feed health: last tick time per symbol, count of stale symbols (>10s since last tick)

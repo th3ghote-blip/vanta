@@ -8,7 +8,7 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, RefreshCw, Zap } from 'lucide-react-native';
+import { ArrowLeft, RefreshCw, Zap, Activity, Radio, Wifi } from 'lucide-react-native';
 
 import { useAuthStore } from '@/stores/auth';
 import { colors, radius, spacing, typography } from '@/lib/theme';
@@ -25,10 +25,33 @@ interface RouteStats {
   max:    number;
 }
 
+interface WorkerStatus {
+  lastTickMs:  number;
+  lastTickAgo: string;
+  ok:          boolean;
+}
+
+interface SymbolFeedStatus {
+  symbol:      string;
+  lastTickMs:  number;
+  lastTickAgo: string;
+  stale:       boolean;
+}
+
+interface PriceFeedHealth {
+  total_symbols: number;
+  stale_count:   number;
+  stale_symbols: string[];
+  symbols:       SymbolFeedStatus[];
+}
+
 interface PerfData {
   window_minutes: number;
   generated_at:   string;
   routes:         RouteStats[];
+  workers?:       Record<string, WorkerStatus>;
+  price_feed?:    PriceFeedHealth;
+  ws_connections?: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -296,6 +319,150 @@ export default function PerfScreen() {
               </View>
             ))}
           </View>
+
+          {/* ── Worker health ───────────────────────────────────────── */}
+          {data?.workers && (
+            <View style={{ marginTop: spacing.lg }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm }}>
+                <Activity size={14} color={colors.textSecondary} />
+                <Text style={{ ...typography.heading, fontSize: 13, color: colors.textPrimary }}>
+                  Worker Health
+                </Text>
+              </View>
+              <View style={{ backgroundColor: colors.bgElevated, borderRadius: radius.md, padding: spacing.md, gap: spacing.sm }}>
+                {Object.entries(data.workers).length === 0 ? (
+                  <Text style={{ ...caption, color: colors.textMuted }}>No worker ticks recorded yet.</Text>
+                ) : (
+                  Object.entries(data.workers).map(([name, status]) => (
+                    <View
+                      key={name}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        paddingVertical: 4,
+                        borderBottomWidth: 1,
+                        borderBottomColor: colors.border,
+                      }}
+                    >
+                      <Text style={{ ...typography.mono, fontSize: 12, color: colors.textPrimary, flex: 1 }}>
+                        {name}
+                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                        <Text style={{ ...typography.mono, fontSize: 11, color: colors.textSecondary }}>
+                          {status.lastTickAgo}
+                        </Text>
+                        <View
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: 4,
+                            backgroundColor: status.ok ? colors.profit : colors.loss,
+                          }}
+                        />
+                      </View>
+                    </View>
+                  ))
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* ── Price feed health ───────────────────────────────────── */}
+          {data?.price_feed && (
+            <View style={{ marginTop: spacing.lg }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm }}>
+                <Radio size={14} color={colors.textSecondary} />
+                <Text style={{ ...typography.heading, fontSize: 13, color: colors.textPrimary }}>
+                  Price Feed Health
+                </Text>
+                <Text style={{ ...caption, color: colors.textMuted, marginLeft: 'auto' }}>
+                  {data.price_feed.total_symbols} symbols
+                  {data.price_feed.stale_count > 0
+                    ? ` · ${data.price_feed.stale_count} stale`
+                    : ' · all fresh'}
+                </Text>
+              </View>
+
+              {data.price_feed.stale_count > 0 && (
+                <View
+                  style={{
+                    backgroundColor: '#2e0d12',
+                    borderRadius: radius.sm,
+                    borderWidth: 1,
+                    borderColor: colors.loss,
+                    padding: spacing.sm,
+                    marginBottom: spacing.sm,
+                  }}
+                >
+                  <Text style={{ ...caption, color: colors.loss, fontSize: 11 }}>
+                    Stale (&gt;10s): {data.price_feed.stale_symbols.join(', ')}
+                  </Text>
+                </View>
+              )}
+
+              {/* Show only stale symbols, or a summary if all are fresh */}
+              <View style={{ backgroundColor: colors.bgElevated, borderRadius: radius.md, padding: spacing.md }}>
+                {data.price_feed.stale_count === 0 ? (
+                  <Text style={{ ...caption, color: colors.profit }}>
+                    All {data.price_feed.total_symbols} symbols received ticks within 10s.
+                  </Text>
+                ) : (
+                  data.price_feed.symbols
+                    .filter((s) => s.stale)
+                    .map((sym) => (
+                      <View
+                        key={sym.symbol}
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          paddingVertical: 4,
+                          borderBottomWidth: 1,
+                          borderBottomColor: colors.border,
+                        }}
+                      >
+                        <Text style={{ ...typography.mono, fontSize: 12, color: colors.loss }}>
+                          {sym.symbol}
+                        </Text>
+                        <Text style={{ ...typography.mono, fontSize: 11, color: colors.textSecondary }}>
+                          {sym.lastTickAgo}
+                        </Text>
+                      </View>
+                    ))
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* ── WebSocket connections ────────────────────────────────── */}
+          {data?.ws_connections !== undefined && (
+            <View style={{ marginTop: spacing.lg }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm }}>
+                <Wifi size={14} color={colors.textSecondary} />
+                <Text style={{ ...typography.heading, fontSize: 13, color: colors.textPrimary }}>
+                  WebSocket Connections
+                </Text>
+              </View>
+              <View
+                style={{
+                  backgroundColor: colors.bgElevated,
+                  borderRadius: radius.md,
+                  padding: spacing.md,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: spacing.sm,
+                }}
+              >
+                <Text style={{ ...typography.monoBold, fontSize: 28, color: colors.textPrimary }}>
+                  {data.ws_connections}
+                </Text>
+                <Text style={{ ...caption, color: colors.textSecondary }}>
+                  live clients connected to /ws/quotes
+                </Text>
+              </View>
+            </View>
+          )}
         </ScrollView>
       )}
     </View>

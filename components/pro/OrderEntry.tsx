@@ -339,8 +339,8 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
           alignSelf: 'flex-start',
         }}
       >
-        <KindButton label="Market" active={orderKind === 'market'} onPress={() => setOrderKind('market')} />
-        <KindButton label="Limit" active={orderKind === 'limit'} onPress={() => setOrderKind('limit')} />
+        <KindButton label="Market" testID="order-kind-market" active={orderKind === 'market'} onPress={() => setOrderKind('market')} />
+        <KindButton label="Limit" testID="order-kind-limit" active={orderKind === 'limit'} onPress={() => setOrderKind('limit')} />
       </View>
 
       {spreadBet ? (
@@ -401,6 +401,7 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
           value={triggerPrice}
           onChangeText={setTriggerPrice}
           placeholder={quote ? String(quote.bid) : '—'}
+          testID="limit-trigger-price"
         />
       )}
 
@@ -467,6 +468,7 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
 
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>
         <ActionButton
+          testID="sell-button"
           label={
             orderKind === 'limit'
               ? `Sell-limit ${triggerPrice || '@'}`
@@ -497,11 +499,13 @@ function Field({
   value,
   onChangeText,
   placeholder,
+  testID,
 }: {
   label: string;
   value: string;
   onChangeText: (s: string) => void;
   placeholder?: string;
+  testID?: string;
 }) {
   return (
     <View>
@@ -509,6 +513,7 @@ function Field({
         {label}
       </Text>
       <TextInput
+        testID={testID}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
@@ -534,13 +539,16 @@ function KindButton({
   label,
   active,
   onPress,
+  testID,
 }: {
   label: string;
   active: boolean;
   onPress: () => void;
+  testID?: string;
 }) {
   return (
     <Pressable
+      testID={testID}
       onPress={onPress}
       style={{
         paddingHorizontal: spacing.md,

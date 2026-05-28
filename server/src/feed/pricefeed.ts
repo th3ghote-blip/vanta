@@ -346,6 +346,11 @@ function decimalsForCrypto(price: number): number {
 
 const sockets = new Set<WebSocket>();
 
+/** Returns the current number of open WebSocket connections to /ws/quotes. */
+export function getWsConnectionCount(): number {
+  return sockets.size;
+}
+
 function broadcast(quotes: Quote[]) {
   if (sockets.size === 0) return;
   const msg = JSON.stringify({ type: 'tick', quotes });

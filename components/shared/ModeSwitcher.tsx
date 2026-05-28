@@ -29,15 +29,16 @@ export function ModeSwitcher() {
         borderColor: colors.border,
       }}
     >
-      <Segment label="Pro" active={mode === 'pro'} onPress={() => onPress('pro')} />
-      <Segment label="Quick" active={mode === 'quick'} onPress={() => onPress('quick')} />
+      <Segment label="Pro" testID="mode-pro" active={mode === 'pro'} onPress={() => onPress('pro')} />
+      <Segment label="Quick" testID="mode-quick" active={mode === 'quick'} onPress={() => onPress('quick')} />
     </View>
   );
 }
 
-function Segment({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+function Segment({ label, active, onPress, testID }: { label: string; active: boolean; onPress: () => void; testID?: string }) {
   return (
     <Pressable
+      testID={testID}
       onPress={onPress}
       style={{
         paddingHorizontal: spacing.lg,
