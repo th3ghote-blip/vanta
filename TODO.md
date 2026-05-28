@@ -96,7 +96,7 @@ The platform's surface area is wide (Phase 1–4, 6–7, 11–12, 15 are done) b
 
 ## Next pick for the cowork agent
 
-No unchecked non-parked items remain. Wait for user to unblock a PARKED item, then pick up the domain chain starting at 10.1.
+Pick any unchecked item from **Phase 18** (18.1–18.13). Order doesn't matter — pick whichever you can complete fully within ~60 min. Skip any item that needs external credentials or user action and move to the next.
 
 ## Migrations already applied to live DB
 
