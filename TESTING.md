@@ -192,7 +192,7 @@ curl -sf https://vanta-server-production.up.railway.app/health | grep -q '"ok":t
 ## Phase QA-6 — Regression safety net
 
 ### QA-6.1 Smoke test for trade math on live data
-- [ ] **File:** `scripts/math-check.js` (new)
+- [x] **File:** `scripts/math-check.js` (new)
 - **What:** Node.js script (no deps beyond `node-fetch`) that:
   1. Calls `/api/quotes` to get live BTCUSD price
   2. Calculates expected notional for 0.01 BTC at that price
@@ -206,7 +206,7 @@ curl -sf https://vanta-server-production.up.railway.app/health | grep -q '"ok":t
 - **Acceptance:** Script passes on the live backend. Math is correct end-to-end.
 
 ### QA-6.2 Schema drift detector
-- [ ] **File:** `scripts/check-schema.py` (new)
+- [x] **File:** `scripts/check-schema.py` (new)
 - **What:** Python script that calls the Supabase Management API and verifies:
   - All migration tables exist: `trades`, `accounts`, `profiles`, `binary_rounds`, `copy_relationships`, `chart_drawings`, `price_alerts`, `robot_runs`, `kyc_documents`, `kyc_submissions`
   - Key columns exist: `trades.order_type`, `trades.trigger_price`, `trades.trail_distance`, `trades.notes`, `accounts.hedging_enabled`
