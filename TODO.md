@@ -799,6 +799,23 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **What:** Audit every component that uses hardcoded dark hex values instead of theme tokens. Replace with token references. Light theme tokens already defined — just need components to read them.
 - **Acceptance:** Toggle Profile → Light → entire app goes light. Toggle back → dark. Persists across reload.
 
+## 18.9 CI pipeline health fixes
+- [ ] **Files:** `.github/workflows/deploy.yml`, `.github/workflows/e2e.yml`
+- **Problem 1 — Doc-only commits cancel real deploys.** Every push to main triggers a full deploy (type-check + Railway + Vercel, ~2 min). When we push 8 TODO.md-only commits rapidly, each one cancels the previous, so the actual code change never deploys cleanly and E2E never runs. Fix: add `paths-ignore` to deploy trigger so commits touching only `*.md`, `docs/`, `scripts/` don't trigger a deploy.
+  ```yaml
+  on:
+    push:
+      branches: [main]
+      paths-ignore:
+        - '**.md'
+        - 'docs/**'
+        - 'scripts/**'
+        - 'e2e/**'
+  ```
+- **Problem 2 — E2E skips when deploy is cancelled.** The smoke test only runs after a successful deploy. Rapid-commit cancellation chains mean E2E is perpetually skipped. Once Problem 1 is fixed (fewer deploys), this resolves itself. Additionally add a scheduled weekly E2E run as a safety net: `schedule: - cron: '0 6 * * 1'`
+- **Problem 3 — Node.js 20 deprecation.** GitHub Actions warns that `actions/checkout@v4` and `actions/setup-node@v4` run on Node.js 20, which is forced to Node.js 24 on June 2, 2026 (5 days away). Update both workflows to `actions/checkout@v4` → stay on v4 but add `node-version: '20'` pin, OR bump to `actions/setup-node@v4` with explicit node version. Easiest fix: add `env: FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true` at workflow level to opt in now and avoid surprise breakage.
+- **Acceptance:** Push a TODO.md-only commit → no deploy triggered. Push a code change → deploy runs, E2E follows. No Node.js deprecation warnings in CI logs.
+
 ## 18.8 Manager panel — MT4-style backend control centre
 - [ ] **Files:** `app/admin/` (new pages), `server/src/routes/admin.ts` (extend)
 - **What:** A complete operator control centre. Extend the existing `/admin` dashboard with the following new sections:
