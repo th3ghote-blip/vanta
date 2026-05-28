@@ -41,7 +41,8 @@ test.describe('VANTA smoke', () => {
     await page.locator('[data-testid="login-submit"]').click();
 
     // ── 4. Wait for redirect to trade tab ────────────────────────────────────
-    await page.waitForURL(/tabs\/trade/, { timeout: 25_000 });
+    // Expo Router strips the (tabs) group from the URL, so it's /trade not /tabs/trade
+    await page.waitForURL(/\/trade/, { timeout: 25_000 });
 
     // ── 5. Dismiss onboarding carousel if it appears ─────────────────────────
     // New accounts see a 3-step onboarding; skip it if present.
@@ -49,12 +50,12 @@ test.describe('VANTA smoke', () => {
       const getStarted = page.getByText("I've saved them", { exact: false });
       if (await getStarted.isVisible({ timeout: 2_000 })) {
         await getStarted.click();
-        await page.waitForURL(/tabs\/trade|onboarding/, { timeout: 10_000 });
+        await page.waitForURL(/\/trade|onboarding/, { timeout: 10_000 });
       }
       const continueBtn = page.getByText('Get started', { exact: false });
       if (await continueBtn.isVisible({ timeout: 2_000 })) {
         await continueBtn.click();
-        await page.waitForURL(/tabs\/trade/, { timeout: 10_000 });
+        await page.waitForURL(/\/trade/, { timeout: 10_000 });
       }
     } catch {
       // onboarding not shown — continue

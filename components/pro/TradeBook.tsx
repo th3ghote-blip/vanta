@@ -586,6 +586,9 @@ function TradeRow({
           {!isEditing && !isPartialClosing && !isNoting && (
             <Pressable
               onPress={onNote}
+              accessibilityLabel={trade.notes ? 'Edit note' : 'Add note'}
+              // @ts-expect-error web-only title tooltip
+              title={trade.notes ? 'Edit note' : 'Add note'}
               style={{
                 width: 28,
                 height: 28,
@@ -620,6 +623,9 @@ function TradeRow({
           {onEdit && !isEditing && !isPartialClosing && (
             <Pressable
               onPress={onEdit}
+              accessibilityLabel="Edit SL / TP"
+              // @ts-expect-error web-only title tooltip
+              title="Edit SL / TP"
               style={{
                 width: 28,
                 height: 28,
@@ -655,6 +661,9 @@ function TradeRow({
           {onPartialClose && !isEditing && !isPartialClosing && (
             <Pressable
               onPress={onPartialClose}
+              accessibilityLabel="Partial close"
+              // @ts-expect-error web-only title tooltip
+              title="Partial close"
               style={{
                 width: 28,
                 height: 28,
@@ -692,6 +701,8 @@ function TradeRow({
               disabled={closing}
               testID="close-trade-button"
               accessibilityLabel="Close trade"
+              // @ts-expect-error web-only title tooltip
+              title="Close trade"
               style={{
                 width: 28,
                 height: 28,
