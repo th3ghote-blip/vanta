@@ -799,6 +799,14 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **What:** Audit every component that uses hardcoded dark hex values instead of theme tokens. Replace with token references. Light theme tokens already defined — just need components to read them.
 - **Acceptance:** Toggle Profile → Light → entire app goes light. Toggle back → dark. Persists across reload.
 
+## 18.6 "Share my trades" toggle — default ON
+- [ ] **Files:** `server/supabase/migrations/` (new migration), `app/(tabs)/profile.tsx`, `server/src/routes/`
+- **What:** Add `profiles.share_trades boolean default true`. New users get sharing on automatically. Profile → Privacy → "Share my trades" toggle (default ON). When on, the user's closed trade history is visible to other logged-in users (for copy trading discovery and leaderboards). When off, trades are private.
+  - Migration: `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS share_trades boolean NOT NULL DEFAULT true`
+  - Profile screen: show toggle under a "Privacy" section, default ON, persists to `profiles`
+  - Backend: any route that returns another user's trades checks `share_trades = true` first; returns 403 if off
+- **Acceptance:** New account → share_trades is true by default. Toggle off → other users can't see trades. Toggle on → visible again.
+
 ## 18.5 Robot execution engine unit tests
 - [ ] **File:** `server/test/robotEngine.test.ts` (new)
 - **What:** The existing `robots.test.ts` only covers `/api/robots/compile` (5 tests). The engine in `server/src/ai/robotEngine.ts` — `shouldFire`, `matchesCron`, `processRobot`, `openRobotTrade` — has zero test coverage.
