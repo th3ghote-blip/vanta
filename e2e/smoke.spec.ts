@@ -69,14 +69,12 @@ test.describe('VANTA smoke', () => {
     await buyBtn.click();
 
     // ── 8. Wait for the position to appear in the Open tab of TradeBook ──────
-    // The trade row shows the symbol name.
-    await expect(page.getByText('BTCUSD').first()).toBeVisible({ timeout: 15_000 });
+    // Wait directly for the close button — this is more reliable than waiting
+    // for BTCUSD text (which matches the chart header before the trade row loads).
+    const closeBtn = page.locator('[data-testid="close-trade-button"]').first();
+    await expect(closeBtn).toBeVisible({ timeout: 30_000 });
 
     // ── 9. Close the position ────────────────────────────────────────────────
-    // The close button carries accessibilityLabel="Close trade" (maps to
-    // aria-label in the browser) — added in the same commit as this test.
-    const closeBtn = page.locator('[data-testid="close-trade-button"]').first();
-    await expect(closeBtn).toBeVisible({ timeout: 10_000 });
     await closeBtn.click();
 
     // Brief pause — optimistic UI removes the row immediately, profit/loss
