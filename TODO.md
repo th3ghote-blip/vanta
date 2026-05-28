@@ -799,6 +799,17 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **What:** Audit every component that uses hardcoded dark hex values instead of theme tokens. Replace with token references. Light theme tokens already defined — just need components to read them.
 - **Acceptance:** Toggle Profile → Light → entire app goes light. Toggle back → dark. Persists across reload.
 
+## 18.4 Forex + stock price feed (or hide empty categories)
+- [ ] **Files:** `server/src/feed/pricefeed.ts`, `components/pro/SymbolPicker.tsx` (or equivalent)
+- **Problem:** Symbol picker shows Forex (0) and Stocks (0) — categories exist but `NON_CRYPTO_SYMBOLS = []` because Twelve Data free tier (800 credits/day) ran dry with chart loads + polling combined.
+- **What (pick one):**
+  - **Option A (recommended):** Switch non-crypto to Yahoo Finance via `yahoo-finance2` npm package — no API key, ~10–15s poll, covers all 31 mapped symbols (forex pairs + AAPL/TSLA/NVDA etc.). Re-populate `NON_CRYPTO_SYMBOLS` with the forex + stock list. Yahoo Finance has no official rate limit for this use.
+  - **Option B (fallback):** If Yahoo Finance proves flaky, keep Twelve Data but slash polling to every 4 hours for stocks only (market hours only) and every 60 min for top 6 forex pairs — fits within 800 credits/day.
+  - **Option C (cosmetic only):** Hide categories from the picker when they have 0 live symbols — one-line filter, takes 10 min, unblocks UX immediately while A or B are being done.
+- **Acceptance (A or B):** At least 6 forex pairs (EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF) and 5 stocks (AAPL, TSLA, NVDA, MSFT, AMZN) show live prices. Forex and Stocks categories show non-zero counts in picker.
+- **Acceptance (C):** Forex (0) and Stocks (0) pills no longer appear. Only categories with ≥1 live symbol are shown.
+- **Do C first** (10 min) then A in the same session.
+
 ---
 
 # Phase 17 — Optional / future
