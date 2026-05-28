@@ -772,6 +772,16 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 
 # Phase 18 — UX fixes (reported 2026-05-28)
 
+## 18.13 Trade row density — text too small, too many lines
+- [ ] **Files:** `components/pro/TradeBook.tsx`
+- **Problem:** Each open trade row shows 5 lines of small text (symbol + age, notional · leverage · margin, TP value, open→now price, P&L). Too much information crammed into too little space. Hard to scan quickly.
+- **What:**
+  - Reduce to 2 lines max per row: Line 1 = symbol + side + volume (large); Line 2 = open price → current price + P&L (prominent, colour-coded)
+  - Notional, margin, leverage: hide behind a tap-to-expand or show only on the edit panel
+  - P&L should be the largest number on the row — that's what traders look at
+  - Action buttons (note, edit, scissors, close) stay on the right but slightly larger (32px instead of 28px)
+- **Acceptance:** Each row fits comfortably in ~56px height. P&L is immediately readable at a glance. No information requires squinting.
+
 ## 18.1 Order entry simplification
 - [ ] **Files:** `components/pro/OrderEntry.tsx`
 - **Problem:** Too many fields shown at once (Stake $/pt label, lots + notional + margin summary all on one dense line, Trail Distance visible by default). New users don't know what any of it means.
