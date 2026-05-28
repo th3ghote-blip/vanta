@@ -799,6 +799,51 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **What:** Audit every component that uses hardcoded dark hex values instead of theme tokens. Replace with token references. Light theme tokens already defined — just need components to read them.
 - **Acceptance:** Toggle Profile → Light → entire app goes light. Toggle back → dark. Persists across reload.
 
+## 18.8 Manager panel — MT4-style backend control centre
+- [ ] **Files:** `app/admin/` (new pages), `server/src/routes/admin.ts` (extend)
+- **What:** A complete operator control centre. Extend the existing `/admin` dashboard with the following new sections:
+
+  **Live Positions monitor** (`app/admin/positions.tsx`)
+  - Table of every open trade across all users: user login, symbol, side, volume, open price, current P&L, margin used, open time
+  - Sort by P&L (biggest losers/winners), symbol, or age
+  - "Force close" button per row (admin closes any trade — logs reason='admin_close')
+  - Summary bar at top: total open trades, total notional, net long/short exposure per symbol
+
+  **Exposure by symbol** (`app/admin/exposure.tsx`)
+  - Per symbol: total buy volume, total sell volume, net position, total P&L at risk
+  - Highlights symbols where net exposure > configurable threshold (B-book risk)
+
+  **Uploaded files / KYC documents** (`app/admin/kyc.tsx` — already exists, extend)
+  - Show uploaded document images inline (signed Supabase storage URL, 1h expiry)
+  - Currently only shows submission status — add image preview for each doc type
+
+  **Robot run log** (`app/admin/robots.tsx`)
+  - All `robot_runs` rows across all users: robot name, user, fired_at, result (trade opened / skipped / error), trade id if opened
+  - Filter by date, user, result
+
+  **AI assistant chat log** (`app/admin/chats.tsx`)
+  - All conversations from `/api/assistant/chat` — user, timestamp, first message preview, turn count
+  - Tap to expand full conversation
+  - Useful for seeing what users are confused about → improve platform
+
+  **Price alerts log** (`app/admin/alerts.tsx`)
+  - All `price_alerts` rows: user, symbol, target price, triggered_at (or pending), notification sent?
+
+  **Admin nav** (`app/admin/index.tsx` — update)
+  - Add new tiles: Live Positions, Exposure, Robot Runs, Chat Logs, Price Alerts
+  - Badge counts: open trades, pending KYC, untriggered alerts
+
+- **Backend additions:**
+  - `GET /api/admin/positions` — all open trades joined with user login
+  - `POST /api/admin/positions/:id/close` — force close with reason
+  - `GET /api/admin/exposure` — aggregate by symbol
+  - `GET /api/admin/robot-runs` — paginated robot_runs with user info
+  - `GET /api/admin/chat-logs` — paginated assistant conversations
+  - `GET /api/admin/alerts` — all price alerts
+  - All guarded by `requireAdmin` middleware (already exists)
+
+- **Acceptance:** Admin can see every open trade live, force-close one, see all KYC photos, browse robot run history, and read AI chat logs — all from `/admin`.
+
 ## 18.7 Replace support chat with AI platform assistant
 - [ ] **Files:** `app/help.tsx` (replace), `server/src/routes/assistant.ts` (new), `app/(tabs)/profile.tsx` (update link)
 - **What:** Remove the existing support chat. Replace with a Claude-powered AI assistant that knows the entire platform and can guide users through anything:
