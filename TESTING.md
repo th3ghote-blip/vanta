@@ -170,12 +170,12 @@ curl -sf https://vanta-server-production.up.railway.app/health | grep -q '"ok":t
 - **Acceptance:** Both monitors green in Better Stack dashboard. Take Railway down → email arrives within 5 min.
 
 ### QA-5.2 Sentry alert thresholds
-- [ ] **File:** Sentry dashboard config (no code change)
+- [x] **File:** Sentry dashboard config (no code change)
 - **What:** In Sentry dashboard (https://sentry.io), configure:
-  - Alert: any new error → email immediately
-  - Alert: error rate > 5/min on any route → email
-  - Alert: p95 response time > 3s on `/api/orders/open` → email
-  - Performance: set apdex threshold to 500ms
+  - Alert: any new error → email immediately ✅
+  - Alert: error rate > 5/min on any route → email (skipped — metric alerts require paid Team plan; Spike Protection enabled as substitute)
+  - Alert: p95 response time > 3s on `/api/orders/open` → email (skipped — metric alerts require paid Team plan)
+  - Performance: set apdex threshold to 500ms ✅
 - **Acceptance:** Alerts configured in Sentry. Trigger a test error → email received.
 
 ### QA-5.3 Admin health dashboard improvements
