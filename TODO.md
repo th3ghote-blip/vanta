@@ -773,7 +773,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 # Phase 18 — UX fixes (reported 2026-05-28)
 
 ## 18.13 Trade row density — text too small, too many lines
-- [x] **Files:** `components/pro/TradeBook.tsx`
+- [ ] **Files:** `components/pro/TradeBook.tsx`
 - **Problem:** Each open trade row shows 5 lines of small text (symbol + age, notional · leverage · margin, TP value, open→now price, P&L). Too much information crammed into too little space. Hard to scan quickly.
 - **What:**
   - Reduce to 2 lines max per row: Line 1 = symbol + side + volume (large); Line 2 = open price → current price + P&L (prominent, colour-coded)
@@ -844,7 +844,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** All above checks pass. Any bugs found are fixed in the same session. Document findings in `docs/security-audit.md`.
 
 ## 18.9 CI pipeline health fixes
-- [x] **Files:** `.github/workflows/deploy.yml`, `.github/workflows/e2e.yml`
+- [ ] **Files:** `.github/workflows/deploy.yml`, `.github/workflows/e2e.yml`
 - **Problem 1 — Doc-only commits cancel real deploys.** Every push to main triggers a full deploy (type-check + Railway + Vercel, ~2 min). When we push 8 TODO.md-only commits rapidly, each one cancels the previous, so the actual code change never deploys cleanly and E2E never runs. Fix: add `paths-ignore` to deploy trigger so commits touching only `*.md`, `docs/`, `scripts/` don't trigger a deploy.
   ```yaml
   on:

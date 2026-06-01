@@ -61,14 +61,24 @@ test.describe('VANTA smoke', () => {
       // onboarding not shown — continue
     }
 
-    // ── 6. Wait for a live BTC buy-price to appear in the OrderEntry ──────────
+    // ── 6. Dismiss cookie consent banner if it appears ───────────────────────
+    try {
+      const cookieBtn = page.getByText('Necessary only', { exact: true });
+      if (await cookieBtn.isVisible({ timeout: 3_000 })) {
+        await cookieBtn.click();
+      }
+    } catch {
+      // no banner — continue
+    }
+
+    // ── 7. Wait for a live BTC buy-price to appear in the OrderEntry ──────────
     const buyBtn = page.locator('[data-testid="buy-button"]');
     await expect(buyBtn).toBeVisible({ timeout: 30_000 });
 
-    // ── 7. Place the trade (default volume is 0.01 BTC for BTCUSD) ───────────
+    // ── 8. Place the trade (default volume is 0.01 BTC for BTCUSD) ───────────
     await buyBtn.click();
 
-    // ── 8. Wait for the position to appear in the Open tab of TradeBook ──────
+    // ── 9. Wait for the position to appear in the Open tab of TradeBook ──────
     // The TradeBook is below the fold in a ScrollView. We must scroll it into
     // view before Playwright can assert visibility or click it.
     const closeBtn = page.locator('[data-testid="close-trade-button"]').first();
