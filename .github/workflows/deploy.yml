@@ -3,20 +3,11 @@ name: Deploy
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'scripts/**'
-      - 'e2e/**'
 
 # Cancel any in-progress deploy for the same branch so fast pushes don't queue up
 concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: true
-
-# Opt in to Node.js 24 for GitHub Actions runners now (avoids forced migration warning on 2026-06-02)
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
   # ── 1. Verify ────────────────────────────────────────────────────────────────

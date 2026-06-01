@@ -69,10 +69,12 @@ test.describe('VANTA smoke', () => {
     await buyBtn.click();
 
     // ── 8. Wait for the position to appear in the Open tab of TradeBook ──────
-    // Wait directly for the close button — this is more reliable than waiting
-    // for BTCUSD text (which matches the chart header before the trade row loads).
+    // The TradeBook is below the fold in a ScrollView. We must scroll it into
+    // view before Playwright can assert visibility or click it.
     const closeBtn = page.locator('[data-testid="close-trade-button"]').first();
-    await expect(closeBtn).toBeVisible({ timeout: 30_000 });
+    await closeBtn.waitFor({ state: 'attached', timeout: 30_000 });
+    await closeBtn.scrollIntoViewIfNeeded();
+    await expect(closeBtn).toBeVisible({ timeout: 5_000 });
 
     // ── 9. Close the position ────────────────────────────────────────────────
     await closeBtn.click();
