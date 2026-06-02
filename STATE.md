@@ -25,56 +25,67 @@ and `0b/` cannot be removed (Operation not permitted).
 
 See the 16.3 run (2026-05-25) for the exact Python+bash sequence.
 
+## ⚠️ Stale index.lock (persistent, this environment)
+
+`.git/index.lock` exists and CANNOT be removed (WSL permission, "Operation not
+permitted"). `git-precheck.sh` reports it and prints a fallback index path.
+**Workaround that works for read/status ops:** use a private index file:
+```bash
+export GIT_INDEX_FILE=/tmp/vanta_idx_run
+git read-tree HEAD          # seed a fresh, clean index from HEAD
+git status / git diff HEAD  # now reflect reality
+```
+For committing, use the staging-clone workflow above (it has its own index).
 
 ---
 
+## 2026-06-03T~auto — 18.9 CI pipeline health fixes
 
----
+**TODO item picked:** **18.9 CI pipeline health fixes** (Phase 18; order-agnostic).
 
-## 2026-06-02T~auto — 18.5 Robot engine unit tests
-
-**TODO item picked:** **18.5 Robot execution engine unit tests** (Phase 18; order-agnostic per header).
+**Why it was actually NOT done** (correcting the prior run's note): the 18.5 run
+said "18.9 already in code per 7f76011 — just verify + check off." That was stale.
+Commit `0c82263` ("Fix smoke: dismiss cookie banner before buy", hand-authored)
+RE-CLOBBERED the 18.9 changes out of `deploy.yml` as a side effect — the same
+stale-index clobber pattern that `e6b2fb4` caused earlier. At HEAD the workflows
+had NO paths-ignore, NO weekly schedule, NO Node24 opt-in. So 18.9 was genuinely
+incomplete. I re-applied it.
 
 **Pre-run state**
-- `git-precheck.sh`: clean, branch=main, author OK. HEAD = `0c82263`.
-- Client tsc: exit 0. Server tsc: exit 0. (Live curl checks not run — sandbox network blocked, as always.)
-- NOTE: git log shows 18.9 + 18.13 were already landed in code (commit `7f76011`) but their
-  TODO checkboxes are still `[ ]`. Did NOT touch them this run (one item per run; not fabricating).
-  Next agent: verify 18.9/18.13 implementations against acceptance criteria and just mark them [x]
-  if they hold — likely free housekeeping wins.
+- Working tree LOOKED dirty (staged reverse-diff of the 18.5 commit + index.lock).
+  Investigated: every file on disk was byte-identical to HEAD (`git diff HEAD` empty
+  except an index artifact). It was leftover index junk from the prior run's commit
+  workaround, NOT a user mid-edit → safe to proceed. Reset via private GIT_INDEX_FILE.
+- `git-precheck.sh`: branch=main OK, author OK, index.lock unremovable (see header).
+- tsc not re-run (no TS touched this run; disk == HEAD for all .ts).
 
-**What changed**
-- `server/test/robotEngine.test.ts` (new, 13 tests): covers the engine internals —
-  - `shouldFire` interval (fires after interval / not too soon / zero-interval guard)
-  - `shouldFire` cron `"0 9 * * 1-5"` (fires 09:00 Mon; not 09:01; not Saturday) + defensive unknown-type
-  - `processRobot` trade+`always` → opens trade, logs `robot_runs.trade_opened`, increments `total_trades`
-  - `processRobot` `max_concurrent=1` with an existing open robot trade → no new trade, logs `trade_failed`/`max_concurrent`
-    (NOTE: engine logs action `trade_failed` not `skipped`; test asserts actual behavior)
-  - `processRobot` `kind='tip'` → `sendPush` called, logs `tip_sent`, no trade
-  - `openRobotTrade` direct → inserts `reason='robot'` trade, correct symbol/side/volume; fails cleanly on missing quote
-  - `tick` → only `status='active'` robots fire; paused robot produces no `robot_runs` row
-- `server/src/ai/robotEngine.ts`: added `export const _robotInternals = { shouldFire, matchesCron, matchField, matchesMarketEvent, processRobot, openRobotTrade, tick }` (test-only export, zero runtime impact — mirrors `_riskInternals` / `_ordersTriggerInternals`).
-- `server/test/helpers/supabaseMock.ts`: backward-compatible enhancements so the engine's queries work under the mock —
-  (1) `select(cols, { count:'exact', head:true })` now returns a `count`; (2) the `robots` embed (`accounts!inner`) now attaches the full account row (id/balance/free_margin/margin_used/leverage) and drops robots with no matching account (inner-join semantics).
+**What changed** (both files now byte-identical to the known-good `7f76011` versions)
+- `.github/workflows/deploy.yml`:
+  - `paths-ignore: ['**.md','docs/**','scripts/**','e2e/**']` on the push trigger
+    (Problem 1: doc-only commits no longer trigger/cancel real deploys).
+  - workflow-level `env: FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'` (Problem 3).
+- `.github/workflows/e2e.yml`:
+  - `schedule: - cron: '0 6 * * 1'` weekly Monday safety-net (Problem 2) + matching
+    header comment.
+  - job `if:` now also allows `github.event_name == 'schedule'`.
+  - workflow-level Node24 opt-in env (Problem 3).
+- (setup-node already pins `node-version: '20'` on all jobs — left as is.)
 
 **Verification**
-- `npx vitest run test/robotEngine.test.ts`: 13/13 pass ✅
-- Full suite `npx vitest run`: 160/160 pass (was 147; +13), 11 files ✅
-- Server tsc: exit 0 ✅. Client tsc: exit 0 ✅.
+- Both YAML files `yaml.safe_load` OK.
+- `diff` vs `git show 7f76011:<file>` → IDENTICAL for both. ✅
+- Acceptance is GitHub-side behavior (no deploy on md-only push; weekly E2E; no Node
+  deprecation warning) — cannot be exercised in the sandbox (no network, no runner).
+  Takes effect on next push to GitHub; GH Actions reads the new workflow config.
 
 **Deploy**
-- None run — sandbox network blocked. Change is test-only + a no-op export; no runtime behavior change.
-  GH Actions deploys on push. (No migration, no env, no frontend touched.)
+- None. 18.9 IS CI config — nothing ships to Railway/Vercel. The change activates when
+  the commit is pushed and Actions runs. No migration, no env secrets, no app code.
 
-**Commit:** see git log — `auto: 18.5 robot engine unit tests`.
+**Commit:** `auto: 18.9 CI pipeline health fixes` (see git log).
 
-**Persistent issues**
-- File writes done via Python `open()` through bash (Edit/Write WSL-mount caveat from prior runs).
-  git ops were clean this run — no lock/staging workaround needed.
-
-**Next agent picks**
-- Verify + check off **18.9** and **18.13** (already in code per commit 7f76011).
-- Other Phase 18 items: 18.1, 18.2, 18.3, 18.10, 18.11, 18.12, 18.8, 18.7, 18.6, 18.4 — pick any
-  fully completable in ~60 min. 18.6 needs a migration (network-blocked → write SQL + commit, user applies).
-  18.7/18.8 are large. 18.1/18.3/18.13 are pure frontend UI.
-
+**Next agent — IMPORTANT**
+- 18.9 is now landed. WATCH OUT: it has been clobbered TWICE by hand-authored
+  smoke-test fix commits (`e6b2fb4`, `0c82263`) that carried a stale index. If you
+  hand-edit anything near these workflows, re-diff against this commit before
+  committing so

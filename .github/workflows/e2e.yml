@@ -2,26 +2,35 @@ name: E2E Smoke
 
 # Run after the Deploy workflow completes on main, so we always test the
 # freshly-shipped code. Also supports manual triggers for ad-hoc runs.
+# Weekly safety-net run every Monday at 06:00 UTC catches regressions even
+# when only doc/script commits land (which skip the deploy trigger).
 on:
   workflow_run:
     workflows: [Deploy]
     types: [completed]
     branches: [main]
   workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * 1'   # Weekly — Monday 06:00 UTC
 
 # Only one smoke run at a time per branch.
 concurrency:
   group: e2e-${{ github.ref }}
   cancel-in-progress: true
 
+# Opt in to Node.js 24 for GitHub Actions runners now (avoids forced migration warning on 2026-06-02)
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   smoke:
     name: Playwright smoke test
     runs-on: ubuntu-latest
     # When triggered by workflow_run, only run if the deploy succeeded.
-    # When triggered manually (workflow_dispatch), always run.
+    # When triggered manually (workflow_dispatch) or on schedule, always run.
     if: >
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule' ||
       github.event.workflow_run.conclusion == 'success'
 
     steps:

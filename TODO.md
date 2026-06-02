@@ -844,7 +844,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** All above checks pass. Any bugs found are fixed in the same session. Document findings in `docs/security-audit.md`.
 
 ## 18.9 CI pipeline health fixes
-- [ ] **Files:** `.github/workflows/deploy.yml`, `.github/workflows/e2e.yml`
+- [x] **Files:** `.github/workflows/deploy.yml`, `.github/workflows/e2e.yml`
 - **Problem 1 — Doc-only commits cancel real deploys.** Every push to main triggers a full deploy (type-check + Railway + Vercel, ~2 min). When we push 8 TODO.md-only commits rapidly, each one cancels the previous, so the actual code change never deploys cleanly and E2E never runs. Fix: add `paths-ignore` to deploy trigger so commits touching only `*.md`, `docs/`, `scripts/` don't trigger a deploy.
   ```yaml
   on:
