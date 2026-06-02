@@ -31,337 +31,50 @@ See the 16.3 run (2026-05-25) for the exact Python+bash sequence.
 
 ---
 
-## 2026-05-26T~auto — T.16 Drawing tools on chart
+## 2026-06-02T~auto — 18.5 Robot engine unit tests
 
-**TODO item picked:** **T.16 Drawing tools on chart**
+**TODO item picked:** **18.5 Robot execution engine unit tests** (Phase 18; order-agnostic per header).
 
 **Pre-run state**
-- HEAD was 002531f (T.18 STATE/TODO housekeeping). Working tree showed MM/D status
-  entries — all pure mode-change WSL artifacts (0755→0644), confirmed via `git diff HEAD`
-  returning only mode diffs. Proceeded.
-- 13.3 BetterStack skipped again — requires human signup at betterstack.com.
-- All other unchecked items are PARKED.
+- `git-precheck.sh`: clean, branch=main, author OK. HEAD = `0c82263`.
+- Client tsc: exit 0. Server tsc: exit 0. (Live curl checks not run — sandbox network blocked, as always.)
+- NOTE: git log shows 18.9 + 18.13 were already landed in code (commit `7f76011`) but their
+  TODO checkboxes are still `[ ]`. Did NOT touch them this run (one item per run; not fabricating).
+  Next agent: verify 18.9/18.13 implementations against acceptance criteria and just mark them [x]
+  if they hold — likely free housekeeping wins.
 
 **What changed**
-- `components/pro/Chart.tsx`: drawing tools added (+94 lines).
-  - Floating toolbar inside iframe: ↖ (select), — (horizontal line), ╱ (trendline), F (fib), × (clear)
-  - SVG overlay (`#draw-overlay`) renders lines on top of the Lightweight Charts canvas
-  - Three tool types: `horizontal` (single click sets price level), `trendline` (two-click anchor),
-    `fib` (two-click high/low → seven standard fib levels 0/23.6/38.2/50/61.8/78.6/100%)
-  - Trendlines extended to chart edges; fib levels labeled with % + price
-  - Drawings stored per symbol in `drawingsRef` (React ref, not state — no re-renders on save)
-  - AsyncStorage round-trip: loaded once on mount → passed to iframe as `INITIAL_DRAWINGS` JSON;
-    postMessage from iframe on every change → React saves to AsyncStorage key `vanta:chart-drawings`
-  - WebView `onMessage` handler mirrors the same logic on mobile
-  - `iframeKey` includes `drawingsLoaded` flag so iframe doesn't render before initial drawings load
-- `stores/chartDrawings.ts` (new): exported zustand store with same AsyncStorage backing,
-  available to other components if needed in future.
-- `supabase/migrations/026_chart_drawings.sql` (new): `chart_drawings` table schema for
-  future server-side persistence. **Must be applied manually via Supabase dashboard SQL editor.**
-- `TODO.md`: T.16 marked [x].
-
-**Commit:** `c178ca9` (via staging clone + pack-copy workaround)
+- `server/test/robotEngine.test.ts` (new, 13 tests): covers the engine internals —
+  - `shouldFire` interval (fires after interval / not too soon / zero-interval guard)
+  - `shouldFire` cron `"0 9 * * 1-5"` (fires 09:00 Mon; not 09:01; not Saturday) + defensive unknown-type
+  - `processRobot` trade+`always` → opens trade, logs `robot_runs.trade_opened`, increments `total_trades`
+  - `processRobot` `max_concurrent=1` with an existing open robot trade → no new trade, logs `trade_failed`/`max_concurrent`
+    (NOTE: engine logs action `trade_failed` not `skipped`; test asserts actual behavior)
+  - `processRobot` `kind='tip'` → `sendPush` called, logs `tip_sent`, no trade
+  - `openRobotTrade` direct → inserts `reason='robot'` trade, correct symbol/side/volume; fails cleanly on missing quote
+  - `tick` → only `status='active'` robots fire; paused robot produces no `robot_runs` row
+- `server/src/ai/robotEngine.ts`: added `export const _robotInternals = { shouldFire, matchesCron, matchField, matchesMarketEvent, processRobot, openRobotTrade, tick }` (test-only export, zero runtime impact — mirrors `_riskInternals` / `_ordersTriggerInternals`).
+- `server/test/helpers/supabaseMock.ts`: backward-compatible enhancements so the engine's queries work under the mock —
+  (1) `select(cols, { count:'exact', head:true })` now returns a `count`; (2) the `robots` embed (`accounts!inner`) now attaches the full account row (id/balance/free_margin/margin_used/leverage) and drops robots with no matching account (inner-join semantics).
 
 **Verification**
-- Client tsc: exit 0 ✅
-- Server tsc: exit 0 ✅
-- All 18 structural checks pass (landmarks present in patched file)
-- No Railway/Vercel deploy needed — pure frontend. GH Actions deploys on push.
+- `npx vitest run test/robotEngine.test.ts`: 13/13 pass ✅
+- Full suite `npx vitest run`: 160/160 pass (was 147; +13), 11 files ✅
+- Server tsc: exit 0 ✅. Client tsc: exit 0 ✅.
 
-**⚠️ Human action optional**
-- Apply `supabase/migrations/026_chart_drawings.sql` if server-side sync of drawings is desired.
-  Not required — AsyncStorage persistence is fully functional without it.
+**Deploy**
+- None run — sandbox network blocked. Change is test-only + a no-op export; no runtime behavior change.
+  GH Actions deploys on push. (No migration, no env, no frontend touched.)
 
-**⚠️ Persistent issues (same as before)**
-- maintenance.lock in .git/objects is unremovable — use /tmp staging clone + pack-copy.
-- Edit/Write tools do NOT write through to the WSL mount. Always use Python open().
-- refs/heads/main: always update loose ref at .git/refs/heads/main.
+**Commit:** see git log — `auto: 18.5 robot engine unit tests`.
 
-**Next agent picks (in priority order)**
-- **13.3 BetterStack** — requires human to sign up at https://betterstack.com/sign-up first.
-  Cannot be done by agent. Once signed up, add the UptimeRobot/BetterStack check URLs and configure alerts.
-- **All other items** in TODO.md are PARKED (domain, iOS, Android, OANDA, Sumsub).
-- Everything is otherwise done — project is in a clean, deployable state.
+**Persistent issues**
+- File writes done via Python `open()` through bash (Edit/Write WSL-mount caveat from prior runs).
+  git ops were clean this run — no lock/staging workaround needed.
 
-## 2026-05-26T~auto — T.18 Copy trading (basic)
-
-**TODO item picked:** **T.18 Copy trading (basic)**
-
-**Pre-run state**
-- HEAD was f0834bf (Phase 13/14 housekeeping). Working tree showed MM on STATE.md/TODO.md
-  (stale index from prior run — WSL mount artifact, not user edits). Verified via `git diff HEAD`
-  returning nothing meaningful. Proceeded.
-- T.16 (Drawing tools) skipped again — prior skip note explicitly flags 2-3h, exceeds 60-min rule.
-- Client tsc: exit 0. Server tsc: exit 0.
-
-**What changed**
-- `supabase/migrations/025_copy_relationships.sql` (new): adds `copy_leader_enabled bool` to
-  profiles; creates `copy_relationships` table with RLS. **Must be applied manually via
-  Supabase dashboard SQL editor — network blocked in sandbox.**
-- `server/src/routes/traders.ts` (new): 6 endpoints at `/api/traders`:
-  leaderboard, opt-in toggle, follow, unfollow, following list, me.
-- `server/src/index.ts`: registered `tradersRoutes` at `/api/traders`.
-- `server/src/routes/orders.ts`: `mirrorTradeForFollowers()` — fire-and-forget after every
-  market open; scales lot size by allocation_pct, checks follower margin before inserting.
-- `components/robots/CopyTrading.tsx` (new): leaderboard + Copy/Unfollow buttons +
-  allocation modal + "Share my trades" toggle.
-- `app/(tabs)/robots.tsx`: third "Copy" tab added (alongside My Robots + Leaderboard).
-- `TODO.md`: T.18 marked [x].
-
-**Commit:** `e377654` (via staging clone + pack-copy workaround)
-
-**⚠️ Human action required**
-- Apply `supabase/migrations/025_copy_relationships.sql` in Supabase dashboard SQL editor.
-  Without this migration the `/api/traders/*` endpoints will return db_error on every call.
-- No Railway/Vercel deploy ran (network blocked in sandbox). GH Actions will deploy on push.
-
-**⚠️ Persistent issues (same as before)**
-- maintenance.lock in .git/objects is unremovable — use /tmp/vanta_stage2 (or fresh name) + pack-copy.
-- index.lock may reappear — clear before git ops with GIT_INDEX_FILE workaround if needed.
-- Edit/Write tools do NOT write through to the WSL mount. Always use Python open().
-- refs/heads/main: always update the loose ref at .git/refs/heads/main.
-
-**Next agent picks (in priority order)**
-- **T.16 Drawing tools** — trendline/fib. Still flagged as 2-3h; skip unless feeling ambitious.
-- **13.3 BetterStack** — requires human to sign up at https://betterstack.com/sign-up first.
-- **All other items** in TODO.md are PARKED (domain, iOS, Android, OANDA, Sumsub).
-
----
-
-## 2026-05-25T~auto — Phase 13/14 housekeeping
-
-**TODO item picked:** Phase 13/14 duplicate-item housekeeping
-
-**Pre-run state**
-- HEAD was caffbf5 which accidentally dropped STATE.md content, TODO.md [x] marks, and
-  load-test scripts committed in e8e2d43. Recovery commit 458b233 restored those first.
-- Working tree clean after recovery. Client/server tsc not re-run (no code changed).
-
-**What changed**
-- `TODO.md`: marked the following Phase 13/14 items as `[x]` (all were completed in earlier R.x runs, just never reflected in these duplicate phase sections):
-  - 13.1 Sentry frontend → done as R.3
-  - 13.2 Sentry backend → done as R.4
-  - 13.4 Performance dashboard → done as R.10
-  - 14.1 Terms of Service + Privacy Policy → done as R.12
-  - 14.2 Risk disclosure modal → done as R.12
-- **13.3 BetterStack** left unchecked — still requires external account signup (https://betterstack.com/sign-up). Human action needed.
-- No code changes. No deploy needed.
-
-**⚠️ Persistent issues (same as before)**
-- maintenance.lock in .git/objects is unremovable — use /tmp/v2 staging clone + pack-copy workflow.
-- index.lock may reappear — clear before git ops.
-- Edit/Write tools do NOT write through to the WSL mount. Always use Python open().
-- refs/heads/main: always update the loose ref at .git/refs/heads/main.
-
-**Next agent picks (in priority order)**
-- **T.16 Drawing tools** — trendline/fib on chart. Needs `chart_drawings` Supabase migration
-  (can write SQL file + commit; user applies manually via Supabase dashboard) + Lightweight
-  Charts drawings API work. Substantial but the migration blocker is manageable.
-- **T.18 Copy trading** — needs `copy_relationships` migration + leaderboard UI.
-- **R.7 / 13.3 BetterStack** — requires human to sign up at https://betterstack.com/sign-up.
-  Cannot be done by agent.
----
-
-## 2026-05-25T~14:15Z — 16.3 Load test
-
-**TODO item picked:** **16.3 Load test**
-
-**Pre-run state**
-- Working tree clean. HEAD = `daaa0a8` (after 14.3 cookie consent).
-- Client tsc: exit 0. Server tsc: exit 0.
-- Sandbox network blocked — no Railway/Vercel deploy needed.
-
-**What changed**
-- `scripts/load-test.js` (new, 265 lines): k6 load test script.
-  Two scenarios: `public_endpoints` (0→100 VUs, 60s sustain) and
-  `authenticated_endpoints` (0→25 VUs). Covers `/health`, `/api/quotes`,
-  `/api/quotes/:symbol`, `/api/bars/BTC-USD`, `/api/orders/open`, `/api/account`.
-  Thresholds encoded: p95<500ms health, p95<800ms quotes, p95<2000ms bars,
-  p95<1200ms auth ops, error rate<1%. Prints a summary table at end.
-  Auth enabled by setting `TEST_JWT=<supabase_jwt>` env var.
-- `scripts/load-test-node.js` (new, 221 lines): Node.js fallback (no k6 needed).
-  Same endpoints, same thresholds, same summary output. Uses only built-in `https`.
-  Run: `node scripts/load-test-node.js` or `CONCURRENCY=200 DURATION=60 node ...`
-- `TODO.md`: 16.3 marked `[x]`. Also marked 16.1 `[x]` (done as R.8) and
-  16.2 `[x]` (done as R.9) — housekeeping for already-completed items.
-
-**Verification**
-- Client tsc: exit 0 ✅
-- Server tsc: exit 0 ✅
-- Commit: `e8e2d43` (via staging clone + pack copy workaround)
-- No backend/frontend deploy needed — pure test infrastructure.
-- Note: actual p95 numbers require running against the live Railway server.
-
-**⚠️ Persistent issues (same as before)**
-- `index.lock` is unremovable — use staging clone + pack-copy workflow (see above).
-- `refs/heads/main` has a LOOSE ref at `.git/refs/heads/main` that overrides
-  packed-refs — always update the loose ref file, not just packed-refs.
-- Edit/Write tools do NOT write through to the WSL mount. Always use Python `open`.
-
-**Next agent picks (in priority order)**
-- **T.16 Drawing tools** — trendline/fib on chart. Needs `chart_drawings` Supabase
-  migration + Lightweight Charts drawings API work (~2-3h). Use staging clone commit
-  workflow. Network still blocked in sandbox — migration needs GH Actions or manual run.
-- **T.18 Copy trading** — needs `copy_relationships` migration + leader leaderboard UI.
-- **R.7 BetterStack** — requires external account signup (https://betterstack.com/sign-up).
-  Cannot be done by agent — needs human to sign up and configure.
-- **Phase 13/14 housekeeping** — 13.1–13.4 done as R.3/R.4/R.7/R.10; 14.1–14.2 done as R.12.
-  Can mark [x] without code. Quick 1-item run.
-
-## 2026-05-25T~12:30Z — 14.3 Cookie consent (web banner)
-
-**TODO item picked:** **14.3 Cookie consent (web)**
-
-**Pre-run state**
-- Working tree clean (only untracked scripts/__pycache__). HEAD = `07e8377`.
-- Client tsc: exit 0. Server tsc: exit 0.
-- index.lock present and unremovable (permissions) — used GIT_INDEX_FILE=/tmp/vanta_fresh_idx + read-tree HEAD workaround throughout.
-
-**What changed**
-- `components/shared/CookieConsentBanner.tsx` (new): web-only bottom banner.
-  Platform.OS guard at top of useEffect — renders nothing on iOS/Android.
-  Uses AsyncStorage (`cookie_consent` key) to persist choice; banner hidden once
-  any choice is made. Two buttons: "Accept all" (stores `accepted`) and
-  "Necessary only" (stores `declined`). Privacy Policy link opens `/legal/privacy`
-  in a new tab. Respects `useThemeColors()` so it adapts to light/dark mode.
-- `app/_layout.tsx`: added `<CookieConsentBanner />` as last child of the
-  QueryClientProvider `<View>` (after `<Stack>`), so it overlays all screens at z=9999.
-- `TODO.md`: 14.3 marked `[x]`.
-
-**Verification**
-- Client tsc: exit 0 ✅
-- Server tsc: exit 0 ✅
-- Commit: `8d1ad45`
-- No backend deploy needed — pure frontend change.
-- GH Actions will deploy to Vercel on push.
-
-**⚠️ Persistent issues (same as before)**
-- index.lock is unremovable — always use `GIT_INDEX_FILE=/tmp/vanta_fresh_idx` +
-  `git read-tree HEAD` before staging.
-- Edit/Write tools do NOT write through to the WSL mount. Always use Python
-  `open(..., 'w')` for file writes.
-- refs/heads/main may get a stray warning line prepended — check before commits.
-
-**Next agent picks (in priority order)**
-- **T.16 Drawing tools** — trendline/fib on chart. Needs `chart_drawings` Supabase
-  migration + Lightweight Charts drawings API work (~2-3h). Now that R.1 auto-deploy
-  is live, migration can land via GH Actions after being committed. This is the
-  richest remaining trading feature. Skip only if the work estimate still feels
-  too large for one run.
-- **T.18 Copy trading** — needs `copy_relationships` migration + leader leaderboard UI.
-  Also substantial but self-contained.
-- **16.3 Load test** — k6 script against trade endpoints, document p95. Pure code/infra,
-  no migration, no deploy gate.
-- **Phase 13 duplicate items (13.1–13.4)** are already done as R.3/R.4/R.7/R.10 —
-  they can be marked [x] without code work (just housekeeping).
-- **Phase 14 duplicate items (14.1–14.2)** are already done as R.12 — same housekeeping.
-- **Phase 16 duplicate items (16.1–16.2)** are already done as R.8/R.9.
-
-## 2026-05-24T22:21Z — T.19 Spread-betting / micro-lot mode
-
-**TODO item picked:** **T.19 Spread-betting / micro-lot mode**
-
-**Pre-run state**
-- Working tree had truncated pricefeed.ts (321 vs 360 lines), bars.ts (208 vs 289 lines),
-  deploy.yml (86 vs 105 lines) — same Edit-tool truncation bug. Also refs/heads/main was
-  corrupted (warning line prepended to SHA). All fixed before picking the TODO item:
-  restored full files from HEAD + applied intentional changes (PAXGUSD, NON_CRYPTO_SYMBOLS=[]).
-  Used `git commit-tree` + manual mktree walk to build a correct commit (91bf917).
-- Client tsc: exit 0. Server tsc: exit 0.
-- Sandbox network blocked — no deploy possible; GH Actions deploys on push.
-
-**What changed**
-- `stores/prefs.ts` (new): AsyncStorage-backed preference store, starting with `spreadBet` bool.
-  Hydrated on app startup via `app/_layout.tsx`.
-- `lib/contracts.ts`: added `pipSizeFor()` (0.0001 for forex, 1 for everything else),
-  `pipValueFor()` (lots → $/pip), `lotsFromPipValue()` ($/pip → lots), `pipLabel()` ("pip"/"pt").
-- `components/pro/OrderEntry.tsx`: when spread-bet mode is on:
-  - Volume field becomes "Stake ($/pip)" or "Stake ($/pt)" with a separate `sbRaw` display
-    string so cursor never jumps mid-typing.
-  - Notional bar shows "\$1.00/pip · 0.1000 lots · ..." instead of "0.1 lots × ...".
-  - Internal `volume` stays in lots at all times; only the display converts.
-- `app/(tabs)/profile.tsx`: Display section gets "Order sizing" with a slide-switch toggle
-  for spread-bet mode.
-- `app/_layout.tsx`: `hydratePrefs()` added to startup effect.
-
-**Verification**
-- Client tsc: exit 0 ✅
-- Server tsc: exit 0 ✅
-- No backend deploy needed — pure frontend change.
-- GH Actions will deploy to Vercel on push.
-
-**⚠️ Persistent issues**
-- Edit tool does NOT write through to the WSL-mounted path (`C:\Claude\vanta`). Always use
-  Python (`open(..., 'w')`) for file writes — the Edit/Write tools only update the tool's
-  in-memory cache, not the actual filesystem that bash sees.
-- refs/heads/main continues to get corrupted (stray warning line). Always fix with Python
-  before doing git operations.
-- The GIT_INDEX_FILE workaround produces broken trees (only staged files, not full repo tree).
-  Use `git commit-tree` with proper `mktree` walk instead.
-
-**Next agent**
-- T.16 (Drawing tools) — still blocked on `chart_drawings` migration + significant
-  Lightweight Charts work. Skip unless network is available.
-- T.18 (Copy trading) — needs `copy_relationships` migration. Skip if network blocked.
-- 14.3 Cookie consent (web banner) — pure UI, no migration, no deploy. Safe pick.
-- Or any other unchecked non-PARKED item.
-
-
-## 2026-05-24T~10:00Z -- T.20 Quick Mode durations + category tabs
-
-**TODO item picked:** **T.20 Quick Mode — more durations + asset categories**
-
-**Pre-run state**
-- Working tree clean (GIT_INDEX_FILE=/tmp/vanta_idx workaround). HEAD = `205b242` (R.11 STATE chore).
-- Stale index.lock / HEAD.lock / main.lock as usual — GIT_INDEX_FILE + direct ref-write workaround used throughout.
-- Client tsc: exit 0. Server tsc: exit 0.
-- Sandbox network blocked — no deploy possible; R.1 GH Actions will deploy on push.
-
-**What changed**
-- `components/fun/QuickTradeScreen.tsx`: expanded DURATIONS from 3 → 8 entries:
-  5s (×2.00), 30s (×1.92), 60s (×1.85), 5min (×1.78), 15min (×1.72), 30min (×1.65), 4h (×1.55), 24h (×1.45).
-  Duration picker changed from rigid flex `<View>` to `<ScrollView horizontal>` (68px tile width) so all 8 tiles are accessible without wrapping.
-  Category tabs (All/Crypto/Forex/Metals/Stocks) were already implemented — no code change needed there.
-
-**Verification**
-- Client tsc: exit 0 ✅
-- Server tsc: exit 0 ✅
-- Commit: `2f76ec0`
-- No backend deploy needed — pure frontend change.
-- Vercel deploy will trigger via GH Actions on push.
-
-**⚠️ File truncation issue encountered**
-The Edit tool silently truncated `QuickTradeScreen.tsx` (280+ lines) mid-file. Fixed with Python append.
-**REMINDER: Always use Python for writes/edits to files >200 lines. Never use the Edit tool on large files.**
-
-**Next agent**
-- T.16 (Drawing tools) — blocked: needs `chart_drawings` migration (sandbox network blocked). Skip.
-- T.18 (Copy trading) — needs `copy_relationships` migration. Likely network-blocked. Skip unless migration can be applied.
-- T.19 (Spread-betting / micro-lot mode) — pure UI cosmetic, no migration. Could store in `profiles` JSONB. Safe pick.
-- Or pick any unchecked item in Phase 13–14 (monitoring/legal) that is pure code.
-
----
-
-## 2026-05-24T~09:00Z -- R.11 DB backup verification
-
-**TODO item picked:** **R.11 Database backup verification**
-
-**Pre-run state**
-- Working tree clean (GIT_INDEX_FILE=/tmp/vanta_fresh/idx). HEAD = `087534c` (R.8 STATE chore).
-- Stale index.lock / HEAD.lock / main.lock as usual — GIT_INDEX_FILE + direct ref-write workaround used throughout.
-- Client tsc: exit 0. Server tsc: exit 0.
-- Sandbox network blocked (curl to Railway/Vercel timed out) — no deploy required for this item.
-
-**What changed**
-- `scripts/verify-backup.py` (new): queries `GET https://api.supabase.com/v1/projects/{ref}/database/backups`, finds the most recent completed backup across `backups` + `tiered_backups` arrays, exits 1 if age > MAX_AGE_HOURS (default 30). Prints clear human-readable output with timestamps, age, and total backup count.
-- `.github/workflows/backup-check.yml` (new): daily cron at 06:15 UTC (after Supabase's nightly backup window). Also supports `workflow_dispatch` with optional `max_age_hours` input. Uses `SUPABASE_PAT` GitHub repo secret (same PAT already in `server/.env`).
-
-**Verification**
-- Python syntax: OK (`python3 -m py_compile`)
-- Missing-PAT guard: correctly prints error and exits 1
-- Commit: `8d9cbbb` (direct ref-write to bypass HEAD.lock)
-- No deploy needed — pure CI infrastructure.
-
-**Action required by user**
-- Add `SUPABASE_PAT` as a GitHub repo secret (Settings → Secrets → Actions). Value: already in `server/.env` as `SUPABASE_PAT`.
+**Next agent picks**
+- Verify + check off **18.9** and **18.13** (already in code per commit 7f76011).
+- Other Phase 18 items: 18.1, 18.2, 18.3, 18.10, 18.11, 18.12, 18.8, 18.7, 18.6, 18.4 — pick any
+  fully completable in ~60 min. 18.6 needs a migration (network-blocked → write SQL + commit, user applies).
+  18.7/18.8 are large. 18.1/18.3/18.13 are pure frontend UI.
 

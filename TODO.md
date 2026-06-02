@@ -958,7 +958,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** New account → share_trades is true by default. Toggle off → other users can't see trades. Toggle on → visible again.
 
 ## 18.5 Robot execution engine unit tests
-- [ ] **File:** `server/test/robotEngine.test.ts` (new)
+- [x] **File:** `server/test/robotEngine.test.ts` (new)
 - **What:** The existing `robots.test.ts` only covers `/api/robots/compile` (5 tests). The engine in `server/src/ai/robotEngine.ts` — `shouldFire`, `matchesCron`, `processRobot`, `openRobotTrade` — has zero test coverage.
   - Export `_robotInternals = { shouldFire, matchesCron, processRobot }` from `robotEngine.ts` (same pattern as `_riskInternals`, `_ordersTriggerInternals`)
   - `shouldFire` — interval robot: fires when `now - last_run >= interval`; doesn't fire when called too soon

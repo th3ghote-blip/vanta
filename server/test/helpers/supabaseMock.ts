@@ -234,16 +234,21 @@ class Query {
   // After insert/update, supabase-js v2 lets you chain `.select()` to get the rows back.
   // We treat such a select as a no-op modifier so the original mode (insert/update) still drives exec().
   private selectAfterMutation: boolean = false;
+  // count: 'exact' / head: true support (used by max_concurrent + admin counters)
+  private countMode: boolean = false;
+  private headMode: boolean = false;
 
   constructor(private table: keyof Tables) {}
 
-  select(cols?: string) {
+  select(cols?: string, opts?: { count?: string; head?: boolean }) {
     if (this.mode === 'insert' || this.mode === 'update') {
       this.selectAfterMutation = true;
     } else {
       this.mode = 'select';
     }
     if (cols && cols.includes('accounts!inner')) this.embedAccount = true;
+    if (opts?.count) this.countMode = true;
+    if (opts?.head) this.headMode = true;
     return this;
   }
   insert(payload: any) {
@@ -362,6 +367,15 @@ class Query {
     }
     if (this.limitN != null) matching = matching.slice(0, this.limitN);
 
+    // count: 'exact' (with optional head: true) → return row count, no rows when head.
+    if (this.countMode) {
+      return {
+        data: this.headMode ? null : matching,
+        error: null,
+        count: matching.length,
+      } as any;
+    }
+
     // attach embed if requested (used by orders.close → trades.accounts!inner)
     if (this.embedAccount && this.table === 'trades') {
       matching = matching.map((t) => {
@@ -370,10 +384,25 @@ class Query {
       });
     }
     if (this.embedAccount && this.table === 'robots') {
-      matching = matching.map((r) => {
-        const a = tables.accounts.find((x) => x.id === r.account_id);
-        return { ...r, accounts: a ? { user_id: a.user_id } : null };
-      });
+      matching = matching
+        .map((r) => {
+          const a = tables.accounts.find((x) => x.id === r.account_id);
+          return a
+            ? {
+                ...r,
+                accounts: {
+                  id: a.id,
+                  user_id: a.user_id,
+                  balance: a.balance,
+                  free_margin: a.free_margin,
+                  margin_used: a.margin_used,
+                  leverage: a.leverage,
+                },
+              }
+            : null;
+        })
+        // accounts!inner → rows with no matching account are dropped
+        .filter((r) => r !== null) as any[];
     }
 
     if (this.wantArray) return { data: matching, error: null };
