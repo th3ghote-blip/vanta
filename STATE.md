@@ -39,6 +39,55 @@ For committing, use the staging-clone workflow above (it has its own index).
 
 ---
 
+## 2026-06-04T~auto — 18.4 (Option C) hide empty symbol categories
+
+**TODO item picked:** **18.4** via **Option C** (the explicit cosmetic standalone choice).
+Skipped the topmost unchecked items because each is externally gated or oversized for one
+verifiable offline run: 18.2 (needs `chart_drawings` migration + multi-hour Lightweight Charts),
+18.3 (theme refactor touches ~58 files that import the static dark-only `colors` — multi-hour,
+not safely doable/verifiable in one run), 18.10/18.6 (DB migrations, network-blocked), 18.8/18.7
+(large multi-page builds), 18.11 (spec requires attaching an image to an X *web intent* — not
+possible via the intent URL, so its acceptance can't be met as written). 18.4(C) is a self-contained
+frontend filter, no migration, fully verifiable offline.
+
+**Pre-run state**
+- Same phantom STAGED+unstaged `git status` as every recent run. Verified with a clean private index
+  (`GIT_INDEX_FILE=…; git read-tree HEAD; git diff HEAD --stat` → EMPTY): every file on disk is
+  byte-identical to HEAD (1549e64). Leftover index junk from the commit workaround, NOT a user
+  mid-edit → proceeded.
+
+**What changed** (1 file)
+- `components/pro/SymbolPickerModal.tsx` — this is the component that renders the category pills
+  (`SymbolPicker.tsx` is just the tile that opens it). Added a `nonEmptyCategories` memo:
+  `CATEGORIES.filter((c) => all.some((s) => s.category === c))` and built `tabs` from it. With the
+  current `lib/symbolMeta` (80 Crypto + 1 Metals/PAXG; **no** Forex/Stocks entries) the Forex (0) and
+  Stocks (0) pills no longer render. Data-driven: when A/B repopulate those categories, pills reappear
+  with no further UI change.
+
+**Verification**
+- client `npx tsc --noEmit` → clean. server `npx tsc --noEmit` → clean.
+- Logic check (node): visible = {Watchlist, All, Crypto, Metals}; hidden = {Forex, Stocks}. ✅ Acceptance (C) met.
+- Visual confirmation is Vercel-side (no network/screenshot in sandbox); activates on next push (R.1).
+
+**Deploy:** none possible in sandbox (no network). Activates on push via R.1 GitHub Actions (frontend/Vercel).
+
+**⚠️ Mount-cache desync struck again** (same gotcha as 18.1/18.12). After the Edit, bash `tsc` reported a
+bogus `TS1005 '}' expected` at line 276 because the mount served a TRUNCATED 275-line copy of
+`SymbolPickerModal.tsx` while the file tools saw the full 297-line file. Fix that worked: wrote the
+authoritative full file to `SymbolPickerModal.regen.tsx` (new files propagate to the mount immediately),
+then `cat …regen.tsx > SymbolPickerModal.tsx` to bust the stuck inode — after which the mount showed 297
+lines and tsc passed clean. **Next agent:** if bash tsc/git shows truncation/brace errors that contradict
+Read, suspect this cache and use the new-file→`cat >` trick before trusting bash.
+
+**Untracked temp file left behind** (NOT committed; `rm` fails on the mount): `components/pro/SymbolPickerModal.regen.tsx`,
+plus pre-existing strays (`.sync_probe_18_1.txt`, `OrderEntry.fresh.tsx`, `orders.regen.ts`,
+`transactions.regen.ts`, `_state_entry_18_12.md`). Harmless/unreferenced; a human can delete from Windows.
+
+**Next agent — remaining Phase 18:** 18.4 A/B (live non-crypto feed — needs network + `yahoo-finance2`),
+18.2 (migration + big), 18.3 (big theme refactor), 18.10/18.6 (migrations), 18.11 (descope the image-attach
+to meet a realistic acceptance, or park), 18.8/18.7 (large). No clean fully-offline-verifiable Phase 18
+item clearly remains — the cheap ones are done. Consider noting this to the user.
+
 ## 2026-06-03T~auto — 18.12 Security audit + trading exploit fixes
 
 **TODO item picked:** **18.12** (Phase 18). Skipped earlier unchecked items because each is

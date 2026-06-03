@@ -972,7 +972,9 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** `cd server && npm test` covers all above cases, 0 failures, no live DB needed.
 
 ## 18.4 Forex + stock price feed (or hide empty categories)
-- [ ] **Files:** `server/src/feed/pricefeed.ts`, `components/pro/SymbolPicker.tsx` (or equivalent)
+- [x] **Files:** `server/src/feed/pricefeed.ts`, `components/pro/SymbolPicker.tsx` (or equivalent)
+- **Done (Option C):** 2026-06-04 (auto) — implemented the cosmetic fix in `components/pro/SymbolPickerModal.tsx` (the modal that actually renders the category pills; `SymbolPicker.tsx` only opens it). Category pills now render only for categories that contain ≥1 symbol: `CATEGORIES.filter((c) => all.some((s) => s.category === c))`. With the current `symbolMeta` (80 Crypto + 1 Metals/PAXG, no Forex/Stocks entries), the **Forex (0)** and **Stocks (0)** pills no longer appear; Watchlist, All, Crypto, Metals remain. Verified: client+server `tsc` clean; logic check confirms hidden = {Forex, Stocks}. Acceptance (C) met.
+> Options A/B (live non-crypto feed via Yahoo Finance / throttled Twelve Data) are still the desirable end state but were NOT done this run: they need network access to verify live prices and a new `yahoo-finance2` dependency, neither verifiable in the offline sandbox. Next agent with network can repopulate `NON_CRYPTO_SYMBOLS` + add forex/stock entries to `lib/symbolMeta.ts`; the pills will then reappear automatically (the Option C filter is data-driven, no further UI change needed).
 - **Problem:** Symbol picker shows Forex (0) and Stocks (0) — categories exist but `NON_CRYPTO_SYMBOLS = []` because Twelve Data free tier (800 credits/day) ran dry with chart loads + polling combined.
 - **What (pick one):**
   - **Option A (recommended):** Switch non-crypto to Yahoo Finance via `yahoo-finance2` npm package — no API key, ~10–15s poll, covers all 31 mapped symbols (forex pairs + AAPL/TSLA/NVDA etc.). Re-populate `NON_CRYPTO_SYMBOLS` with the forex + stock list. Yahoo Finance has no official rate limit for this use.

@@ -61,7 +61,15 @@ export function SymbolPickerModal({ visible, current, onSelect, onClose }: Props
     return pool;
   }, [all, tab, search, starred]);
 
-  const tabs: Tab[] = ['Watchlist', 'All', ...CATEGORIES];
+  // 18.4(C): Only surface category pills that actually contain symbols. Forex
+  // and Stocks currently have no live symbols (the non-crypto feed is empty), so
+  // their "(0)" pills are hidden until those categories are repopulated by the
+  // price-feed work (Option A/B). Watchlist and All are always shown.
+  const nonEmptyCategories = useMemo(
+    () => CATEGORIES.filter((c) => all.some((s) => s.category === c)),
+    [all],
+  );
+  const tabs: Tab[] = ['Watchlist', 'All', ...nonEmptyCategories];
 
   return (
     <Modal
