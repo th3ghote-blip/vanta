@@ -39,6 +39,53 @@ For committing, use the staging-clone workflow above (it has its own index).
 
 ---
 
+## 2026-06-03T~auto — 18.13 Trade row density (RE-LANDED, clobbered 3rd time)
+
+**TODO item picked:** **18.13 Trade row density** (Phase 18; order-agnostic). Topmost
+unchecked item; the prior run (18.9) flagged it as the likely next pick.
+
+**Pre-run state**
+- Working tree showed `M STATE.md` only (prior run's commit `c8e794a` captured a
+  TRUNCATED STATE.md via the pack workaround — disk had the full text). All CODE
+  files byte-identical to HEAD via clean `GIT_INDEX_FILE`. NOT a user mid-edit → safe.
+- No network in sandbox (railway health = 000, no vercel CLI). Deploy activates on push
+  via R.1 GitHub Actions — same as the 18.5/18.9 runs.
+
+**The clobber (confirmed)**
+- `0c82263` ("Fix smoke: dismiss cookie banner before buy", hand-authored, stale index)
+  reverted `components/pro/TradeBook.tsx` back to the PRE-18.13 cramped layout
+  (3-col, 14px P&L, 28px buttons, notional/margin line). HEAD still carried that revert
+  (18.5 + 18.9 didn't touch TradeBook). So 18.13 was genuinely lost again — 3rd clobber.
+
+**What changed**
+- `components/pro/TradeBook.tsx` restored to the known-good `7f76011` version
+  (`git show 7f76011:... > file`) — byte-identical, empty diff vs 7f76011. This is the
+  18.13 layout: `minHeight: 56`, 18px color-coded P&L (largest number), 32px action
+  buttons, 2-line rows, removed the cramped notional line + `notionalUSD` import.
+
+**Verification**
+- `git diff 7f76011 -- TradeBook.tsx` → empty (identical). ✅
+- client `npx tsc --noEmit` → exit 0, silent. ✅
+- Visual acceptance (56px rows, glanceable P&L) is GitHub/Vercel-side — can't screenshot
+  in sandbox (no network). Takes effect on next push → auto-deploy.
+
+**Deploy:** none possible in sandbox. Activates when commit is pushed to GitHub (R.1).
+
+**Commit:** `auto: 18.13 re-land trade row density (clobbered by 0c82263)`.
+
+**Next agent — IMPORTANT**
+- TradeBook.tsx now == 7f76011. If you hand-edit near it OR cherry-pick smoke-test
+  fixes again, RE-DIFF against this commit first — this file has now been clobbered
+  THREE times by hand-authored smoke commits carrying a stale index.
+- STATE.md keeps drifting because the pack-commit workaround sometimes captures a stale
+  blob. After committing, re-verify `git show HEAD:STATE.md | tail` matches disk.
+- Remaining Phase 18: 18.1, 18.2, 18.3, 18.10, 18.11, 18.12, 18.8, 18.7, 18.6, 18.4.
+  18.6/18.10 need migration 018 (network-blocked → write SQL + commit, user applies).
+  18.7/18.8 are large. 18.1/18.3 are frontend UI. 18.12 (security audit) is mostly a
+  docs deliverable + verifiable code reads — good offline pick.
+
+---
+
 ## 2026-06-03T~auto — 18.9 CI pipeline health fixes
 
 **TODO item picked:** **18.9 CI pipeline health fixes** (Phase 18; order-agnostic).
@@ -63,29 +110,3 @@ incomplete. I re-applied it.
 - `.github/workflows/deploy.yml`:
   - `paths-ignore: ['**.md','docs/**','scripts/**','e2e/**']` on the push trigger
     (Problem 1: doc-only commits no longer trigger/cancel real deploys).
-  - workflow-level `env: FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'` (Problem 3).
-- `.github/workflows/e2e.yml`:
-  - `schedule: - cron: '0 6 * * 1'` weekly Monday safety-net (Problem 2) + matching
-    header comment.
-  - job `if:` now also allows `github.event_name == 'schedule'`.
-  - workflow-level Node24 opt-in env (Problem 3).
-- (setup-node already pins `node-version: '20'` on all jobs — left as is.)
-
-**Verification**
-- Both YAML files `yaml.safe_load` OK.
-- `diff` vs `git show 7f76011:<file>` → IDENTICAL for both. ✅
-- Acceptance is GitHub-side behavior (no deploy on md-only push; weekly E2E; no Node
-  deprecation warning) — cannot be exercised in the sandbox (no network, no runner).
-  Takes effect on next push to GitHub; GH Actions reads the new workflow config.
-
-**Deploy**
-- None. 18.9 IS CI config — nothing ships to Railway/Vercel. The change activates when
-  the commit is pushed and Actions runs. No migration, no env secrets, no app code.
-
-**Commit:** `auto: 18.9 CI pipeline health fixes` (see git log).
-
-**Next agent — IMPORTANT**
-- 18.9 is now landed. WATCH OUT: it has been clobbered TWICE by hand-authored
-  smoke-test fix commits (`e6b2fb4`, `0c82263`) that carried a stale index. If you
-  hand-edit anything near these workflows, re-diff against this commit before
-  committing so
