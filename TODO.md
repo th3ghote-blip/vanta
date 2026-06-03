@@ -830,7 +830,8 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** Close a profitable trade → Share button appears → tapping opens X compose with pre-filled text and card image attached.
 
 ## 18.12 Security audit + trading exploit fixes
-- [ ] **Files:** `server/src/routes/orders.ts`, `server/src/routes/auth.ts`, `server/src/routes/admin.ts`, `server/src/middleware/`
+- [x] **Files:** `server/src/routes/orders.ts`, `server/src/routes/auth.ts`, `server/src/routes/admin.ts`, `server/src/middleware/`
+- **Done:** 2026-06-03 (auto) — full backend audit in `docs/security-audit.md`. Two issues found + fixed: (1) HIGH double-close race in the full-close path of `orders.ts` (closing UPDATE lacked a `status='open'` CAS guard → concurrent closes double-credited P&L and double-released margin; now uses `.eq('status','open').select('id')` and returns `409 already_closed` before settling); (2) MEDIUM missing rate limits on `POST /api/orders/open` (30/min) and `POST /api/transactions/withdraw` (10/min). All other checklist items (margin double-spend, partial-close CAS, zero/negative volume, client-supplied price, admin guards on all 13 routes, JWT expiry, withdraw>balance, hardcoded secrets) passed unchanged. Verified: client+server `tsc` clean, `npm test` 160 passing.
 - **What:** Full audit of the backend for exploitable holes. Known areas to check:
   - **Double-spend on order open:** Can two simultaneous requests open trades that together exceed available margin? Add DB-level margin reservation or a per-account mutex.
   - **Close same trade twice:** Can a race condition allow double-close? Verify `status='open'` check is atomic (SELECT + UPDATE in one query or use `RETURNING` with status filter).

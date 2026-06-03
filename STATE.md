@@ -39,6 +39,58 @@ For committing, use the staging-clone workflow above (it has its own index).
 
 ---
 
+## 2026-06-03T~auto — 18.12 Security audit + trading exploit fixes
+
+**TODO item picked:** **18.12** (Phase 18). Skipped earlier unchecked items because each is
+externally gated or oversized for one run: 18.2 (needs `chart_drawings` migration + multi-hour
+Lightweight Charts work — same reason T.16 was parked), 18.10/18.6 (migrations, network-blocked),
+18.8/18.7 (large multi-page builds). 18.12 is offline-completable and fully verifiable by code-read.
+
+**Pre-run state**
+- `git status` again showed phantom STAGED+unstaged changes (deploy.yml, e2e.yml, STATE.md, TODO.md,
+  OrderEntry.tsx, TradeBook.tsx, robotEngine.ts, supabaseMock.ts, robotEngine.test.ts). Verified with a
+  clean private index (`GIT_INDEX_FILE=...; git read-tree HEAD; git diff HEAD` → EMPTY): every file on
+  disk is byte-identical to HEAD (4a78db6). Leftover index junk, NOT a user mid-edit → proceeded.
+
+**What changed** (only 2 code files + docs)
+- `server/src/routes/orders.ts` — **HIGH fix:** full-close path lacked a `status='open'` CAS guard on the
+  closing UPDATE (the SELECT filtered open, the UPDATE only matched `id`). Two racing closes both applied
+  `apply_trade_pnl` + `releaseMargin` → double-credit. Now `.eq('status','open').select('id')`; returns
+  `409 already_closed` before settling if no row transitioned. Also added rate limit `{max:30,'1 minute'}`
+  to `POST /open`.
+- `server/src/routes/transactions.ts` — rate limit `{max:10,'1 minute'}` on `POST /withdraw`.
+- `docs/security-audit.md` (new) — full findings; 9 checklist items passed unchanged (margin double-spend
+  mitigated by atomic `reserve_margin` RPC, all 13 admin routes guarded, JWT expiry enforced via Supabase,
+  no hardcoded secrets, etc.). One INFO note: multiple pending withdrawals are gated by admin re-check.
+
+**Verification**
+- client `npx tsc --noEmit` → clean. server `npx tsc --noEmit` → clean.
+- `cd server && npm test` → **160 passed** (incl. orders.test.ts 50, rateLimit.test.ts 4).
+
+**Deploy:** none possible in sandbox (no network). Activates on push via R.1 GitHub Actions. Backend
+deploy (Railway) needed for the close-race + rate-limit changes to go live.
+
+**⚠️ Mount-cache desync struck again** (same as the 18.1 run's gotcha). After my Edits, bash-side
+`tsc` reported bogus "'}' expected" / "unterminated string" errors because the mount served TRUNCATED
+copies of `orders.ts` (frozen ~828 lines) and `transactions.ts` (frozen ~126 lines) while the file tools
+saw the correct full files. STATE.md and TODO.md were ALSO served truncated on the mount at commit time.
+Fix that worked: wrote authoritative full content to new paths via the Write tool (new files propagate to
+the mount immediately), then in bash `cat newpath > target` to bust the stuck inode cache; for TODO.md and
+STATE.md, rebuilt from `git show HEAD:<file>` + the localized change, then `cat > target`. After that bash
+saw the real files and tsc + tests passed. **Next agent:** if bash tsc/git shows truncation/brace errors
+that contradict what Read shows, suspect this cache; cache-bust with the new-file→`cat >` trick before
+trusting bash, and re-verify `git show HEAD:STATE.md | tail` matches disk after committing.
+
+**Untracked temp files left behind** (NOT committed; `rm` fails on the mount with "Operation not
+permitted"): `server/src/routes/orders.regen.ts`, `server/src/routes/transactions.regen.ts`,
+`server/src/routes/_state_entry_18_12.md`, plus the pre-existing `.sync_probe_18_1.txt` and
+`components/pro/OrderEntry.fresh.tsx`. A human can delete these from Windows; harmless and unreferenced.
+
+**Next agent — remaining Phase 18:** 18.2 (migration + big), 18.3 (light/dark token audit — frontend,
+offline-doable), 18.10 (migration), 18.11 (share-to-X, frontend, offline-doable), 18.8/18.7 (large),
+18.6 (migration), 18.4 (do option C cosmetic first, 10 min). 18.3 or 18.11 are the cleanest next offline
+picks.
+
 ## 2026-06-03T~auto — 18.1 Order entry simplification
 
 **TODO item picked:** **18.1 Order entry simplification** (Phase 18). Topmost unchecked
