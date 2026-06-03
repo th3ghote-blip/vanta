@@ -783,7 +783,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** Each row fits comfortably in ~56px height. P&L is immediately readable at a glance. No information requires squinting.
 
 ## 18.1 Order entry simplification
-- [ ] **Files:** `components/pro/OrderEntry.tsx`
+- [x] **Files:** `components/pro/OrderEntry.tsx`
 - **Problem:** Too many fields shown at once (Stake $/pt label, lots + notional + margin summary all on one dense line, Trail Distance visible by default). New users don't know what any of it means.
 - **What:**
   - Rename "Stake ($/pt)" → "Volume" (or show a toggle: Lots / $ stake)

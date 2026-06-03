@@ -39,6 +39,63 @@ For committing, use the staging-clone workflow above (it has its own index).
 
 ---
 
+## 2026-06-03T~auto — 18.1 Order entry simplification
+
+**TODO item picked:** **18.1 Order entry simplification** (Phase 18). Topmost unchecked
+item whose deps are met; frontend-only, no migration, completable offline.
+
+**Pre-run state**
+- `git status` showed phantom STAGED+unstaged changes (deploy.yml, e2e.yml, STATE.md,
+  TODO.md, TradeBook.tsx, robotEngine.ts, supabaseMock.ts, robotEngine.test.ts). Verified
+  with a clean `GIT_INDEX_FILE` (`git read-tree HEAD; git diff HEAD` → EMPTY): every file
+  on disk is byte-identical to HEAD. It is leftover index junk from prior runs' commit
+  workaround, NOT a user mid-edit → safe to proceed. HEAD = ce8a6be.
+
+**What changed** (`components/pro/OrderEntry.tsx` only)
+- Volume field: renamed away from "Stake ($/pt)" / "Volume (lots)" to a single **"Volume"**
+  label with an inline **Lots / $/pip** segmented toggle (new `SizeButton`) that flips the
+  persisted `usePrefsStore.spreadBet` pref — same setting as Profile → Display.
+- Summary line collapsed to **one short sentence**: `$X notional · $Y margin`, with
+  `· risking ~$Z` (loss-coloured) appended when a stop-loss is set. Lots × price · leverage
+  · $/pip moved behind a tap **"Details"** toggle (`showDetails`).
+- **"risking ~$X"** indicator: `|refPrice − SL| × volume × contractSize(symbol)` (side-agnostic;
+  imported `contractSize` from `lib/contracts`).
+- **Trail Distance** field moved behind an **"Advanced"** toggle (`showAdvanced`), market only.
+- `Field` now omits the label element when `label===""`.
+
+**Verification**
+- client `npx tsc --noEmit` → exit 0, silent. ✅
+- server `npx tsc --noEmit` → exit 0, silent. ✅
+- Visual acceptance (first-time user can place a BTC market buy; summary is one sentence)
+  is Vercel-side — can't screenshot in sandbox. Activates on next push (R.1).
+
+**Deploy:** none possible in sandbox (no network). Activates when the commit is pushed (R.1 GH Actions).
+
+**Commit:** `auto: 18.1 order entry simplification`. Committed via private-index +
+write-tree/commit-tree + loose-ref update (loose object writes SUCCEED here — only a benign
+`unable to unlink tmp_obj` warning; the object is still written).
+
+**⚠️ NEW ENVIRONMENT GOTCHA — per-inode mount cache desync (cost me most of this run)**
+- The bash sandbox mount (`/sessions/*/mnt/vanta`) served a STALE, TRUNCATED copy of
+  `OrderEntry.tsx` (frozen at 519 lines, cut mid-`<Text>`, mtime stuck at yesterday) even
+  though the file tools (Read/Edit/Write) saw the correct, complete 712-line file. tsc/babel
+  errors were ALL artifacts of that truncated cache, not real code errors.
+- Brand-NEW files written by the file tools DO propagate to the mount immediately; only the
+  existing `OrderEntry.tsx` inode was stuck. **Fix that worked:** write authoritative content
+  to a new path via the Write tool, then in bash `cat newpath > OrderEntry.tsx` to overwrite
+  the stuck inode's bytes (busts the cache). After that bash saw the real file and tsc passed.
+- **Next agent:** if bash-side tsc reports JSX "no closing tag"/truncation errors that make no
+  sense vs what Read shows, suspect this mount cache. Re-Read via file tool; if disk is fine,
+  cache-bust with the new-file→`cat >` trick before trusting bash. Do all commit-time content
+  mutations IN BASH (sed/cat/heredoc) so git reads exactly what you intend.
+- `rm` on the mount still fails ("Operation not permitted"). Two harmless untracked temp files
+  may remain: `components/pro/OrderEntry.fresh.tsx` and `.sync_probe_18_1.txt`. They were NOT
+  `git add`ed and are not in the commit. A human can delete them from Windows; or ignore.
+
+**Next agent — remaining Phase 18:** 18.2, 18.3, 18.10, 18.11, 18.12, 18.8, 18.7, 18.6, 18.4.
+18.6/18.10 need migration 018 (network-blocked → write SQL + commit, user applies). 18.7/18.8
+are large. 18.3/18.11 are frontend. 18.12 (security audit) is a good offline docs+code-read pick.
+
 ## 2026-06-03T~auto — 18.13 Trade row density (RE-LANDED, clobbered 3rd time)
 
 **TODO item picked:** **18.13 Trade row density** (Phase 18; order-agnostic). Topmost

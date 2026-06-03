@@ -7,7 +7,7 @@ import { usePriceStore } from '@/stores/prices';
 import { useAccountStore } from '@/stores/account';
 import { api, ApiError } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
-import { defaultVolumeFor, notionalUSD, pipValueFor, lotsFromPipValue, pipLabel } from '@/lib/contracts';
+import { defaultVolumeFor, notionalUSD, pipValueFor, lotsFromPipValue, pipLabel, contractSize } from '@/lib/contracts';
 import { usePrefsStore } from '@/stores/prefs';
 
 interface Props {
@@ -117,7 +117,17 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
   // T.19 — spread-bet mode: separate display string for the $/pip field so
   // cursor position doesn't jump while the user is typing.
   const spreadBet = usePrefsStore((s) => s.spreadBet);
+  const setSpreadBet = usePrefsStore((s) => s.setSpreadBet);
   const [sbRaw, setSbRaw] = useState<string>('');
+
+  // 18.1 — order entry simplification.
+  // `showDetails`: the position summary collapses to one short sentence
+  //   (notional + margin) by default; tapping "Details" reveals the full
+  //   lots × price · leverage · $/pip breakdown.
+  // `showAdvanced`: the Trail Distance field (used by <5% of traders) is hidden
+  //   behind an "Advanced" toggle so the default form stays uncluttered.
+  const [showDetails, setShowDetails] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Track whether the user has manually typed a volume. If they haven't, we
   // auto-update the volume field whenever the symbol changes so the default
@@ -343,25 +353,48 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
         <KindButton label="Limit" testID="order-kind-limit" active={orderKind === 'limit'} onPress={() => setOrderKind('limit')} />
       </View>
 
-      {spreadBet ? (
-        <Field
-          label={`Stake ($/${pipLabel(symbol)})`}
-          value={sbRaw}
-          onChangeText={(text) => {
-            setSbRaw(text);
-            userEditedVolume.current = true;
-            const pv = Number(text);
-            if (Number.isFinite(pv) && pv > 0) {
-              setVolume(lotsFromPipValue(pv, symbol).toFixed(6));
-            }
-          }}
-          placeholder={`e.g. ${pipValueFor(Number(defaultVolumeFor(symbol)), symbol).toFixed(2)}`}
-        />
-      ) : (
-        <Field label="Volume (lots)" value={volume} onChangeText={handleVolumeChange} />
-      )}
+      {/* 18.1 — single "Volume" field with an inline Lots / $ sizing toggle.
+          The toggle flips the persisted spread-bet preference so the choice
+          sticks across the app (Profile → Display shows the same setting). */}
+      <View style={{ gap: spacing.sm }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={{ ...typography.body, fontSize: 11, color: colors.textMuted }}>Volume</Text>
+          <View
+            style={{
+              flexDirection: 'row',
+              backgroundColor: colors.bgSurface,
+              borderRadius: radius.pill,
+              padding: 2,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <SizeButton label="Lots" active={!spreadBet} onPress={() => setSpreadBet(false)} />
+            <SizeButton label={`$/${pipLabel(symbol)}`} active={spreadBet} onPress={() => setSpreadBet(true)} />
+          </View>
+        </View>
+        {spreadBet ? (
+          <Field
+            label=""
+            value={sbRaw}
+            onChangeText={(text) => {
+              setSbRaw(text);
+              userEditedVolume.current = true;
+              const pv = Number(text);
+              if (Number.isFinite(pv) && pv > 0) {
+                setVolume(lotsFromPipValue(pv, symbol).toFixed(6));
+              }
+            }}
+            placeholder={`e.g. ${pipValueFor(Number(defaultVolumeFor(symbol)), symbol).toFixed(2)} per ${pipLabel(symbol)}`}
+          />
+        ) : (
+          <Field label="" value={volume} onChangeText={handleVolumeChange} placeholder="e.g. 0.01" />
+        )}
+      </View>
 
-      {/* T.11 — live notional + leverage estimate */}
+      {/* T.11 / 18.1 — position summary.
+          Default: one short sentence — notional + margin (+ "risking ~$X" when a
+          stop-loss is set). Tap "Details" to reveal lots × price · leverage · $/pip. */}
       {(() => {
         const vol = Number(volume);
         const mid = quote ? (quote.bid + quote.ask) / 2 : 0;
@@ -374,6 +407,16 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
         const fmtPrice = refPrice >= 100
           ? `$${refPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
           : `$${refPrice.toFixed(5)}`;
+
+        // 18.1 — "risking ~$X": estimate the loss if the stop-loss is hit.
+        // Side-agnostic (buy/sell isn't chosen until the user taps): the loss
+        // magnitude is |refPrice − SL| × volume × contractSize regardless of side.
+        const slNum = Number(stopLoss);
+        const risk =
+          stopLoss && Number.isFinite(slNum) && slNum > 0
+            ? Math.abs(refPrice - slNum) * vol * contractSize(symbol)
+            : null;
+
         return (
           <View
             style={{
@@ -383,14 +426,27 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
               paddingVertical: spacing.sm,
               borderWidth: 1,
               borderColor: colors.border,
+              gap: 4,
             }}
           >
-            <Text style={{ ...typography.mono, color: colors.textSecondary, fontSize: 11, lineHeight: 16 }}>
-              {spreadBet
-                ? `$${pipValueFor(vol, symbol).toFixed(2)}/${pipLabel(symbol)} · ${vol.toFixed(4)} lots · $${notional.toFixed(2)} notional · ${lev}× · $${margin.toFixed(2)} margin`
-                : `${vol} lots × ${fmtPrice} = $${notional.toFixed(2)} notional · ${lev}× leverage · $${margin.toFixed(2)} margin`
-              }
-            </Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={{ ...typography.mono, color: colors.textSecondary, fontSize: 12, lineHeight: 16, flex: 1 }}>
+                {`$${notional.toFixed(2)} notional · $${margin.toFixed(2)} margin`}
+                {risk != null ? <Text style={{ color: colors.loss }}>{`  ·  risking ~$${risk.toFixed(2)}`}</Text> : null}
+              </Text>
+              <Pressable onPress={() => setShowDetails((v) => !v)} hitSlop={8}>
+                <Text style={{ ...typography.body, color: colors.primary, fontSize: 11 }}>
+                  {showDetails ? 'Hide' : 'Details'}
+                </Text>
+              </Pressable>
+            </View>
+            {showDetails && (
+              <Text style={{ ...typography.mono, color: colors.textMuted, fontSize: 11, lineHeight: 16 }}>
+                {spreadBet
+                  ? `$${pipValueFor(vol, symbol).toFixed(2)}/${pipLabel(symbol)} · ${vol.toFixed(4)} lots × ${fmtPrice} · ${lev}× leverage`
+                  : `${vol} lots × ${fmtPrice} · $${pipValueFor(vol, symbol).toFixed(2)}/${pipLabel(symbol)} · ${lev}× leverage`}
+              </Text>
+            )}
           </View>
         );
       })()}
@@ -452,14 +508,28 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
         </View>
       </View>
 
-      {/* T.4 -- Trailing stop distance (market orders only) */}
+      {/* T.4 / 18.1 -- Trailing stop distance (market orders only), tucked
+          behind an "Advanced" toggle so the default form stays simple. */}
       {orderKind === 'market' && (
-        <Field
-          label="Trail Distance (price units, optional)"
-          value={trailDistance}
-          onChangeText={setTrailDistance}
-          placeholder="e.g. 500 for $500 trail"
-        />
+        <View style={{ gap: spacing.sm }}>
+          <Pressable
+            onPress={() => setShowAdvanced((v) => !v)}
+            hitSlop={6}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+          >
+            <Text style={{ ...typography.body, color: colors.primary, fontSize: 12 }}>
+              {showAdvanced ? 'Hide advanced' : 'Advanced'}
+            </Text>
+          </Pressable>
+          {showAdvanced && (
+            <Field
+              label="Trail Distance (price units, optional)"
+              value={trailDistance}
+              onChangeText={setTrailDistance}
+              placeholder="e.g. 500 for $500 trail"
+            />
+          )}
+        </View>
       )}
 
       {lastError && (
@@ -509,9 +579,11 @@ function Field({
 }) {
   return (
     <View>
-      <Text style={{ ...typography.body, fontSize: 11, color: colors.textMuted, marginBottom: spacing.xs }}>
-        {label}
-      </Text>
+      {label ? (
+        <Text style={{ ...typography.body, fontSize: 11, color: colors.textMuted, marginBottom: spacing.xs }}>
+          {label}
+        </Text>
+      ) : null}
       <TextInput
         testID={testID}
         value={value}
@@ -562,6 +634,39 @@ function KindButton({
           ...typography.bodyBold,
           color: active ? '#fff' : colors.textSecondary,
           fontSize: 12,
+        }}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+// 18.1 — compact Lots / $ sizing toggle shown inline above the Volume field (T.19-aware).
+function SizeButton({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        paddingHorizontal: spacing.sm,
+        paddingVertical: 4,
+        borderRadius: radius.pill,
+        backgroundColor: active ? colors.primary : 'transparent',
+      }}
+    >
+      <Text
+        style={{
+          ...typography.bodyBold,
+          color: active ? '#fff' : colors.textSecondary,
+          fontSize: 11,
         }}
       >
         {label}
