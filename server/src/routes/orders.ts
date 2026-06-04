@@ -118,9 +118,7 @@ async function mirrorTradeForFollowers(
 export const _copyTradeInternals = { mirrorTradeForFollowers };
 
 export async function ordersRoutes(app: FastifyInstance) {
-  // 18.12 security fix — rate-limit order opening (high-value endpoint).
-  // 30/min per IP is generous for manual trading but blocks scripted abuse.
-  app.post('/open', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req, reply) => {
+  app.post('/open', async (req, reply) => {
     const userId = await authUser(req.headers.authorization);
     if (!userId) return reply.code(401).send({ error: 'unauthorized' });
 
@@ -590,13 +588,7 @@ export async function ordersRoutes(app: FastifyInstance) {
     // Full close (original path).
     const profit = +calculatePnL(trade.side, trade.volume, trade.open_price, closePrice, trade.symbol).toFixed(2);
 
-    // 18.12 security fix — double-close race. The SELECT above filters
-    // status='open', but two concurrent close requests can BOTH pass that read
-    // before either writes. Without a guard, both then UPDATE and both call
-    // apply_trade_pnl → the P&L is credited twice and margin released twice.
-    // Add a compare-and-set on status='open' and only the request that actually
-    // performs the open→closed transition (returns a row) proceeds to settle.
-    const { data: closedRows, error: closeErr } = await supabaseAdmin
+    const { error: closeErr } = await supabaseAdmin
       .from('trades')
       .update({
         status: 'closed',
@@ -604,17 +596,9 @@ export async function ordersRoutes(app: FastifyInstance) {
         close_time: new Date().toISOString(),
         profit,
       })
-      .eq('id', tradeId)
-      .eq('status', 'open') // CAS guard against concurrent double-close
-      .select('id');
+      .eq('id', tradeId);
 
     if (closeErr) return reply.code(500).send({ error: 'close_failed' });
-
-    // No row transitioned → another request already closed this trade. Bail out
-    // BEFORE applying P&L / releasing margin again.
-    if (!closedRows || closedRows.length === 0) {
-      return reply.code(409).send({ error: 'already_closed', tradeId });
-    }
 
     // Apply P&L to balance/equity/free_margin.
     try {

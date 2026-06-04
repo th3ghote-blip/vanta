@@ -773,7 +773,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 # Phase 18 — UX fixes (reported 2026-05-28)
 
 ## 18.13 Trade row density — text too small, too many lines
-- [x] **Files:** `components/pro/TradeBook.tsx`
+- [ ] **Files:** `components/pro/TradeBook.tsx`
 - **Problem:** Each open trade row shows 5 lines of small text (symbol + age, notional · leverage · margin, TP value, open→now price, P&L). Too much information crammed into too little space. Hard to scan quickly.
 - **What:**
   - Reduce to 2 lines max per row: Line 1 = symbol + side + volume (large); Line 2 = open price → current price + P&L (prominent, colour-coded)
@@ -783,7 +783,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** Each row fits comfortably in ~56px height. P&L is immediately readable at a glance. No information requires squinting.
 
 ## 18.1 Order entry simplification
-- [x] **Files:** `components/pro/OrderEntry.tsx`
+- [ ] **Files:** `components/pro/OrderEntry.tsx`
 - **Problem:** Too many fields shown at once (Stake $/pt label, lots + notional + margin summary all on one dense line, Trail Distance visible by default). New users don't know what any of it means.
 - **What:**
   - Rename "Stake ($/pt)" → "Volume" (or show a toggle: Lots / $ stake)
@@ -830,8 +830,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** Close a profitable trade → Share button appears → tapping opens X compose with pre-filled text and card image attached.
 
 ## 18.12 Security audit + trading exploit fixes
-- [x] **Files:** `server/src/routes/orders.ts`, `server/src/routes/auth.ts`, `server/src/routes/admin.ts`, `server/src/middleware/`
-- **Done:** 2026-06-03 (auto) — full backend audit in `docs/security-audit.md`. Two issues found + fixed: (1) HIGH double-close race in the full-close path of `orders.ts` (closing UPDATE lacked a `status='open'` CAS guard → concurrent closes double-credited P&L and double-released margin; now uses `.eq('status','open').select('id')` and returns `409 already_closed` before settling); (2) MEDIUM missing rate limits on `POST /api/orders/open` (30/min) and `POST /api/transactions/withdraw` (10/min). All other checklist items (margin double-spend, partial-close CAS, zero/negative volume, client-supplied price, admin guards on all 13 routes, JWT expiry, withdraw>balance, hardcoded secrets) passed unchanged. Verified: client+server `tsc` clean, `npm test` 160 passing.
+- [ ] **Files:** `server/src/routes/orders.ts`, `server/src/routes/auth.ts`, `server/src/routes/admin.ts`, `server/src/middleware/`
 - **What:** Full audit of the backend for exploitable holes. Known areas to check:
   - **Double-spend on order open:** Can two simultaneous requests open trades that together exceed available margin? Add DB-level margin reservation or a per-account mutex.
   - **Close same trade twice:** Can a race condition allow double-close? Verify `status='open'` check is atomic (SELECT + UPDATE in one query or use `RETURNING` with status filter).
@@ -845,7 +844,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** All above checks pass. Any bugs found are fixed in the same session. Document findings in `docs/security-audit.md`.
 
 ## 18.9 CI pipeline health fixes
-- [x] **Files:** `.github/workflows/deploy.yml`, `.github/workflows/e2e.yml`
+- [ ] **Files:** `.github/workflows/deploy.yml`, `.github/workflows/e2e.yml`
 - **Problem 1 — Doc-only commits cancel real deploys.** Every push to main triggers a full deploy (type-check + Railway + Vercel, ~2 min). When we push 8 TODO.md-only commits rapidly, each one cancels the previous, so the actual code change never deploys cleanly and E2E never runs. Fix: add `paths-ignore` to deploy trigger so commits touching only `*.md`, `docs/`, `scripts/` don't trigger a deploy.
   ```yaml
   on:
@@ -959,7 +958,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** New account → share_trades is true by default. Toggle off → other users can't see trades. Toggle on → visible again.
 
 ## 18.5 Robot execution engine unit tests
-- [x] **File:** `server/test/robotEngine.test.ts` (new)
+- [ ] **File:** `server/test/robotEngine.test.ts` (new)
 - **What:** The existing `robots.test.ts` only covers `/api/robots/compile` (5 tests). The engine in `server/src/ai/robotEngine.ts` — `shouldFire`, `matchesCron`, `processRobot`, `openRobotTrade` — has zero test coverage.
   - Export `_robotInternals = { shouldFire, matchesCron, processRobot }` from `robotEngine.ts` (same pattern as `_riskInternals`, `_ordersTriggerInternals`)
   - `shouldFire` — interval robot: fires when `now - last_run >= interval`; doesn't fire when called too soon
@@ -972,9 +971,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** `cd server && npm test` covers all above cases, 0 failures, no live DB needed.
 
 ## 18.4 Forex + stock price feed (or hide empty categories)
-- [x] **Files:** `server/src/feed/pricefeed.ts`, `components/pro/SymbolPicker.tsx` (or equivalent)
-- **Done (Option C):** 2026-06-04 (auto) — implemented the cosmetic fix in `components/pro/SymbolPickerModal.tsx` (the modal that actually renders the category pills; `SymbolPicker.tsx` only opens it). Category pills now render only for categories that contain ≥1 symbol: `CATEGORIES.filter((c) => all.some((s) => s.category === c))`. With the current `symbolMeta` (80 Crypto + 1 Metals/PAXG, no Forex/Stocks entries), the **Forex (0)** and **Stocks (0)** pills no longer appear; Watchlist, All, Crypto, Metals remain. Verified: client+server `tsc` clean; logic check confirms hidden = {Forex, Stocks}. Acceptance (C) met.
-> Options A/B (live non-crypto feed via Yahoo Finance / throttled Twelve Data) are still the desirable end state but were NOT done this run: they need network access to verify live prices and a new `yahoo-finance2` dependency, neither verifiable in the offline sandbox. Next agent with network can repopulate `NON_CRYPTO_SYMBOLS` + add forex/stock entries to `lib/symbolMeta.ts`; the pills will then reappear automatically (the Option C filter is data-driven, no further UI change needed).
+- [ ] **Files:** `server/src/feed/pricefeed.ts`, `components/pro/SymbolPicker.tsx` (or equivalent)
 - **Problem:** Symbol picker shows Forex (0) and Stocks (0) — categories exist but `NON_CRYPTO_SYMBOLS = []` because Twelve Data free tier (800 credits/day) ran dry with chart loads + polling combined.
 - **What (pick one):**
   - **Option A (recommended):** Switch non-crypto to Yahoo Finance via `yahoo-finance2` npm package — no API key, ~10–15s poll, covers all 31 mapped symbols (forex pairs + AAPL/TSLA/NVDA etc.). Re-populate `NON_CRYPTO_SYMBOLS` with the forex + stock list. Yahoo Finance has no official rate limit for this use.

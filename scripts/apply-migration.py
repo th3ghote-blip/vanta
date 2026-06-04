@@ -9,7 +9,7 @@ Does NOT commit the PAT to disk.
 """
 import json, os, sys, urllib.request, urllib.error
 
-PROJECT_REF = 'auavcfwytrwurawcvrsc'
+PROJECT_REF = 'pepqcrzbxyuhwqesuejk'
 
 def main():
     if len(sys.argv) != 2:

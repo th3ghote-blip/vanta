@@ -66,8 +66,7 @@ export async function transactionsRoutes(app: FastifyInstance) {
   });
 
   /** POST /api/transactions/withdraw — create a pending withdrawal transaction */
-  // 18.12 security fix — rate-limit withdrawals (high-value endpoint). 10/min per IP.
-  app.post('/withdraw', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (req, reply) => {
+  app.post('/withdraw', async (req, reply) => {
     const userId = await authUser(req.headers.authorization);
     if (!userId) return reply.code(401).send({ error: 'unauthorized' });
 
