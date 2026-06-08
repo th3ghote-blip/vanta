@@ -20,6 +20,45 @@ export const supabaseAdmin = createClient(url, serviceKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
+export interface SessionPayload {
+  access_token: string;
+  refresh_token: string;
+  expires_at?: number;
+  user_id: string;
+}
+
+/**
+ * Sign in via raw fetch to /auth/v1/token.
+ *
+ * MUST NOT use supabaseAdmin.auth.signInWithPassword — supabase-js v2 stores
+ * the returned JWT on the shared singleton (even with persistSession:false),
+ * which downgrades all subsequent .from() queries from service_role to
+ * authenticated and breaks RLS-gated lookups for other users.
+ */
+export async function signInWithPassword(
+  email: string,
+  password: string,
+): Promise<{ session: SessionPayload | null; error: string | null }> {
+  const res = await fetch(`${url}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: serviceKey },
+    body: JSON.stringify({ email, password }),
+  });
+  const body = (await res.json()) as Record<string, unknown>;
+  if (!res.ok || !body.access_token) {
+    return { session: null, error: (body.error_description as string) ?? 'sign_in_failed' };
+  }
+  return {
+    session: {
+      access_token: body.access_token as string,
+      refresh_token: body.refresh_token as string,
+      expires_at: body.expires_at as number | undefined,
+      user_id: (body.user as Record<string, string>)?.id ?? '',
+    },
+    error: null,
+  };
+}
+
 /**
  * Verify a user JWT and return their user id. Uses a raw fetch to the
  * Supabase Auth REST endpoint so it does NOT touch the shared

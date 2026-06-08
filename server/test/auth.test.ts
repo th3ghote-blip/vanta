@@ -4,6 +4,7 @@ import {
   seed,
   supabaseAdmin as mockSupa,
   authUser as mockAuthUser,
+  signInWithPassword as mockSignIn,
   issueToken,
   getTable,
 } from './helpers/supabaseMock.js';
@@ -18,6 +19,7 @@ beforeAll(() => {
 vi.mock('../src/lib/supabase.js', () => ({
   supabaseAdmin: mockSupa,
   authUser: mockAuthUser,
+  signInWithPassword: mockSignIn,
 }));
 // Achievements: fire-and-forget, no-op for tests
 vi.mock('../src/lib/achievements.js', () => ({

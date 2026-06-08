@@ -2,41 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { randomBytes } from 'node:crypto';
 
-import { supabaseAdmin } from '../lib/supabase.js';
+import { supabaseAdmin, signInWithPassword } from '../lib/supabase.js';
 import { awardAchievement } from '../lib/achievements.js';
-
-const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-
-/**
- * Sign in via raw fetch to avoid mutating the shared supabaseAdmin client's
- * in-memory session. supabase-js v2 stores the signed-in JWT on the singleton
- * even when persistSession=false, which downgrades all subsequent queries from
- * service_role to authenticated and breaks RLS-sensitive lookups.
- */
-async function signInWithPassword(
-  email: string,
-  password: string,
-): Promise<{ session: SessionPayload | null; error: string | null }> {
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY },
-    body: JSON.stringify({ email, password }),
-  });
-  const body = (await res.json()) as Record<string, unknown>;
-  if (!res.ok || !body.access_token) {
-    return { session: null, error: (body.error_description as string) ?? 'sign_in_failed' };
-  }
-  return {
-    session: {
-      access_token: body.access_token as string,
-      refresh_token: body.refresh_token as string,
-      expires_at: body.expires_at as number | undefined,
-      user_id: (body.user as Record<string, string>)?.id ?? '',
-    },
-    error: null,
-  };
-}
 
 /**
  * MT4-style auth.
@@ -74,13 +41,6 @@ const LoginSchema = z.object({
   login: z.coerce.number().int().positive(),
   password: z.string().min(1).max(200),
 });
-
-interface SessionPayload {
-  access_token: string;
-  refresh_token: string;
-  expires_at?: number;
-  user_id: string;
-}
 
 export async function authRoutes(app: FastifyInstance) {
   // Rate limit: 10 register/min per IP, 5 login/min per IP
@@ -257,14 +217,6 @@ export async function authRoutes(app: FastifyInstance) {
   });
 }
 
-function toSessionPayload(session: any, userId: string): SessionPayload {
-  return {
-    access_token: session.access_token,
-    refresh_token: session.refresh_token,
-    expires_at: session.expires_at,
-    user_id: userId,
-  };
-}
 
 async function logAttempt(input: {
   login: number;
