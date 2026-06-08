@@ -1,13 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View,
   Text,
-  ScrollView,
   Pressable,
-  Dimensions,
   StyleSheet,
-  NativeSyntheticEvent,
-  NativeScrollEvent,
 } from 'react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -16,7 +12,6 @@ import { TrendingUp, Zap, DollarSign } from 'lucide-react-native';
 import { colors, radius, spacing, typography } from '@/lib/theme';
 
 const ONBOARDING_KEY = 'vanta_onboarding_done';
-const { width: SCREEN_W } = Dimensions.get('window');
 
 interface Step {
   icon: React.ReactNode;
@@ -50,11 +45,9 @@ const steps: Step[] = [
 ];
 
 export default function Onboarding() {
-  const scrollRef = useRef<ScrollView>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [ready, setReady] = useState(false);
 
-  // If onboarding was already completed, skip straight to the app.
   useEffect(() => {
     AsyncStorage.getItem(ONBOARDING_KEY).then((val) => {
       if (val === 'true') {
@@ -65,14 +58,9 @@ export default function Onboarding() {
     });
   }, []);
 
-  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const page = Math.round(e.nativeEvent.contentOffset.x / SCREEN_W);
-    setCurrentStep(page);
-  };
-
   const goNext = () => {
     if (currentStep < steps.length - 1) {
-      scrollRef.current?.scrollTo({ x: (currentStep + 1) * SCREEN_W, animated: true });
+      setCurrentStep(currentStep + 1);
     } else {
       finish();
     }
@@ -85,29 +73,18 @@ export default function Onboarding() {
 
   if (!ready) return null;
 
+  const step = steps[currentStep];
   const isLast = currentStep === steps.length - 1;
 
   return (
     <View style={styles.container}>
-      {/* Swipeable pages */}
-      <ScrollView
-        ref={scrollRef}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={onScroll}
-        scrollEventThrottle={16}
-        style={{ flex: 1 }}
-      >
-        {steps.map((step, i) => (
-          <View key={i} style={[styles.page, { width: SCREEN_W }]}>
-            <View style={styles.iconWrap}>{step.icon}</View>
-            <Text style={styles.title}>{step.title}</Text>
-            <Text style={styles.subtitle}>{step.subtitle}</Text>
-            <Text style={styles.body}>{step.body}</Text>
-          </View>
-        ))}
-      </ScrollView>
+      {/* Current page */}
+      <View style={styles.page}>
+        <View style={styles.iconWrap}>{step.icon}</View>
+        <Text style={styles.title}>{step.title}</Text>
+        <Text style={styles.subtitle}>{step.subtitle}</Text>
+        <Text style={styles.body}>{step.body}</Text>
+      </View>
 
       {/* Dot indicators */}
       <View style={styles.dots}>
@@ -154,6 +131,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: spacing.xxl,
     paddingBottom: 120,
+    width: '100%',
   },
   iconWrap: {
     width: 100,
