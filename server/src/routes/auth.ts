@@ -5,6 +5,39 @@ import { randomBytes } from 'node:crypto';
 import { supabaseAdmin } from '../lib/supabase.js';
 import { awardAchievement } from '../lib/achievements.js';
 
+const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+
+/**
+ * Sign in via raw fetch to avoid mutating the shared supabaseAdmin client's
+ * in-memory session. supabase-js v2 stores the signed-in JWT on the singleton
+ * even when persistSession=false, which downgrades all subsequent queries from
+ * service_role to authenticated and breaks RLS-sensitive lookups.
+ */
+async function signInWithPassword(
+  email: string,
+  password: string,
+): Promise<{ session: SessionPayload | null; error: string | null }> {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY },
+    body: JSON.stringify({ email, password }),
+  });
+  const body = (await res.json()) as Record<string, unknown>;
+  if (!res.ok || !body.access_token) {
+    return { session: null, error: (body.error_description as string) ?? 'sign_in_failed' };
+  }
+  return {
+    session: {
+      access_token: body.access_token as string,
+      refresh_token: body.refresh_token as string,
+      expires_at: body.expires_at as number | undefined,
+      user_id: (body.user as Record<string, string>)?.id ?? '',
+    },
+    error: null,
+  };
+}
+
 /**
  * MT4-style auth.
  *
@@ -104,31 +137,23 @@ export async function authRoutes(app: FastifyInstance) {
       }
 
       // 4. Sign in to issue a session for the client.
-      const { data: signedIn, error: signInErr } = await supabaseAdmin.auth.signInWithPassword({
-        email: finalEmail,
-        password,
-      });
+      // Use raw fetch (not supabaseAdmin.auth.signInWithPassword) to avoid
+      // mutating the shared singleton's in-memory session, which would
+      // downgrade subsequent service_role queries to authenticated+RLS.
+      const { session: signedInSession, error: signInErr } = await signInWithPassword(finalEmail, password);
 
-      if (signInErr || !signedIn.session) {
+      if (!signedInSession) {
         // Fall back to temp email if rewrite hadn't propagated yet.
-        const fb = await supabaseAdmin.auth.signInWithPassword({ email: tempEmail, password });
-        if (fb.error || !fb.data.session) {
+        const fb = await signInWithPassword(tempEmail, password);
+        if (!fb.session) {
           return reply
             .code(500)
-            .send({ error: 'sign_in_failed', message: signInErr?.message ?? fb.error?.message });
+            .send({ error: 'sign_in_failed', message: signInErr ?? fb.error });
         }
-        return {
-          login: account.login,
-          password,
-          session: toSessionPayload(fb.data.session, userId),
-        };
+        return { login: account.login, password, session: fb.session };
       }
 
-      return {
-        login: account.login,
-        password,
-        session: toSessionPayload(signedIn.session, userId),
-      };
+      return { login: account.login, password, session: signedInSession };
     },
   );
 
@@ -149,17 +174,17 @@ export async function authRoutes(app: FastifyInstance) {
       const ua = req.headers['user-agent'] ?? null;
       const email = `${login}@${SYNTH_DOMAIN}`;
 
-      const { data, error } = await supabaseAdmin.auth.signInWithPassword({ email, password });
+      const { session: loginSession, error: loginErr } = await signInWithPassword(email, password);
 
-      if (error || !data.session) {
-        const isUnknown = (error?.message ?? '').toLowerCase().includes('invalid login');
+      if (!loginSession) {
+        const isUnknown = (loginErr ?? '').toLowerCase().includes('invalid login');
         await logAttempt({
           login,
           email,
           ip,
           ua,
           outcome: isUnknown ? 'invalid_password' : 'error',
-          details: error?.message,
+          details: loginErr ?? undefined,
         });
         return reply.code(401).send({ error: 'invalid_credentials' });
       }
@@ -167,7 +192,7 @@ export async function authRoutes(app: FastifyInstance) {
       await logAttempt({ login, email, ip, ua, outcome: 'success' });
 
       // Update daily login streak (best-effort -- never blocks login)
-      const userId = data.user?.id ?? '';
+      const userId = loginSession.user_id;
       let login_streak = 0;
       if (userId) {
         try {
@@ -207,7 +232,7 @@ export async function authRoutes(app: FastifyInstance) {
         void awardAchievement(userId, 'seven_day_streak').catch(() => {});
       }
 
-      return { session: toSessionPayload(data.session, userId), login_streak };
+      return { session: loginSession, login_streak };
     },
   );
 
