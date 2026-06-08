@@ -99,13 +99,7 @@ jobs:
       # --prebuilt makes env-var inlining happen at build time on the
       # runner, where the token's project-read scope is sufficient.
       - name: Pull Vercel env
-        run: |
-          vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
-          # vercel build does NOT export .vercel/.env.production.local into
-          # the child process environment. Expo's @expo/env only reads .env*
-          # files from the project root. Copying here makes Metro pick up the
-          # EXPO_PUBLIC_* values at bundle time.
-          cp .vercel/.env.production.local .env.production.local
+        run: vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
