@@ -996,6 +996,58 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 
 ---
 
+# Phase 20 — Account opening audit (2026-06-08)
+
+## Account opening full-flow map
+
+```
+vanta-jade.vercel.app
+  └─ index.tsx
+       ├─ session? → /(tabs)/trade          (returning user)
+       └─ no session → /(auth)/login
+            ├─ "Create account" → /(auth)/signup
+            │    └─ register() → credentials screen (copy login + password)
+            │         └─ "I've saved them" → /onboarding (3 slides)
+            │              └─ "Let's trade" → /(tabs)/trade
+            └─ sign in → login + optional 2FA → /(tabs)/trade
+```
+
+## 20.1 Risk Disclosure — scroll lock on web
+- [x] **File:** `components/RiskDisclosureModal.tsx`
+- **Fix (2026-06-08):** Added `onLayout` + `onContentSizeChange` to the ScrollView. When
+  `contentHeight ≤ containerHeight + 20`, `scrolledToBottom` is set to `true` immediately —
+  unlocking the "I Understand & Accept" button without requiring a scroll event that never
+  fires on desktop browsers. Previously the button was permanently disabled on web.
+- **Acceptance:** Visit Deposit screen in a browser → Risk Disclosure shows → "I Understand &
+  Accept" button is enabled without needing to scroll (content fits in one view).
+
+## 20.2 Credential recovery / "forgot login" — PARKED
+- [ ] **PARKED** — no email-confirmation flow yet (gated on 10.4 Resend domain).
+- **Problem:** If a user loses their login number or password, there is currently no recovery
+  path in the app. The Login screen has no "Forgot password" or "Lost account number" link.
+- **What:** Add a "Lost access?" link on the Login screen. Options:
+  - If user has a contact email on file: send recovery email via Resend (requires 10.4)
+  - If not: show a "Contact support" mailto link
+  - **Simpler for now:** Add a visible info box on login screen: "Lost your login number or
+    password? Email support@vanta.markets" (no code path needed, purely UI text)
+- **Acceptance:** Login screen has a visible recovery hint. Users who lose credentials know
+  what to do.
+
+## 20.3 Risk disclosure gates trading, not only deposits
+- [ ] **Files:** `app/(tabs)/trade.tsx` or `app/_layout.tsx`, `components/RiskDisclosureModal.tsx`
+- **Problem:** Risk disclosure is currently only shown before the first deposit. For compliance
+  and product integrity, it should also be required before the user's very first trade (even
+  on a demo account).
+- **What:**
+  - Add a second storage key `vanta:risk_ack_trade` (separate from deposit key)
+  - Show the modal when user first opens the Trade tab or places their first order, if not yet
+    acknowledged
+  - Keep the deposit gate unchanged
+- **Acceptance:** New account → goes to Trade tab → Risk Disclosure appears → accept → can
+  place orders. Subsequent visits: no modal.
+
+---
+
 # Phase 19 — UX improvements (reported 2026-06-08)
 
 ## 19.1 Order entry — Binance-style notional amount mode

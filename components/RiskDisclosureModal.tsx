@@ -5,7 +5,7 @@
  * The deposit screen reads this before rendering; if not ack'd, it renders
  * this modal first and only proceeds when the user taps "I Understand & Accept".
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Modal,
   View,
@@ -51,6 +51,20 @@ interface Props {
 export function RiskDisclosureModal({ visible, onAccept, onDecline }: Props) {
   const [saving, setSaving] = useState(false);
   const [scrolledToBottom, setScrolledToBottom] = useState(false);
+
+  // On web (and any screen large enough to show all content without scrolling),
+  // onScroll never fires because there is nothing to scroll. We detect this by
+  // comparing content height to container height; if content fits, unlock immediately.
+  const containerH = useRef(0);
+  const contentH = useRef(0);
+
+  function checkFits() {
+    if (containerH.current > 0 && contentH.current > 0) {
+      if (contentH.current <= containerH.current + 20) {
+        setScrolledToBottom(true);
+      }
+    }
+  }
 
   async function handleAccept() {
     setSaving(true);
@@ -102,6 +116,14 @@ export function RiskDisclosureModal({ visible, onAccept, onDecline }: Props) {
           {/* Scrollable content */}
           <ScrollView
             contentContainerStyle={{ padding: spacing.lg }}
+            onLayout={(e) => {
+              containerH.current = e.nativeEvent.layout.height;
+              checkFits();
+            }}
+            onContentSizeChange={(_w, h) => {
+              contentH.current = h;
+              checkFits();
+            }}
             onScroll={({ nativeEvent }) => {
               const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
               const reached = layoutMeasurement.height + contentOffset.y >= contentSize.height - 20;
