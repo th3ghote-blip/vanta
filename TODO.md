@@ -98,6 +98,8 @@ The platform's surface area is wide (Phase 1–4, 6–7, 11–12, 15 are done) b
 
 Pick any unchecked item from **Phase 18** (18.1–18.13). Order doesn't matter — pick whichever you can complete fully within ~60 min. Skip any item that needs external credentials or user action and move to the next.
 
+> ⚠️ STATUS (2026-06-04, auto): the offline-completable Phase 18 items are **exhausted**. 18.1, 18.4(C), 18.5, 18.9, 18.12, 18.13 are done. Every REMAINING unchecked item (18.2, 18.3, 18.6, 18.7, 18.8, 18.10, 18.11) is blocked for an offline, no-network auto-run — see the `>` note under each. They need one or more of: **network** (apply migrations / hit the Claude API / live verification), a **screenshot-capable** run (visual-only acceptance), a **user decision** (18.11 dependency + descope), or **splitting** (18.8 is too big). An auto-run with no network and no screenshot cannot complete or verify any of them. **User action needed to unblock** (pick any): give the next run network access; approve the 18.11 capture/sharing dependency + web descope; pre-apply the 18.6/18.10 migrations; or split 18.8 into sub-items.
+
 ## Migrations already applied to live DB
 
 - `013_margin_rpc.sql` ✅
@@ -107,6 +109,7 @@ Pick any unchecked item from **Phase 18** (18.1–18.13). Order doesn't matter �
 - `017_pending_orders_index.sql` ✅ (the partial index — had to be a separate tx because Postgres rejects referencing a newly-added enum value in the same tx that added it)
 
 **Next migration number: 018.** Do not re-apply 013–017.
+> CORRECTION (2026-06-04): this line is stale. Migration FILES through `026_chart_drawings.sql` already exist on disk (018–026 cover the Phase T trading features: stop_limit, trailing_stops, oco_groups, user_watchlist, hedging_mode, trade_notes, account_is_primary, copy_relationships, chart_drawings). The **next NEW migration number is 027** — do not number a new migration 018. Whether 018–026 are all applied to the live DB is not verifiable offline; confirm against the Supabase dashboard before assuming.
 
 ---
 
@@ -773,7 +776,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 # Phase 18 — UX fixes (reported 2026-05-28)
 
 ## 18.13 Trade row density — text too small, too many lines
-- [ ] **Files:** `components/pro/TradeBook.tsx`
+- [x] **Files:** `components/pro/TradeBook.tsx`
 - **Problem:** Each open trade row shows 5 lines of small text (symbol + age, notional · leverage · margin, TP value, open→now price, P&L). Too much information crammed into too little space. Hard to scan quickly.
 - **What:**
   - Reduce to 2 lines max per row: Line 1 = symbol + side + volume (large); Line 2 = open price → current price + P&L (prominent, colour-coded)
@@ -783,7 +786,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** Each row fits comfortably in ~56px height. P&L is immediately readable at a glance. No information requires squinting.
 
 ## 18.1 Order entry simplification
-- [ ] **Files:** `components/pro/OrderEntry.tsx`
+- [x] **Files:** `components/pro/OrderEntry.tsx`
 - **Problem:** Too many fields shown at once (Stake $/pt label, lots + notional + margin summary all on one dense line, Trail Distance visible by default). New users don't know what any of it means.
 - **What:**
   - Rename "Stake ($/pt)" → "Volume" (or show a toggle: Lots / $ stake)
@@ -794,6 +797,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 
 ## 18.2 Chart drawing tools overhaul
 - [ ] **Files:** `components/pro/Chart.tsx`
+> BLOCKED for offline auto-runs (verified 2026-06-04): acceptance ("draw line → refresh → still there") is interactive + persistence + visual. Needs live Lightweight Charts drawing, a `chart_drawings` DB round-trip, and a screenshot to confirm — none possible in the no-network sandbox. The `026_chart_drawings.sql` migration already exists on disk. Multi-hour. Resume on a network-enabled, screenshot-capable run.
 - **Problem:** The 4 toolbar buttons (cursor, horizontal line, pencil, F, delete) are present but drawing tools either don't work or produce no visible output. No trendlines, no fib retracement.
 - **What:**
   - Fix horizontal line tool — click on chart → draws a draggable horizontal price line
@@ -805,12 +809,14 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 
 ## 18.3 Light / dark mode fix
 - [ ] **Files:** `stores/theme.ts` (or equivalent), `constants/colors.ts`
+> BLOCKED for offline auto-runs (verified 2026-06-04): ~58 components import the static dark-only `colors`; converting every one to theme tokens is a multi-hour mechanical refactor whose only acceptance is visual (toggle → entire app goes light). Unverifiable offline and risky to ship blind (a missed token = broken render no one can see). Resume on a screenshot-capable run, or split into per-screen sub-items.
 - **Problem:** Theme toggle exists in Profile → Display but switching to Light has no visible effect — the app stays dark.
 - **What:** Audit every component that uses hardcoded dark hex values instead of theme tokens. Replace with token references. Light theme tokens already defined — just need components to read them.
 - **Acceptance:** Toggle Profile → Light → entire app goes light. Toggle back → dark. Persists across reload.
 
 ## 18.10 Risk disclosure — fix accept flow
 - [ ] **Files:** `app/legal/` (risk disclosure page), `app/(auth)/` or onboarding flow
+> BLOCKED for offline auto-runs (verified 2026-06-04): needs a new migration adding `profiles.risk_accepted_at` applied to the live DB (no network/PAT in the sandbox), plus an onboarding trading-gate and a scroll-lock/Accept-button fix whose acceptance is purely visual. Migration-gated + visual. Resume on a network-enabled, screenshot-capable run.
 - **Problem:** The risk disclosure modal/page cannot be read and accepted — user gets stuck. Likely a scroll lock, missing Accept button, or the button fires but doesn't record acceptance.
 - **What:**
   - Risk disclosure must be fully scrollable
@@ -822,6 +828,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 
 ## 18.11 Share winning trade + chart to X (Twitter)
 - [ ] **Files:** `components/pro/TradeBook.tsx` (closed trade row), new `lib/shareCard.ts`
+> BLOCKED for offline auto-runs (verified 2026-06-04 — dependency + platform limit, needs a user decision): the headline deliverable (generate AND ATTACH a trade-card image) requires a view-capture / native-sharing library. None is installed — deps have only `react-native-svg`; there is no `react-native-view-shot`, `expo-sharing`, or `expo-media-library` — and the auto-run rules forbid adding packages not listed in this item. Separately, the X *web* intent (`x.com/intent/tweet`) cannot attach images at all (platform limitation); only the native mobile share sheet can. A text+URL-only X share is implementable with the current deps but does NOT meet acceptance as written. To unblock, the user needs to: (a) approve adding a capture/sharing dependency (e.g. `react-native-view-shot` + `expo-sharing`), and (b) accept descoping web to text+URL (image on native only). `lib/shareCard.ts` does not yet exist.
 - **What:** On a closed profitable trade, show a "Share" button. Tapping it:
   1. Generates a trade card image: symbol, side, open→close price, P&L in $, P&L %, duration, VANTA logo/watermark
   2. Optionally overlays a chart screenshot of the trade period (use the existing chart iframe screenshot or a server-rendered sparkline)
@@ -830,7 +837,8 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** Close a profitable trade → Share button appears → tapping opens X compose with pre-filled text and card image attached.
 
 ## 18.12 Security audit + trading exploit fixes
-- [ ] **Files:** `server/src/routes/orders.ts`, `server/src/routes/auth.ts`, `server/src/routes/admin.ts`, `server/src/middleware/`
+- [x] **Files:** `server/src/routes/orders.ts`, `server/src/routes/auth.ts`, `server/src/routes/admin.ts`, `server/src/middleware/`
+- **Done:** 2026-06-03 (auto) — full backend audit in `docs/security-audit.md`. Two issues found + fixed: (1) HIGH double-close race in the full-close path of `orders.ts` (closing UPDATE lacked a `status='open'` CAS guard → concurrent closes double-credited P&L and double-released margin; now uses `.eq('status','open').select('id')` and returns `409 already_closed` before settling); (2) MEDIUM missing rate limits on `POST /api/orders/open` (30/min) and `POST /api/transactions/withdraw` (10/min). All other checklist items (margin double-spend, partial-close CAS, zero/negative volume, client-supplied price, admin guards on all 13 routes, JWT expiry, withdraw>balance, hardcoded secrets) passed unchanged. Verified: client+server `tsc` clean, `npm test` 160 passing.
 - **What:** Full audit of the backend for exploitable holes. Known areas to check:
   - **Double-spend on order open:** Can two simultaneous requests open trades that together exceed available margin? Add DB-level margin reservation or a per-account mutex.
   - **Close same trade twice:** Can a race condition allow double-close? Verify `status='open'` check is atomic (SELECT + UPDATE in one query or use `RETURNING` with status filter).
@@ -844,7 +852,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** All above checks pass. Any bugs found are fixed in the same session. Document findings in `docs/security-audit.md`.
 
 ## 18.9 CI pipeline health fixes
-- [ ] **Files:** `.github/workflows/deploy.yml`, `.github/workflows/e2e.yml`
+- [x] **Files:** `.github/workflows/deploy.yml`, `.github/workflows/e2e.yml`
 - **Problem 1 — Doc-only commits cancel real deploys.** Every push to main triggers a full deploy (type-check + Railway + Vercel, ~2 min). When we push 8 TODO.md-only commits rapidly, each one cancels the previous, so the actual code change never deploys cleanly and E2E never runs. Fix: add `paths-ignore` to deploy trigger so commits touching only `*.md`, `docs/`, `scripts/` don't trigger a deploy.
   ```yaml
   on:
@@ -862,6 +870,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 
 ## 18.8 Manager panel — MT4-style backend control centre
 - [ ] **Files:** `app/admin/` (new pages), `server/src/routes/admin.ts` (extend)
+> SKIPPED — oversized (verified 2026-06-04): this is ~8 new admin pages (positions, exposure, kyc, robots, chats, alerts, deposits, withdrawals) plus ~10 new backend routes. Far beyond one ~60-min verifiable run, and most acceptance is visual/live. Split into per-page sub-items (e.g. 18.8a Live Positions, 18.8b Exposure, …) before an auto-run can take it.
 - **What:** A complete operator control centre. Extend the existing `/admin` dashboard with the following new sections:
 
   **Live Positions monitor** (`app/admin/positions.tsx`)
@@ -933,6 +942,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 
 ## 18.7 Replace support chat with AI platform assistant
 - [ ] **Files:** `app/help.tsx` (replace), `server/src/routes/assistant.ts` (new), `app/(tabs)/profile.tsx` (update link)
+> BLOCKED for offline auto-runs (verified 2026-06-04): the assistant backend needs the Claude API (network + an API key) and the acceptance ("ask a question → correct streamed answer", "what are my open trades → real positions") can only be verified against a live key + live DB. Also a multi-page chat UI. Network-gated + large. Resume on a network-enabled run with the Claude API key available.
 - **What:** Remove the existing support chat. Replace with a Claude-powered AI assistant that knows the entire platform and can guide users through anything:
   - How to place trades (market, limit, stop, bracket)
   - What the numbers mean (margin, notional, leverage, P&L, equity)
@@ -951,6 +961,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 
 ## 18.6 "Share my trades" toggle — default ON
 - [ ] **Files:** `server/supabase/migrations/` (new migration), `app/(tabs)/profile.tsx`, `server/src/routes/`
+> PARTIALLY BLOCKED for offline auto-runs (verified 2026-06-04): needs a new migration (`profiles.share_trades boolean default true`) applied to the live DB before the backend gate can read the column, and "default ON for new accounts" / the Profile toggle persisting are only verifiable against the live DB + a screenshot. The server-side 403 gate ("don't return another user's trades when share_trades=false") is the one piece that's offline-unit-testable with the existing jest + supabaseMock harness. Net: migration-gated. Resume on a network-enabled run (apply the migration via `scripts/apply-migration.py` with `SUPABASE_PAT`), or have the user apply the migration first.
 - **What:** Add `profiles.share_trades boolean default true`. New users get sharing on automatically. Profile → Privacy → "Share my trades" toggle (default ON). When on, the user's closed trade history is visible to other logged-in users (for copy trading discovery and leaderboards). When off, trades are private.
   - Migration: `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS share_trades boolean NOT NULL DEFAULT true`
   - Profile screen: show toggle under a "Privacy" section, default ON, persists to `profiles`
@@ -958,7 +969,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** New account → share_trades is true by default. Toggle off → other users can't see trades. Toggle on → visible again.
 
 ## 18.5 Robot execution engine unit tests
-- [ ] **File:** `server/test/robotEngine.test.ts` (new)
+- [x] **File:** `server/test/robotEngine.test.ts` (new)
 - **What:** The existing `robots.test.ts` only covers `/api/robots/compile` (5 tests). The engine in `server/src/ai/robotEngine.ts` — `shouldFire`, `matchesCron`, `processRobot`, `openRobotTrade` — has zero test coverage.
   - Export `_robotInternals = { shouldFire, matchesCron, processRobot }` from `robotEngine.ts` (same pattern as `_riskInternals`, `_ordersTriggerInternals`)
   - `shouldFire` — interval robot: fires when `now - last_run >= interval`; doesn't fire when called too soon
@@ -971,7 +982,9 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** `cd server && npm test` covers all above cases, 0 failures, no live DB needed.
 
 ## 18.4 Forex + stock price feed (or hide empty categories)
-- [ ] **Files:** `server/src/feed/pricefeed.ts`, `components/pro/SymbolPicker.tsx` (or equivalent)
+- [x] **Files:** `server/src/feed/pricefeed.ts`, `components/pro/SymbolPicker.tsx` (or equivalent)
+- **Done (Option C):** 2026-06-04 (auto) — implemented the cosmetic fix in `components/pro/SymbolPickerModal.tsx` (the modal that actually renders the category pills; `SymbolPicker.tsx` only opens it). Category pills now render only for categories that contain ≥1 symbol: `CATEGORIES.filter((c) => all.some((s) => s.category === c))`. With the current `symbolMeta` (80 Crypto + 1 Metals/PAXG, no Forex/Stocks entries), the **Forex (0)** and **Stocks (0)** pills no longer appear; Watchlist, All, Crypto, Metals remain. Verified: client+server `tsc` clean; logic check confirms hidden = {Forex, Stocks}. Acceptance (C) met.
+> Options A/B (live non-crypto feed via Yahoo Finance / throttled Twelve Data) are still the desirable end state but were NOT done this run: they need network access to verify live prices and a new `yahoo-finance2` dependency, neither verifiable in the offline sandbox. Next agent with network can repopulate `NON_CRYPTO_SYMBOLS` + add forex/stock entries to `lib/symbolMeta.ts`; the pills will then reappear automatically (the Option C filter is data-driven, no further UI change needed).
 - **Problem:** Symbol picker shows Forex (0) and Stocks (0) — categories exist but `NON_CRYPTO_SYMBOLS = []` because Twelve Data free tier (800 credits/day) ran dry with chart loads + polling combined.
 - **What (pick one):**
   - **Option A (recommended):** Switch non-crypto to Yahoo Finance via `yahoo-finance2` npm package — no API key, ~10–15s poll, covers all 31 mapped symbols (forex pairs + AAPL/TSLA/NVDA etc.). Re-populate `NON_CRYPTO_SYMBOLS` with the forex + stock list. Yahoo Finance has no official rate limit for this use.
@@ -980,6 +993,35 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance (A or B):** At least 6 forex pairs (EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF) and 5 stocks (AAPL, TSLA, NVDA, MSFT, AMZN) show live prices. Forex and Stocks categories show non-zero counts in picker.
 - **Acceptance (C):** Forex (0) and Stocks (0) pills no longer appear. Only categories with ≥1 live symbol are shown.
 - **Do C first** (10 min) then A in the same session.
+
+---
+
+# Phase 19 — UX improvements (reported 2026-06-08)
+
+## 19.1 Order entry — Binance-style notional amount mode
+- [ ] **Files:** `components/pro/OrderEntry.tsx`, `stores/prefs.ts`, `lib/contracts.ts`
+- **What:** Add a third sizing mode alongside Lots and $/pip: **"$ amount"** — user enters how many USD they want to put in (e.g. $10,000), server converts to lots behind the scenes. This matches Binance's "Buy $10k of BTC" UX.
+  - Toggle pill: **Lots · $/pt · $ amount** (three options)
+  - In `$ amount` mode, the Volume input label becomes "$ amount", placeholder "e.g. 10000"
+  - Conversion: `lots = dollarAmount / (currentPrice × contractSize(symbol))`. For crypto (1 lot = 1 unit): lots = dollarAmount / price.
+  - Summary line reads: "Buying ~0.132 BTC · $10,000 notional · $100 margin (100×)"
+  - Persist the sizing-mode choice to `stores/prefs.ts` (same store that holds `spreadBet`).
+- **Cost:** No backend change needed — lots are calculated client-side before the order is sent.
+- **Acceptance:** Switch to `$ amount`, type 10000, see correct BTC lot count computed live. Place order → opens correctly. Switch symbol → lots recalculate automatically.
+
+## 19.2 AI robots — ensure full flow works end-to-end
+- [ ] **Files:** `server/src/routes/robots.ts`, Railway env vars
+- **Root cause fixed 2026-06-08:** `ANTHROPIC_API_KEY` was missing from Railway env vars → every "Generate Robot" click returned `ai_error: invalid x-api-key`. Key has been set via `railway variables set`. Verify the fix is live before closing this task.
+- **Remaining verification checklist:**
+  - [ ] "Generate Robot" → AI response comes back (not "AI service is unavailable")
+  - [ ] Config preview renders (name, schedule, symbols, side, volume)
+  - [ ] "Save Robot" → robot appears in "YOUR ROBOTS" list with DRAFT badge
+  - [ ] Tap robot → detail screen opens (`app/robot/[id].tsx`)
+  - [ ] Pause/resume robot from detail screen changes `status` in DB
+  - [ ] Robot engine tick (every 60s) picks up an `active` robot and opens a trade logged with `reason='robot'` (visible in TradeBook)
+  - [ ] Robot leaderboard tab loads (no crash)
+- **No migration needed** — robots schema exists and is live.
+- **Acceptance:** Complete the verification checklist above. All steps pass on `https://vanta-jade.vercel.app`.
 
 ---
 

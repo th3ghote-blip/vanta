@@ -358,3 +358,8 @@ async function touchRobotLastRun(robotId: string, now: Date) {
     .update({ last_run_at: now.toISOString() })
     .eq('id', robotId);
 }
+
+// ---------------------------------------------------------------------------
+// Test-only exports (mirrors _riskInternals / _ordersTriggerInternals pattern)
+// ---------------------------------------------------------------------------
+export const _robotInternals = { shouldFire, matchesCron, matchField, matchesMarketEvent, processRobot, openRobotTrade, tick };
