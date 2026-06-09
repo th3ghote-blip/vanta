@@ -116,9 +116,18 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
 
   // T.19 — spread-bet mode: separate display string for the $/pip field so
   // cursor position doesn't jump while the user is typing.
-  const spreadBet = usePrefsStore((s) => s.spreadBet);
-  const setSpreadBet = usePrefsStore((s) => s.setSpreadBet);
+  // 19.1 — three-way sizing mode (Lots / $ per pip / $ amount).
+  // `spreadBet` stays derived so the existing T.19 stake-mode code below is
+  // untouched; the new 'notional' mode reuses `naRaw` the same way.
+  const sizingMode = usePrefsStore((s) => s.sizingMode);
+  const setSizingMode = usePrefsStore((s) => s.setSizingMode);
+  const spreadBet = sizingMode === 'stake';
   const [sbRaw, setSbRaw] = useState<string>('');
+  const [naRaw, setNaRaw] = useState<string>('');
+
+  const quote = usePriceStore((s) => s.quotes[symbol]);
+  const account = useAccountStore((s) => s.account);
+  const fetchAccount = useAccountStore((s) => s.fetch);
 
   // 18.1 — order entry simplification.
   // `showDetails`: the position summary collapses to one short sentence
@@ -140,26 +149,44 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
     }
   }, [symbol]);
 
-  // When spread-bet mode is switched on, populate sbRaw from the current lots.
-  // When switched off, volume is already correct — no action needed.
-  const prevSpreadBetRef = useRef(spreadBet);
+  // 19.1 — when the sizing mode changes, seed the raw input for the mode being
+  // entered from the current lots so the displayed size doesn't jump.
+  const prevModeRef = useRef(sizingMode);
   useEffect(() => {
-    if (spreadBet && !prevSpreadBetRef.current) {
+    const prev = prevModeRef.current;
+    if (sizingMode !== prev) {
       const lots = Number(volume);
-      const pv = pipValueFor(Number.isFinite(lots) && lots > 0 ? lots : 0, symbol);
-      setSbRaw(pv > 0 ? pv.toFixed(2) : '');
+      const safeLots = Number.isFinite(lots) && lots > 0 ? lots : 0;
+      if (sizingMode === 'stake') {
+        const pv = pipValueFor(safeLots, symbol);
+        setSbRaw(pv > 0 ? pv.toFixed(2) : '');
+      } else if (sizingMode === 'notional') {
+        const mid = quote ? (quote.bid + quote.ask) / 2 : 0;
+        const na = mid > 0 ? notionalUSD(safeLots, mid, symbol) : 0;
+        setNaRaw(na > 0 ? na.toFixed(2) : '');
+      }
     }
-    prevSpreadBetRef.current = spreadBet;
-  }, [spreadBet]);
+    prevModeRef.current = sizingMode;
+  }, [sizingMode]);
+
+  // 19.1 — in '$ amount' (notional) mode the dollar figure is the user's intent:
+  // keep `volume` (lots) in sync as they type, as the price ticks, and when the
+  // symbol changes. lots = dollars / (price × contractSize(symbol)).
+  useEffect(() => {
+    if (sizingMode !== 'notional') return;
+    const dollars = Number(naRaw);
+    const mid = quote ? (quote.bid + quote.ask) / 2 : 0;
+    if (!Number.isFinite(dollars) || dollars <= 0 || mid <= 0) return;
+    const denom = mid * contractSize(symbol);
+    if (denom <= 0) return;
+    const next = (dollars / denom).toFixed(6);
+    setVolume((prev) => (prev === next ? prev : next));
+  }, [sizingMode, naRaw, symbol, quote]);
 
   const handleVolumeChange = (s: string) => {
     userEditedVolume.current = true;
     setVolume(s);
   };
-
-  const quote = usePriceStore((s) => s.quotes[symbol]);
-  const account = useAccountStore((s) => s.account);
-  const fetchAccount = useAccountStore((s) => s.fetch);
 
   const submit = async (side: 'buy' | 'sell') => {
     setLastError(null);
@@ -358,7 +385,7 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
           sticks across the app (Profile → Display shows the same setting). */}
       <View style={{ gap: spacing.sm }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={{ ...typography.body, fontSize: 11, color: colors.textMuted }}>Volume</Text>
+          <Text style={{ ...typography.body, fontSize: 11, color: colors.textMuted }}>{sizingMode === 'notional' ? '$ amount' : 'Volume'}</Text>
           <View
             style={{
               flexDirection: 'row',
@@ -369,11 +396,12 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
               borderColor: colors.border,
             }}
           >
-            <SizeButton label="Lots" active={!spreadBet} onPress={() => setSpreadBet(false)} />
-            <SizeButton label={`$/${pipLabel(symbol)}`} active={spreadBet} onPress={() => setSpreadBet(true)} />
+            <SizeButton label="Lots" active={sizingMode === 'lots'} onPress={() => setSizingMode('lots')} />
+            <SizeButton label={`$/${pipLabel(symbol)}`} active={sizingMode === 'stake'} onPress={() => setSizingMode('stake')} />
+            <SizeButton label="$ amount" active={sizingMode === 'notional'} onPress={() => setSizingMode('notional')} />
           </View>
         </View>
-        {spreadBet ? (
+        {sizingMode === 'stake' ? (
           <Field
             label=""
             value={sbRaw}
@@ -386,6 +414,22 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
               }
             }}
             placeholder={`e.g. ${pipValueFor(Number(defaultVolumeFor(symbol)), symbol).toFixed(2)} per ${pipLabel(symbol)}`}
+          />
+        ) : sizingMode === 'notional' ? (
+          <Field
+            label=""
+            value={naRaw}
+            onChangeText={(text) => {
+              setNaRaw(text);
+              userEditedVolume.current = true;
+              const dollars = Number(text);
+              const mid = quote ? (quote.bid + quote.ask) / 2 : 0;
+              const denom = mid * contractSize(symbol);
+              if (Number.isFinite(dollars) && dollars > 0 && denom > 0) {
+                setVolume((dollars / denom).toFixed(6));
+              }
+            }}
+            placeholder="e.g. 10000"
           />
         ) : (
           <Field label="" value={volume} onChangeText={handleVolumeChange} placeholder="e.g. 0.01" />
@@ -404,6 +448,14 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
         const notional = notionalUSD(vol, refPrice, symbol);
         const lev = account.leverage || 100;
         const margin = notional / lev;
+        // 19.1 — in '$ amount' mode lead with the quantity being bought, e.g.
+        // "~0.132 BTC · $10,000 notional · $100 margin".
+        const baseUnit = symbol.replace(/USD$/, '') || symbol;
+        const qtyStr = vol < 1 ? vol.toFixed(4) : vol.toFixed(2);
+        const summaryLine =
+          sizingMode === 'notional'
+            ? `~${qtyStr} ${baseUnit} · $${notional.toFixed(2)} notional · $${margin.toFixed(2)} margin`
+            : `$${notional.toFixed(2)} notional · $${margin.toFixed(2)} margin`;
         const fmtPrice = refPrice >= 100
           ? `$${refPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
           : `$${refPrice.toFixed(5)}`;
@@ -431,7 +483,7 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
           >
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text style={{ ...typography.mono, color: colors.textSecondary, fontSize: 12, lineHeight: 16, flex: 1 }}>
-                {`$${notional.toFixed(2)} notional · $${margin.toFixed(2)} margin`}
+                {summaryLine}
                 {risk != null ? <Text style={{ color: colors.loss }}>{`  ·  risking ~$${risk.toFixed(2)}`}</Text> : null}
               </Text>
               <Pressable onPress={() => setShowDetails((v) => !v)} hitSlop={8}>

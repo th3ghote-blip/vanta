@@ -1061,7 +1061,22 @@ vanta-jade.vercel.app
 # Phase 19 — UX improvements (reported 2026-06-08)
 
 ## 19.1 Order entry — Binance-style notional amount mode
-- [ ] **Files:** `components/pro/OrderEntry.tsx`, `stores/prefs.ts`, `lib/contracts.ts`
+- [x] **Files:** `components/pro/OrderEntry.tsx`, `stores/prefs.ts`, `lib/contracts.ts`
+- **Done:** 2026-06-09 (auto). Added a third sizing mode **"$ amount"** alongside Lots and
+  $/pt. `stores/prefs.ts` now holds a three-way `sizingMode: 'lots' | 'stake' | 'notional'`
+  (source of truth) persisted under `vanta:prefs:sizingMode`; the legacy `spreadBet` boolean is
+  kept derived/synced (`spreadBet === sizingMode==='stake'`) and still written to the old key, so
+  Profile → Display and `_layout` hydrate are byte-compatible. `OrderEntry.tsx`: the inline
+  toggle is now **Lots · $/pt · $ amount**; in `$ amount` mode the field label becomes "$ amount"
+  (placeholder "e.g. 10000") and lots are computed live as `dollars / (mid × contractSize(symbol))`
+  — recalculated as you type, as the price ticks, and when the symbol changes. The summary leads
+  with "~0.1333 BTC · $10,000 notional · $100 margin". `volume` (lots) stays the canonical value
+  sent to the server, so submit/validation are unchanged — no backend change. Client + server
+  `tsc --noEmit` both clean; conversion math unit-checked (BTC@75k: $10k→0.1333 lots, round-trips
+  exactly; EURUSD/AAPL/XAU all exact). NOT live-verified — this auto-run had no network
+  (Railway/Vercel unreachable, no vercel CLI). Next networked run should `vercel --prod --yes`
+  and confirm: $ amount → type 10000 → correct lot count; place order opens; switch symbol → lots
+  recompute.
 - **What:** Add a third sizing mode alongside Lots and $/pip: **"$ amount"** — user enters how many USD they want to put in (e.g. $10,000), server converts to lots behind the scenes. This matches Binance's "Buy $10k of BTC" UX.
   - Toggle pill: **Lots · $/pt · $ amount** (three options)
   - In `$ amount` mode, the Volume input label becomes "$ amount", placeholder "e.g. 10000"
@@ -1106,18 +1121,4 @@ vanta-jade.vercel.app
 # Operational notes for the agent
 
 - **Never commit secrets.** All API keys live in `server/.env` (gitignored) and Vercel/Railway env vars.
-- **Database migrations are append-only.** Don't edit existing migration files; create new ones.
-- **Both deploys are atomic.** Vercel old version stays live until new build passes; same for Railway. Safe to deploy frequently.
-- **If a TypeScript error blocks deploy:** check Railway build logs (`railway logs --build`), fix, redeploy. Don't comment out the type — fix it.
-- **CORS must be updated when domain changes** in `server/src/index.ts` `ALLOWED_ORIGINS`.
-- **Supabase RLS protects everything.** Server uses service role key (bypasses RLS) for admin operations. Client uses publishable key + user JWT.
-- **Push to production immediately after each task** — frequent atomic deploys are cheaper than batched ones.
-- **When in doubt, leave a note in `STATE.md`** for the next agent.
-- **If a task changes data shapes:** write the migration first, deploy backend, then frontend.
-- **Workspace state may have hot-reload caches** — restart Expo if web behaves weirdly.
-- **Twelve Data free tier is 800 credits/day, 8/min** — keep `pollYahoo` removed and respect rate limits in any new endpoint that hits it.
-- **Coinbase, Resend, Anthropic, Twelve Data, Supabase keys are all in `server/.env` and Railway env vars.**
-
----
-
-*Maintain ordering within phases (dependencies flow downward). Strike `[x]` completed items in place — don't delete (history is useful).*
+- **D
