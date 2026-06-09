@@ -1034,7 +1034,17 @@ vanta-jade.vercel.app
   what to do.
 
 ## 20.3 Risk disclosure gates trading, not only deposits
-- [ ] **Files:** `app/(tabs)/trade.tsx` or `app/_layout.tsx`, `components/RiskDisclosureModal.tsx`
+- [x] **Files:** `app/(tabs)/trade.tsx`, `components/RiskDisclosureModal.tsx`
+- **Done:** 2026-06-09 (auto). Added a second AsyncStorage key `vanta:risk_ack_trade`,
+  independent from the deposit key. `RiskDisclosureModal` now takes optional `ackKey` (which
+  key to persist) and `intro` props, both defaulting to the existing deposit values — so the
+  deposit gate is byte-for-byte unchanged. The Trade tab (`app/(tabs)/trade.tsx`) checks
+  `hasAcknowledgedTradeRisk()` on mount; if not acknowledged it renders the disclosure as a
+  full-screen gate over the trade UI. Accept → records the trade key and reveals trading;
+  Cancel → `router.replace('/(tabs)/portfolio')` (blocks trading until accepted). Existing
+  users with the key set go straight through. Client `tsc --noEmit` clean. NOT yet deployed /
+  live-verified — this auto-run had no network (Railway/Vercel/Supabase all unreachable); the
+  visual acceptance needs a deploy + browser check on a network-enabled run.
 - **Problem:** Risk disclosure is currently only shown before the first deposit. For compliance
   and product integrity, it should also be required before the user's very first trade (even
   on a demo account).

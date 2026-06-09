@@ -19,6 +19,9 @@ import { AlertTriangle } from 'lucide-react-native';
 import { colors, radius, spacing, typography } from '@/lib/theme';
 
 export const RISK_ACK_KEY = 'vanta:risk_ack';
+// Separate key gating the user's first *trade* (20.3). Kept independent from the
+// deposit key so acknowledging one does not silently satisfy the other.
+export const RISK_ACK_TRADE_KEY = 'vanta:risk_ack_trade';
 
 export async function hasAcknowledgedRisk(): Promise<boolean> {
   try {
@@ -29,8 +32,17 @@ export async function hasAcknowledgedRisk(): Promise<boolean> {
   }
 }
 
-export async function acknowledgeRisk(): Promise<void> {
-  await AsyncStorage.setItem(RISK_ACK_KEY, '1');
+export async function hasAcknowledgedTradeRisk(): Promise<boolean> {
+  try {
+    const val = await AsyncStorage.getItem(RISK_ACK_TRADE_KEY);
+    return val === '1';
+  } catch {
+    return false;
+  }
+}
+
+export async function acknowledgeRisk(key: string = RISK_ACK_KEY): Promise<void> {
+  await AsyncStorage.setItem(key, '1');
 }
 
 const RISK_POINTS = [
@@ -42,13 +54,27 @@ const RISK_POINTS = [
   'Demo accounts use virtual funds only. Switching to a live account involves real financial risk.',
 ];
 
+const DEFAULT_INTRO =
+  'Before making a deposit, please read and acknowledge the following risks associated with ' +
+  'trading leveraged financial instruments on the Vanta platform.';
+
 interface Props {
   visible: boolean;
   onAccept: () => void;
   onDecline: () => void;
+  /** Which AsyncStorage key to persist acknowledgement to. Defaults to the deposit key. */
+  ackKey?: string;
+  /** Intro paragraph shown above the risk points. Defaults to the deposit wording. */
+  intro?: string;
 }
 
-export function RiskDisclosureModal({ visible, onAccept, onDecline }: Props) {
+export function RiskDisclosureModal({
+  visible,
+  onAccept,
+  onDecline,
+  ackKey = RISK_ACK_KEY,
+  intro = DEFAULT_INTRO,
+}: Props) {
   const [saving, setSaving] = useState(false);
   const [scrolledToBottom, setScrolledToBottom] = useState(false);
 
@@ -69,7 +95,7 @@ export function RiskDisclosureModal({ visible, onAccept, onDecline }: Props) {
   async function handleAccept() {
     setSaving(true);
     try {
-      await acknowledgeRisk();
+      await acknowledgeRisk(ackKey);
     } catch {
       // best-effort
     }
@@ -140,8 +166,7 @@ export function RiskDisclosureModal({ visible, onAccept, onDecline }: Props) {
                 marginBottom: spacing.md,
               }}
             >
-              Before making a deposit, please read and acknowledge the following risks associated with
-              trading leveraged financial instruments on the Vanta platform.
+              {intro}
             </Text>
 
             {RISK_POINTS.map((point, i) => (

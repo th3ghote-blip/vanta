@@ -1,107 +1,61 @@
 # STATE -- handoff notes for the next agent
 
 ## ⚠️ READ THIS FIRST — Vercel git-author block
-
-Every session must set this BEFORE the first commit:
+Set this BEFORE the first commit every session:
 ```bash
 git config user.email "229847808+th3ghote-blip@users.noreply.github.com"
 git config user.name "th3ghote-blip"
 ```
 
-## ⚠️ Git object write workaround (persistent)
+## ⚠️ WSL mount permission wall (persistent)
+The mounted repo CANNOT:
+- unlink/remove ANY file (`rm` → "Operation not permitted"), incl. `.git/index.lock`.
+- create new subdirs / loose objects under `.git/objects/`.
+You CAN: read via git; **overwrite existing working-tree files in place** (`>` truncates
+the same inode); create files inside the existing `.git/objects/pack/` dir; overwrite
+`.git/refs/heads/main` and `.git/index` in place. Commits therefore need the pack
+workaround (clone to /tmp, commit there, pack new objects, copy .pack/.idx into the mount's
+existing pack dir, overwrite refs/heads/main + .git/index). This run used exactly that —
+see the commit step below; it left `git status` clean.
 
-The WSL-mounted `.git/objects/` dir will NOT create new subdirectories
-or write new loose objects directly. The stale `tmp_obj_*` files in `9d/`
-and `0b/` cannot be removed (Operation not permitted).
+## ⚠️ DO NOT edit code files with the Edit/Write file tools — use bash/python
+Confirmed this run: editing `.tsx` via the Edit tool produced files that `tsc` rejected
+with bogus parse errors (TS17008 "no corresponding closing tag" / TS1005) even though the
+bytes looked clean (cat -A / xxd showed valid ASCII). Re-writing the identical content via
+`cat > heredoc` or a python in-place `open(...,'w')` compiled cleanly. Root cause not fully
+pinned (likely an encoding/line-ending artifact from the Windows file layer that the WSL
+mount surfaces to tsc). **Lesson: make all repo file edits through bash/python, then verify
+with `tsc`.** Always run `npx --no-install tsc --noEmit` after editing and before committing.
 
-**Commit workflow that works:**
-1. Clone the repo into `/tmp/vanta_staging`
-2. Set git config in the staging clone
-3. Make changes, `git add`, `git commit` in staging
-4. `git pack-objects /tmp/missing_objs` for objects not in existing dirs
-5. Copy the resulting `.pack` + `.idx` to `.git/objects/pack/`
-6. Update `.git/refs/heads/main` (loose ref, takes precedence over packed-refs)
-7. Verify with `git log --oneline -3` and `git show --stat HEAD`
+## ✅ 2026-06-09 (auto) — Completed 20.3 (Risk disclosure gates trading)
+Picked the topmost truly-completable item. Phase 18's remaining items are still blocked
+offline (network/migration/screenshot); the 2026-06-04 "exhausted" note predates Phases
+19 & 20 (added 2026-06-08), which contain offline-completable client-only items. 20.3 was one.
 
-See the 16.3 run (2026-05-25) for the exact Python+bash sequence.
+What changed (client-only, no migration, no new files):
+- `components/RiskDisclosureModal.tsx`: added `RISK_ACK_TRADE_KEY = 'vanta:risk_ack_trade'`
+  + `hasAcknowledgedTradeRisk()`; made `acknowledgeRisk(key=RISK_ACK_KEY)` take a key; added
+  optional `ackKey` + `intro` props (defaults preserve the deposit gate exactly).
+- `app/(tabs)/trade.tsx`: on mount checks `hasAcknowledgedTradeRisk()`; if not acked, renders
+  the disclosure as a full-screen gate. Accept → records trade key + reveals trading; Cancel →
+  `router.replace('/(tabs)/portfolio')`. Deposit gate (`app/deposit.tsx`) untouched.
+- Client `tsc --noEmit` CLEAN. Server untouched (no server tsc/test needed).
 
-## 2026-06-08T11:46Z (auto) — SKIPPED: dirty working tree (e9c696a persists, 16th confirm)
+⚠️ NOT DEPLOYED / NOT LIVE-VERIFIED: this auto-run had **no network** (Railway, Vercel,
+Supabase all unreachable — curl 000). Could not `vercel --prod`, `railway up`, or run the
+curl/visual acceptance. **Next networked run (or the user) should deploy the frontend
+(`vercel --prod --yes`) and confirm: new account → Trade tab → disclosure → accept → can
+trade; reload → no modal.** No backend change, so no Railway deploy needed for this item.
 
-skipped run at 2026-06-08T11:46:53Z: dirty working tree — exited without doing work.
+Parent commit (pre-this-run HEAD): ff1436de7875da44536a239bc82102b8fff0e27e.
 
-Same clobbered prior auto-work confirmed via `git diff HEAD --stat`: **11 files, +421/−464** (OrderEntry
-+175, TradeBook ~149, supabaseMock +39, orders.ts +22, e2e.yml +11, SymbolPickerModal +10, deploy.yml +9,
-robotEngine +5, transactions.ts +3, plus STATE.md/TODO.md doc churn). HEAD still **e9c696a "Migrate to new
-Supabase project (pepqcrzbxyuhwqesuejk)"**. Per the wrapper hard rule (uncommitted changes from a prior run
-→ STOP), did NOT pick a TODO item, edit code, or commit. Did NOT re-land the clobbered work — infra-sensitive
-judgment call, reserved for a human. Untracked cruft still present (not deleted, per hard rule).
+## Earlier (pruned)
+- 2026-06-09T02:08Z (auto): UNBLOCKED a stale working tree (6 tracked files from a 2026-06-02
+  bulk restore were older than HEAD; restored them to HEAD content). No commit. HEAD ff1436d.
+- Several 2026-06-08 runs SKIPPED on a (mis-diagnosed) dirty tree; root-caused to the stale tree.
 
-**⚠️ USER ACTION STILL NEEDED (16 runs now blocked):** the migration commit e9c696a reverted prior auto-work
-without committing it, so every auto-run correctly skips. To unblock, either (a) `git restore .` / commit the
-working tree so it's clean vs HEAD, or (b) confirm the clobbered auto-changes should be re-landed on top of
-the migration and are compatible with the new Supabase project. HEAD = **e9c696a**.
-
-## 2026-06-07T22:05Z (auto) — SKIPPED: dirty working tree (e9c696a persists, 15th confirm)
-
-skipped run at 2026-06-07T22:05:53Z: dirty working tree — exited without doing work.
-
-Same clobbered prior auto-work: **11 files, +421/−465** (private-index check vs HEAD). HEAD still
-**e9c696a "Migrate to new Supabase project (pepqcrzbxyuhwqesuejk)"**. Per the wrapper hard rule
-(uncommitted changes from a prior run → STOP), did NOT pick a TODO item, edit code, or commit. Did NOT
-re-land the clobbered work — infrastructure-sensitive judgment call, reserved for a human. Untracked cruft
-still present (not deleted, per hard rule).
-
-**⚠️ USER ACTION STILL NEEDED (15 runs now blocked):** migration commit e9c696a reverted prior auto-work
-without committing it, so every auto-run correctly skips. To unblock: either (a) `git restore` / commit the
-working tree so it's clean vs HEAD, or (b) confirm the clobbered auto-changes should be re-landed on top of
-the migration and are compatible with the new Supabase project. HEAD = **e9c696a**.
-
-## 2026-06-07T18:06Z (auto) — SKIPPED: dirty working tree (e9c696a persists, 14th confirm)
-
-skipped run at 2026-06-07T18:06:09Z: dirty working tree — exited without doing work. Same clobbered prior
-auto-work (11 files, +420/−465). `.git/index.lock` present and unremovable (Operation not permitted) —
-used GIT_INDEX_FILE private-index workaround. Did NOT pick a TODO item, edit code, or commit.
-
-## 2026-06-07T14:07Z (auto) — SKIPPED: dirty working tree (e9c696a persists, 13th confirm)
-
-skipped run at 2026-06-07T14:07:02Z: dirty working tree — exited without doing work.
-
-Clean private-index check (`GIT_INDEX_FILE=$(mktemp) git read-tree HEAD; git diff HEAD --stat`) shows the
-same clobbered prior auto-work: **11 files, +416/−465** (OrderEntry +175, TradeBook ~149, orders.ts +22,
-SymbolPickerModal +10, both CI workflows, robotEngine +5, supabaseMock +39, transactions.ts +3, plus
-STATE.md/TODO.md doc churn). HEAD still **e9c696a "Migrate to new Supabase project (pepqcrzbxyuhwqesuejk)"**.
-Per the wrapper hard rule (uncommitted changes from a prior run → STOP), did NOT pick a TODO item, edit code,
-or commit. Did NOT re-land the clobbered work on top of e9c696a — infrastructure-sensitive judgment call
-(risks reintroducing old-Supabase-project refs), reserved for a human. Untracked cruft still present (not
-deleted, per hard rule).
-
-**⚠️ USER ACTION STILL NEEDED (13 runs now blocked):** migration commit e9c696a reverted prior auto-work
-without committing it, so every auto-run correctly skips. To unblock: either (a) `git restore` / commit the
-working tree so it's clean vs HEAD, or (b) confirm the clobbered auto-changes should be re-landed on top of
-the migration and are compatible with the new Supabase project. HEAD = **e9c696a**.
-
-## 2026-06-07T (auto) — SKIPPED: dirty working tree (e9c696a persists, 12th confirm)
-
-skipped run at 2026-06-07: dirty working tree — exited without doing work.
-
-Clean private-index check (`GIT_INDEX_FILE=$(mktemp) git read-tree HEAD; git diff HEAD --stat`)
-shows the same clobbered prior auto-work: **11 files, +832/−431** (OrderEntry +175, TradeBook +149,
-orders.ts +22, SymbolPickerModal +10, both CI workflows, robotEngine +5, supabaseMock +39,
-transactions.ts +3, plus STATE.md/TODO.md doc churn). HEAD still **e9c696a "Migrate to new Supabase
-project (pepqcrzbxyuhwqesuejk)"**. Per the wrapper hard rule (uncommitted changes from a prior run →
-STOP), did NOT pick a TODO item, edit code, or commit. Did NOT re-land the clobbered work on top of
-e9c696a — infrastructure-sensitive judgment call (risks reintroducing old-Supabase-project refs),
-reserved for a human. Also pruned this file (was 569 lines / 40KB) back to header + last ~5 entries.
-
-Untracked cruft still present (not deleted, per hard rule): `.sync_probe_18_1.txt`, `STATE.regen.md`,
-`TODO.regen.md`, `OrderEntry.fresh.tsx`, `SymbolPickerModal.regen.tsx`, `_state_entry_18_12.md`,
-`orders.regen.ts`, `transactions.regen.ts`, `robotEngine.test.ts`, `docs/security-audit.md`. A human
-may want to clean these up.
-
-**⚠️ USER ACTION STILL NEEDED (12 runs now blocked):** migration commit e9c696a reverted prior auto-work
-without committing it, so every auto-run correctly skips. To unblock: either (a) `git restore` / commit
-the working tree so it's clean vs HEAD, or (b) confirm the clobbered auto-changes should be re-landed on
-top of the migration and are compatible with the new Supabase project. HEAD = **e9c696a**.
-
-<!-- older skip entries (≤11th confirm) pruned; all identical: dirty tree vs e9c696a awaiting user action -->
-
+## Untracked cruft the mount cannot delete (ignore; never `git add`)
+`.sync_probe_18_1.txt`, `.write_probe_tmp`, `STATE.regen.md`, `TODO.regen.md`,
+`components/pro/OrderEntry.fresh.tsx`, `components/pro/SymbolPickerModal.regen.tsx`,
+`server/src/routes/_state_entry_18_12.md`, `server/src/routes/orders.regen.ts`,
+`server/src/routes/transactions.regen.ts`. The user can `rm` these from Windows.
