@@ -28,36 +28,30 @@ though the bytes looked clean. Make all repo code edits through bash/python here
 `open(...,'w')`, then verify with `npx --no-install tsc --noEmit` before committing. (.md files are
 fine via Edit/Write — no compile step.)
 
-## ✅ 2026-06-09 (auto) — Completed 19.1 ($ amount / notional sizing mode)
-Phase 18 offline items remain exhausted/blocked; 20.x done or PARKED; 19.1 was the topmost
-unchecked, fully offline-completable (client-only, no migration, "no backend change needed").
+## ⏭️ 2026-06-09 (auto) — No-op run: all remaining items blocked under this env
+Picked nothing. Verified every unchecked, non-PARKED item is un-completable AND un-verifiable in
+this run's environment, so per the hard rules I did NOT fabricate work or ship a blind refactor.
+No code changed; only this STATE.md entry.
 
-What changed (client-only):
-- `stores/prefs.ts`: added three-way `sizingMode: 'lots' | 'stake' | 'notional'` (source of
-  truth, persisted to `vanta:prefs:sizingMode`) + `setSizingMode`. `spreadBet` is now a derived,
-  synced convenience (`=== sizingMode==='stake'`); legacy `vanta:prefs:spreadBet` key still
-  written and read as fallback in `hydrate`. Profile toggle + `_layout` hydrate unchanged.
-- `components/pro/OrderEntry.tsx`: toggle is now **Lots · $/pt · $ amount**. `$ amount` mode:
-  label → "$ amount", placeholder "e.g. 10000", lots computed live as
-  `dollars / (mid × contractSize(symbol))` on keystroke / price tick / symbol change; summary
-  leads with "~<qty> <BASE> · $<notional> · $<margin>". `volume` (lots) stays canonical → submit
-  path untouched. `lib/contracts.ts` unchanged (reused `notionalUSD`/`contractSize`).
-- Client AND server `tsc --noEmit` CLEAN. Conversion math unit-checked offline (BTC@75k:
-  $10k→0.1333 lots; EURUSD/AAPL/XAU round-trip exactly).
+ENV FINDING (more precise than past "no network" notes): this run DID have general internet
+(github.com → 200, api.anthropic.com → 404=reachable) BUT all three VANTA domains return 000 on
+repeated tries — `vanta-server-production.up.railway.app`, `vanta-jade.vercel.app`,
+`auavcfwytrwurawcvrsc.supabase.co` (REST too). Likely an egress allowlist, not infra downtime.
+Also: neither `railway` nor `vercel` CLI is installed (only python3). Net effect = cannot deploy,
+cannot apply migrations, cannot live/visually verify. `SUPABASE_PAT` IS present in server/.env.
 
-⚠️ NOT DEPLOYED / NOT LIVE-VERIFIED: no network this run (Railway/Vercel/Supabase curl 000; no
-vercel/railway CLI installed). Next networked run (or user): `vercel --prod --yes`, then confirm
-in browser — switch to "$ amount", type 10000 on BTC → ~0.1333 lot count; place order opens;
-switch symbol → lots recompute. No backend change → no Railway deploy needed.
+REMAINING ITEMS — why each is blocked here (re-confirmed):
+- R.7 Better-Stack → external signup (user). 18.2 chart-drawing → migration + interactive/visual
+  + multi-hour. 18.3 light/dark → confirmed 58/60 files import static dark `colors`, only 1 uses
+  `useThemeColors()`; full hook refactor is multi-hour and acceptance is visual-only (unsafe to
+  ship blind — tsc can't catch a missed token). 18.6 share-trades → migration (Supabase
+  unreachable). 18.7 AI assistant → Railway backend unreachable + multi-page UI + live verify.
+  18.8 manager panel → oversized, must be split first. 18.10 risk-accept → migration + visual.
+  18.11 share-to-X → new dependency + user decision + X-web platform limit. 19.2 robots E2E →
+  pure live verification vs unreachable Vercel/Railway. 20.2 PARKED. Phase 17 optional/future.
 
-Parent commit (pre-this-run HEAD): db811b279dc59de324d9ba9e86b681f697c808b2.
-
-## Earlier (pruned)
-- 2026-06-09 (auto): Completed 20.3 (risk disclosure gates trading) client-only; committed
-  db811b2; NOT deployed (no network that run).
-- 2026-06-08: 20.1 (risk disclosure web scroll-lock) committed ff1436d.
-
-## Untracked cruft the mount cannot delete (ignore; never `git add`)
-`.sync_probe_18_1.txt`, `.write_probe_tmp`, `STATE.regen.md`, `TODO.regen.md`,
-`components/pro/OrderEntry.fresh.tsx`, `components/pro/SymbolPickerModal.regen.tsx`,
-`server/src/routes/
+TO UNBLOCK (pick any, for the user or a future run): (1) grant the sandbox egress to the
+railway/vercel/supabase domains + install the deploy CLIs → unblocks 19.2 verify, 18.7, and the
+deploy of already-committed-but-undeployed work (19.1, 20.3); (2) run on a screenshot-capable
+host → unblocks 18.3 / 18.2 visual acceptance; (3) pre-apply the 18.6 / 18.10 migrations via
+`scripts/apply-migration.py` (PAT is in server/.env); (4) split 18.8 into per-page sub-items;
