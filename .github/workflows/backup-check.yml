@@ -1,19 +1,23 @@
-name: DB Backup Check
+name: DB Backup Export
+
+# Free-tier replacement for the Supabase backups API check (which returns 403:
+# the backups endpoint needs a Pro plan + an org-scoped PAT we don't have).
+# Instead we take our own backup: export every public table to gzipped JSON
+# via the service-role REST API and keep it as a workflow artifact (90 days).
 
 on:
   schedule:
-    # Run daily at 06:15 UTC (after Supabase's nightly backup window ends)
+    # Daily at 06:15 UTC
     - cron: '15 6 * * *'
   workflow_dispatch:
-    inputs:
-      max_age_hours:
-        description: 'Alert if latest backup is older than N hours'
-        required: false
-        default: '30'
+
+# Opt in to Node.js 24 for GitHub Actions runners (forced on 2026-06-16)
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
-  verify-backup:
-    name: Verify latest Supabase backup
+  export-backup:
+    name: Export all tables to artifact
     runs-on: ubuntu-latest
 
     steps:
@@ -23,9 +27,17 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Check backup freshness
-        run: python scripts/verify-backup.py
+      - name: Export tables
+        run: python scripts/export-backup.py
         env:
-          SUPABASE_PAT: ${{ secrets.SUPABASE_PAT }}
-          SUPABASE_PROJECT_REF: pepqcrzbxyuhwqesuejk
-          MAX_AGE_HOURS: ${{ github.event.inputs.max_age_hours || '30' }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OUT_DIR: backup-out
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ github.run_id }}
+          path: backup-out/
+          retention-days: 90
+          if-no-files-found: error

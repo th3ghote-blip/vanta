@@ -588,6 +588,9 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
         <Text style={{ ...typography.body, color: colors.loss, fontSize: 12 }}>{lastError}</Text>
       )}
 
+      {/* Buy/Sell stay disabled until the account store has loaded — clicking
+          before that point used to set a sticky "No account found" error
+          (race on slow connections; also broke the E2E smoke test). */}
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>
         <ActionButton
           testID="sell-button"
@@ -598,6 +601,7 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
           }
           color={colors.loss}
           busy={busy === 'sell'}
+          disabled={!account}
           onPress={() => submit('sell')}
         />
         <ActionButton
@@ -609,6 +613,7 @@ export function OrderEntry({ symbol, onFirstTrade }: Props) {
           }
           color={colors.profit}
           busy={busy === 'buy'}
+          disabled={!account}
           onPress={() => submit('buy')}
         />
       </View>
@@ -731,12 +736,14 @@ function ActionButton({
   label,
   color,
   busy,
+  disabled,
   onPress,
   testID,
 }: {
   label: string;
   color: string;
   busy: boolean;
+  disabled?: boolean;
   onPress: () => void;
   testID?: string;
 }) {
@@ -744,14 +751,14 @@ function ActionButton({
     <Pressable
       testID={testID}
       onPress={onPress}
-      disabled={busy}
+      disabled={busy || disabled}
       style={{
         flex: 1,
         backgroundColor: color,
         paddingVertical: spacing.md,
         borderRadius: radius.md,
         alignItems: 'center',
-        opacity: busy ? 0.6 : 1,
+        opacity: busy || disabled ? 0.6 : 1,
       }}
     >
       {busy ? (

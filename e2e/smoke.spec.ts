@@ -71,7 +71,25 @@ test.describe('VANTA smoke', () => {
       // no banner — continue
     }
 
-    // ── 7. Wait for a live BTC buy-price to appear in the OrderEntry ──────────
+    // ── 6b. Accept the risk disclosure gate (20.3) ───────────────────────────
+    // New accounts must acknowledge the risk disclosure before the trade UI
+    // renders. On desktop the content fits without scrolling, so the accept
+    // button unlocks immediately (20.1 fix).
+    try {
+      const acceptBtn = page.getByText('I Understand & Accept', { exact: false });
+      if (await acceptBtn.isVisible({ timeout: 5_000 })) {
+        await acceptBtn.click();
+      }
+    } catch {
+      // gate not shown (already acknowledged) — continue
+    }
+
+    // ── 7. Wait for the account to load (header shows balance), then for a
+    //       live BTC buy-price in the OrderEntry. Clicking Buy before the
+    //       account store resolves silently fails with "No account found".
+    await expect(page.getByText('Bal $', { exact: false }).first()).toBeVisible({
+      timeout: 30_000,
+    });
     const buyBtn = page.locator('[data-testid="buy-button"]');
     await expect(buyBtn).toBeVisible({ timeout: 30_000 });
 
