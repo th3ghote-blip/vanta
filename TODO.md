@@ -816,7 +816,7 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 
 ## 18.10 Risk disclosure — fix accept flow
 - [ ] **Files:** `app/legal/` (risk disclosure page), `app/(auth)/` or onboarding flow
-> BLOCKED for offline auto-runs (verified 2026-06-04): needs a new migration adding `profiles.risk_accepted_at` applied to the live DB (no network/PAT in the sandbox), plus an onboarding trading-gate and a scroll-lock/Accept-button fix whose acceptance is purely visual. Migration-gated + visual. Resume on a network-enabled, screenshot-capable run.
+> UNBLOCKED 2026-06-10: migration `028_risk_accepted_at.sql` is APPLIED to the live DB (`profiles.risk_accepted_at timestamptz` verified). Scroll-lock fixed in 20.1; trading gate shipped in 20.3 (AsyncStorage). REMAINING: persist acceptance server-side — on accept, also PATCH the profile's `risk_accepted_at = now()` (new or existing profile route), and on app start treat a non-null `risk_accepted_at` as accepted (sync to AsyncStorage) so acceptance survives device changes. Pure code; no migration, no visual redesign.
 - **Problem:** The risk disclosure modal/page cannot be read and accepted — user gets stuck. Likely a scroll lock, missing Accept button, or the button fires but doesn't record acceptance.
 - **What:**
   - Risk disclosure must be fully scrollable
@@ -960,8 +960,8 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** User can ask "how do I place a stop loss?" and get a correct, step-by-step answer. User can ask "what are my open trades?" and get their actual positions listed.
 
 ## 18.6 "Share my trades" toggle — default ON
-- [ ] **Files:** `server/supabase/migrations/` (new migration), `app/(tabs)/profile.tsx`, `server/src/routes/`
-> PARTIALLY BLOCKED for offline auto-runs (verified 2026-06-04): needs a new migration (`profiles.share_trades boolean default true`) applied to the live DB before the backend gate can read the column, and "default ON for new accounts" / the Profile toggle persisting are only verifiable against the live DB + a screenshot. The server-side 403 gate ("don't return another user's trades when share_trades=false") is the one piece that's offline-unit-testable with the existing jest + supabaseMock harness. Net: migration-gated. Resume on a network-enabled run (apply the migration via `scripts/apply-migration.py` with `SUPABASE_PAT`), or have the user apply the migration first.
+- [ ] **Files:** `app/(tabs)/profile.tsx`, `server/src/routes/`
+> UNBLOCKED 2026-06-10: migration `027_share_trades.sql` is APPLIED to the live DB (`profiles.share_trades boolean not null default true` verified). REMAINING: (1) backend — any route returning another user's trades checks `share_trades=true`, else 403 (unit-testable with supabaseMock); (2) Profile → Privacy section with the toggle, persisted to `profiles`. Pure code; no migration needed.
 - **What:** Add `profiles.share_trades boolean default true`. New users get sharing on automatically. Profile → Privacy → "Share my trades" toggle (default ON). When on, the user's closed trade history is visible to other logged-in users (for copy trading discovery and leaderboards). When off, trades are private.
   - Migration: `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS share_trades boolean NOT NULL DEFAULT true`
   - Profile screen: show toggle under a "Privacy" section, default ON, persists to `profiles`
