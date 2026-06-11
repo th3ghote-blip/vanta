@@ -1131,7 +1131,8 @@ by `user_id`, see the `attachAccounts` helper added in the 0d4d991 fix).
 - **Acceptance:** `docs/admin-audit.md` lists every admin route with a live 200 result; no `query_failed` anywhere in the admin UI.
 
 ## 21.2 Database cleanup — purge test accounts
-- [ ] **Files:** `scripts/cleanup-test-accounts.py` (new)
+- [x] **Done 2026-06-11:** ran `scripts/cleanup-test-accounts.py --confirm` — deleted all 37 test accounts (synthetic `@vanta.account` / `@vanta.test` / `@example.com`), kept only `80000035`/th3ghote@gmail.com. One (80000030) had `robot_runs`→`trades` FK rows blocking cascade; cleared its robot_runs+robots first, then deleted. Verified: accounts=[80000035], profiles=1, owner login 200. NOTE: `robot_runs.trade_id` lacks `ON DELETE CASCADE` — a future migration should add it so account deletion cascades cleanly.
+- **Files:** `scripts/cleanup-test-accounts.py`
 - **Context:** 35 accounts exist (80000001–80000035); almost all are test/E2E junk with synthetic `{login}@vanta.account` or `@vanta.test`/`@example.com` emails and untouched $10,000 balances. Only **80000035 / th3ghote@gmail.com** (the owner, is_admin) is real.
 - **What:** Script that lists every auth user + account, classifies real vs test (real = email not matching `@vanta.account|@vanta.test|@example.com` AND/OR an explicit keep-list `[80000035]`), prints the plan, and on `--confirm` deletes the test auth users (cascade removes their accounts/profiles/trades/robots). Default = dry-run.
 - **⚠️ Destructive — requires explicit user confirmation before running with `--confirm`.** Keep-list is mandatory; never delete 80000035.
