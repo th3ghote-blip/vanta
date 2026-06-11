@@ -1090,10 +1090,9 @@ vanta-jade.vercel.app
 - [x] **Files:** `components/robots/RobotCard.tsx`
 - **Done 2026-06-11:** the Play/Pause button on each robot card had no `onPress` — purely decorative. Wired it to `api.updateRobotStatus(id, active|paused)` + `useRobotsStore.update`, with a spinner while in flight and colour-coded states (green Play to activate, amber Pause to stop). Verified live in browser preview: clicked Play → `PATCH /api/robots/:id/status → 200` → badge flipped PAUSED→ACTIVE → button became Pause. This is the on/off switch the engine reads (`status='active'`).
 
-## ⚠️ 19.4 Anthropic account out of credits — blocks "Generate Robot" (USER ACTION)
-- [ ] **Not a code bug.** `POST /api/robots/compile` returns 500 `ai_error`. Railway logs show the real cause: Anthropic API 400 *"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits."* (org `c2e15491-7d6c-45d3-bce0-9877c047c5a0`).
-- **Fix:** add credits at https://console.anthropic.com/settings/billing for the account whose key is on Railway. Compile (Sonnet, ~$0.01/call) works the instant credits are added — no redeploy needed. The robot ENGINE (opening trades on a saved robot) does NOT use Anthropic and is unaffected; only the natural-language "Generate Robot" compile step needs credits.
-- **Optional UX:** map this specific error to a clearer message than "AI service is unavailable" in `RobotPromptBuilder.tsx` (low priority).
+## 19.4 Anthropic account out of credits — blocked "Generate Robot"
+- [x] **RESOLVED 2026-06-11.** `POST /api/robots/compile` was 500 `ai_error` because Anthropic org `c2e15491-7d6c-45d3-bce0-9877c047c5a0` (the account whose key is on Railway) had $0 balance. User purchased credits on that org → compile verified `200 OK` against production (returns valid config). Robot system now fully functional end-to-end. No code change.
+- **Optional UX (low priority):** map a credit/billing 400 to a clearer message than "AI service is unavailable" in `RobotPromptBuilder.tsx`.
 
 ## 19.2 AI robots — ensure full flow works end-to-end
 - [x] **Files:** `server/src/routes/robots.ts`, Railway env vars
