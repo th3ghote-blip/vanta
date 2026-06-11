@@ -28,6 +28,47 @@ though the bytes looked clean. Make all repo code edits through bash/python here
 `open(...,'w')`, then verify with `npx --no-install tsc --noEmit` before committing. (.md files are
 fine via Edit/Write — no compile step.)
 
+## 🛑 2026-06-11 14:28 UTC (auto) — SKIPPED: dirty working tree (USER MID-EDIT on 18.11)
+Skipped run, no TODO work, touched nothing but this note. Working tree is dirty with in-flight
+work on **item 18.11 (share winning trade → X)** that I did NOT create and that an auto-run is
+not allowed to create: `package.json`/`package-lock.json` add `expo-sharing` + `react-native-view-shot`
+(the exact two deps 18.11 needs — and auto-runs are forbidden to `npm install` packages not listed
+in a TODO item), plus new files `lib/shareCard.ts` (the file 18.11 names) and
+`components/pro/TradeShareCard.tsx`, plus `components/pro/TradeBook.tsx` modified (+68/−2). Files
+dated Jun 10 14:26–14:29, i.e. AFTER the prior run's 14:07 skip — and no auto-run logged starting
+18.11. Conclusion: the user is building 18.11 by hand (they added the deps the agent can't). Per
+the "dirty tree you didn't create = STOP, user is mid-edit" rule I did not pick or run any item.
+Next run: if these changes are committed or reverted by the user, the tree will be clean and work
+can resume — the topmost actionable items are 18.10 (server-side risk_accepted_at persist) and
+18.6 (share_trades 403 + Profile toggle), both pure code, both UNBLOCKED per their TODO notes.
+STATE.md is also dirty (the carried 14:07 handoff entry, uncommitted) — that's the usual handoff
+dirty, not user code.
+
+## 🛑 2026-06-10 14:07 UTC (auto) — SKIPPED: dirty tree w/ CORRUPTED source files (not user mid-edit)
+Skipped run: working tree dirty in a way I did not create. `git status` shows 5 modified files.
+STATE.md + TODO.md are the expected agent-handoff dirties. But THREE tracked **source files are
+corrupted** — each truncated mid-token with "No newline at end of file" (one even has a stray
+binary byte). Did NOT do any TODO work and did NOT touch the corrupted files (autonomous run,
+ambiguous cause). Env note: this run `git status` says "up to date with origin/main" (clean base),
+contradicting prior runs' "ahead by 4 commits" — looks like the mount was re-synced/reset.
+
+Corrupted files (working tree vs committed = good):
+- `components/pro/OrderEntry.tsx`  — truncated at `ActionButton`, ends `...backgroundColor: color,\n  pa`
+- `.github/workflows/backup-check.yml` — truncated after `- name: Export tables` / `run:`
+- `e2e/smoke.spec.ts` — truncated at `await closeBt`, with a stray binary byte before the cut
+
+These would also fail the mandatory `tsc` precheck, so no item is completable until fixed.
+
+➡️ REMEDIATION (user or next run, after confirming none of these are intentional edits): the
+committed versions are intact, so restore them with:
+```bash
+cd /c/Claude/vanta
+git restore components/pro/OrderEntry.tsx .github/workflows/backup-check.yml e2e/smoke.spec.ts
+git status   # should then show only STATE.md + TODO.md dirty (the handoff files)
+```
+After that the next auto-run can proceed normally. I left this for a human because silently
+discarding working-tree changes on an autonomous pass violates the "dirty tree = stop" rule.
+
 ## ⏭️ 2026-06-10 12:36 UTC (auto) — No-op run #2: env re-verified fresh, still fully blocked
 Did NOT trust prior notes — re-probed everything myself this run AND re-read every unchecked item
 in TODO.md directly. Findings identical: all three VANTA domains `000`

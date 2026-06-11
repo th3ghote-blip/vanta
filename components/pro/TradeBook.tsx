@@ -1,14 +1,16 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { View, Text, Pressable, ScrollView, ActivityIndicator, TextInput } from 'react-native';
-import { X, ArrowUpRight, ArrowDownRight, Pencil, Check, Scissors, NotebookPen } from 'lucide-react-native';
+import { X, ArrowUpRight, ArrowDownRight, Pencil, Check, Scissors, NotebookPen, Share2 } from 'lucide-react-native';
 
 import { colors, radius, spacing, typography } from '@/lib/theme';
 import { TradeBookSkeleton } from '@/components/shared/SkeletonShimmer';
+import { TradeShareCard } from '@/components/pro/TradeShareCard';
 import { supabase } from '@/lib/supabase';
 import { useAccountStore } from '@/stores/account';
 import { usePriceStore } from '@/stores/prices';
 import { api, saveTradeNote } from '@/lib/api';
 import { calculatePnL } from '@/lib/contracts';
+import { shareTradeCard } from '@/lib/shareCard';
 
 interface Trade {
   id: number;
@@ -63,6 +65,27 @@ export function TradeBook({ onWinClose }: { onWinClose?: (profit: number) => voi
   const [noteId, setNoteId] = useState<number | null>(null);
   const [noteText, setNoteText] = useState('');
   const [noteSaving, setNoteSaving] = useState(false);
+
+  // 18.11 — share-to-X state. While `shareTrade` is set, the TradeShareCard
+  // mounts off-screen; after a paint tick it's captured to PNG and shared.
+  const [shareTrade, setShareTrade] = useState<Trade | null>(null);
+  const shareCardRef = useRef<View>(null);
+
+  useEffect(() => {
+    if (!shareTrade) return;
+    // Give the off-screen card one frame to lay out + paint before capture.
+    const t = setTimeout(async () => {
+      try {
+        await shareTradeCard(shareCardRef, shareTrade);
+      } catch (err) {
+        // user dismissed the sheet, or capture failed (logged for debugging)
+        console.warn('shareTradeCard failed:', err);
+      } finally {
+        setShareTrade(null);
+      }
+    }, 120);
+    return () => clearTimeout(t);
+  }, [shareTrade]);
 
   const refresh = useCallback(async () => {
     if (!account) {
@@ -372,9 +395,20 @@ export function TradeBook({ onWinClose }: { onWinClose?: (profit: number) => voi
                 onSaveNote={() => saveNote(t.id)}
                 onCancelNote={cancelNote}
                 noteSaving={noteSaving && noteId === t.id}
+                onShare={
+                  t.status === 'closed' && t.profit > 0 ? () => setShareTrade(t) : undefined
+                }
+                sharing={shareTrade?.id === t.id}
               />
             ))}
           </ScrollView>
+        </View>
+      )}
+
+      {/* 18.11 — off-screen share card, mounted only while a share is in flight */}
+      {shareTrade && (
+        <View style={{ position: 'absolute', left: -9999, top: 0 }}>
+          <TradeShareCard ref={shareCardRef} trade={shareTrade} />
         </View>
       )}
     </View>
@@ -412,6 +446,8 @@ function TradeRow({
   onSaveNote,
   onCancelNote,
   noteSaving,
+  onShare,
+  sharing,
 }: {
   trade: Trade;
   quote?: { bid: number; ask: number };
@@ -443,6 +479,9 @@ function TradeRow({
   onSaveNote: () => void;
   onCancelNote: () => void;
   noteSaving: boolean;
+  /** 18.11 — present only on closed profitable trades. */
+  onShare?: () => void;
+  sharing?: boolean;
 }) {
   const isOpen = trade.status === 'open';
   const isPending = trade.status === 'pending';
@@ -585,6 +624,33 @@ function TradeRow({
 
         {/* Action buttons: note + edit (open only) + scissors (partial close) + close/cancel */}
         <View style={{ width: onPartialClose ? 140 : 108, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+          {/* 18.11 — share winning trade to X */}
+          {onShare && !isEditing && !isPartialClosing && !isNoting && (
+            <Pressable
+              onPress={onShare}
+              disabled={sharing}
+              testID="share-trade-button"
+              accessibilityLabel="Share trade"
+              // @ts-expect-error web-only title tooltip
+              title="Share to X"
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: radius.sm,
+                backgroundColor: colors.bgSurface,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              {sharing ? (
+                <ActivityIndicator size="small" color={colors.textSecondary} />
+              ) : (
+                <Share2 color={colors.textSecondary} size={14} />
+              )}
+            </Pressable>
+          )}
           {/* T.14 — note button */}
           {!isEditing && !isPartialClosing && !isNoting && (
             <Pressable

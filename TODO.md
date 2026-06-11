@@ -827,9 +827,9 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** New user can read the full disclosure, scroll to bottom, tap Accept, and proceed to trade. Existing users with acceptance recorded go straight through.
 
 ## 18.11 Share winning trade + chart to X (Twitter)
-- [ ] **Files:** `components/pro/TradeBook.tsx` (closed trade row), new `lib/shareCard.ts`
-> BLOCKED for offline auto-runs (verified 2026-06-04 — dependency + platform limit, needs a user decision): the headline deliverable (generate AND ATTACH a trade-card image) requires a view-capture / native-sharing library. None is installed — deps have only `react-native-svg`; there is no `react-native-view-shot`, `expo-sharing`, or `expo-media-library` — and the auto-run rules forbid adding packages not listed in this item. Separately, the X *web* intent (`x.com/intent/tweet`) cannot attach images at all (platform limitation); only the native mobile share sheet can. A text+URL-only X share is implementable with the current deps but does NOT meet acceptance as written. To unblock, the user needs to: (a) approve adding a capture/sharing dependency (e.g. `react-native-view-shot` + `expo-sharing`), and (b) accept descoping web to text+URL (image on native only). `lib/shareCard.ts` does not yet exist.
-- **What:** On a closed profitable trade, show a "Share" button. Tapping it:
+- [x] **Files:** `components/pro/TradeBook.tsx`, `components/pro/TradeShareCard.tsx` (new), `lib/shareCard.ts` (new)
+- **Done 2026-06-11:** user approved adding `react-native-view-shot` + `expo-sharing`. `TradeShareCard` renders a 600×315 brag-card (VANTA wordmark, side+volume badge, big P&L $/%, open→close, duration, tagline) off-screen; captured to PNG via `captureRef`. Native: `expo-sharing` share sheet with the image attached. Web (X intent can't attach images — platform limit): the PNG auto-downloads + `x.com/intent/tweet` opens pre-filled, user drags the card in. Share button (`Share2`, `testID=share-trade-button`) shows only on closed profitable trades. tsc clean. Live-verified the surrounding flow (login→trade gate→robots) in browser preview.
+- **What (original):** On a closed profitable trade, show a "Share" button. Tapping it:
   1. Generates a trade card image: symbol, side, open→close price, P&L in $, P&L %, duration, VANTA logo/watermark
   2. Optionally overlays a chart screenshot of the trade period (use the existing chart iframe screenshot or a server-rendered sparkline)
   3. Opens native share sheet on mobile / opens `https://x.com/intent/tweet?text=...&url=...` on web with pre-filled text: "Just closed +$X on BTCUSD 🚀 #VANTA #crypto" and attached image
@@ -1086,9 +1086,18 @@ vanta-jade.vercel.app
 - **Cost:** No backend change needed — lots are calculated client-side before the order is sent.
 - **Acceptance:** Switch to `$ amount`, type 10000, see correct BTC lot count computed live. Place order → opens correctly. Switch symbol → lots recalculate automatically.
 
+## 19.3 Robot card Play/Pause button was a no-op
+- [x] **Files:** `components/robots/RobotCard.tsx`
+- **Done 2026-06-11:** the Play/Pause button on each robot card had no `onPress` — purely decorative. Wired it to `api.updateRobotStatus(id, active|paused)` + `useRobotsStore.update`, with a spinner while in flight and colour-coded states (green Play to activate, amber Pause to stop). Verified live in browser preview: clicked Play → `PATCH /api/robots/:id/status → 200` → badge flipped PAUSED→ACTIVE → button became Pause. This is the on/off switch the engine reads (`status='active'`).
+
+## ⚠️ 19.4 Anthropic account out of credits — blocks "Generate Robot" (USER ACTION)
+- [ ] **Not a code bug.** `POST /api/robots/compile` returns 500 `ai_error`. Railway logs show the real cause: Anthropic API 400 *"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits."* (org `c2e15491-7d6c-45d3-bce0-9877c047c5a0`).
+- **Fix:** add credits at https://console.anthropic.com/settings/billing for the account whose key is on Railway. Compile (Sonnet, ~$0.01/call) works the instant credits are added — no redeploy needed. The robot ENGINE (opening trades on a saved robot) does NOT use Anthropic and is unaffected; only the natural-language "Generate Robot" compile step needs credits.
+- **Optional UX:** map this specific error to a clearer message than "AI service is unavailable" in `RobotPromptBuilder.tsx` (low priority).
+
 ## 19.2 AI robots — ensure full flow works end-to-end
 - [x] **Files:** `server/src/routes/robots.ts`, Railway env vars
-- **Root cause fixed 2026-06-08:** `ANTHROPIC_API_KEY` was missing from Railway env vars → every "Generate Robot" click returned `ai_error: invalid x-api-key`. Key set via `railway variables set`.
+- **Root cause fixed 2026-06-08:** `ANTHROPIC_API_KEY` was missing from Railway env vars → every "Generate Robot" click returned `ai_error: invalid x-api-key`. Key set via `railway variables set`. (NB 2026-06-11: compile now 500s again for a DIFFERENT reason — Anthropic credit balance, see 19.4.)
 - **Verified live 2026-06-10 (API-level E2E against production Railway):**
   - [x] Compile: `POST /api/robots/compile` → 200, valid config (BTC hourly buy, 2% SL / 4% TP)
   - [x] Save: `POST /api/robots/save` → 200, robot row created

@@ -1,8 +1,11 @@
-import { View, Text, Pressable } from 'react-native';
+import { useState } from 'react';
+import { View, Text, Pressable, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Bot, Pause, Play } from 'lucide-react-native';
 
 import { colors, radius, spacing, typography } from '@/lib/theme';
+import { api } from '@/lib/api';
+import { useRobotsStore } from '@/stores/robots';
 
 interface Robot {
   id: string;
@@ -16,9 +19,27 @@ interface Robot {
 
 export function RobotCard({ robot }: { robot: Robot }) {
   const router = useRouter();
+  const updateRobot = useRobotsStore((s) => s.update);
+  const [toggling, setToggling] = useState(false);
   const winRate = robot.totalTrades > 0 ? Math.round((robot.winningTrades / robot.totalTrades) * 100) : 0;
   const positive = robot.totalProfit >= 0;
   const isActive = robot.status === 'active';
+
+  // Play activates (from draft/paused/stopped), Pause deactivates. The engine
+  // only processes status='active' robots, so this is the on/off switch.
+  const toggleStatus = async () => {
+    if (toggling) return;
+    const next = isActive ? 'paused' : 'active';
+    setToggling(true);
+    try {
+      const res = await api.updateRobotStatus(robot.id, next);
+      updateRobot(robot.id, { status: res.robot?.status ?? next });
+    } catch {
+      // server rejected (e.g. session expired) — leave status unchanged
+    } finally {
+      setToggling(false);
+    }
+  };
 
   return (
     <Pressable
@@ -52,16 +73,29 @@ export function RobotCard({ robot }: { robot: Robot }) {
           </Text>
         </View>
         <Pressable
+          onPress={toggleStatus}
+          disabled={toggling}
+          accessibilityLabel={isActive ? 'Pause robot' : 'Activate robot'}
+          // @ts-expect-error web-only title tooltip
+          title={isActive ? 'Pause robot' : 'Activate robot'}
           style={{
             width: 36,
             height: 36,
             borderRadius: radius.sm,
-            backgroundColor: colors.bgSurface,
+            backgroundColor: isActive ? colors.warning + '22' : colors.profit + '22',
+            borderWidth: 1,
+            borderColor: isActive ? colors.warning + '66' : colors.profit + '66',
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          {isActive ? <Pause color={colors.textSecondary} size={16} /> : <Play color={colors.textSecondary} size={16} />}
+          {toggling ? (
+            <ActivityIndicator size="small" color={colors.textSecondary} />
+          ) : isActive ? (
+            <Pause color={colors.warning} size={16} />
+          ) : (
+            <Play color={colors.profit} size={16} />
+          )}
         </Pressable>
       </View>
 
