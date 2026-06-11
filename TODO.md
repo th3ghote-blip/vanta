@@ -1115,6 +1115,63 @@ vanta-jade.vercel.app
 
 ---
 
+# Phase 21 — Admin / MT4-Manager parity, analytics & DB cleanup (requested 2026-06-11)
+
+Goal: bring the admin panel up to MT4-Manager-grade operator control, add deep
+per-asset analytics, and clean out test-account junk. Each item below is sized
+to be completable + verifiable on its own (cowork-friendly). Backend routes go in
+`server/src/routes/admin.ts`; pages in `app/admin/`. All admin routes guarded by
+`authAdmin`. **Reuse the live-DB column names** (trades use `open_time`/`close_time`,
+NOT `opened_at`; profiles↔accounts have NO direct FK — fetch separately and stitch
+by `user_id`, see the `attachAccounts` helper added in the 0d4d991 fix).
+
+## 21.1 Admin backend function audit
+- [ ] **Files:** `server/src/routes/admin.ts`, `docs/admin-audit.md` (new)
+- **What:** Hit every `/api/admin/*` route with an admin token against the live DB and confirm 200 + correct shape. For each failure, identify the bad column/embed and fix. Known-fixed 2026-06-11: `/admin/risk` (`opened_at`→`open_time`), `/admin/users` (profiles↔accounts embed → stitch). Re-audit ALL routes including `/admin/users/:userId` (detail), balance-adjust, transaction approve/reject, KYC approve/reject — verify the column names against the live schema dump (profiles, accounts, trades, transactions, kyc_submissions, kyc_documents).
+- **Acceptance:** `docs/admin-audit.md` lists every admin route with a live 200 result; no `query_failed` anywhere in the admin UI.
+
+## 21.2 Database cleanup — purge test accounts
+- [ ] **Files:** `scripts/cleanup-test-accounts.py` (new)
+- **Context:** 35 accounts exist (80000001–80000035); almost all are test/E2E junk with synthetic `{login}@vanta.account` or `@vanta.test`/`@example.com` emails and untouched $10,000 balances. Only **80000035 / th3ghote@gmail.com** (the owner, is_admin) is real.
+- **What:** Script that lists every auth user + account, classifies real vs test (real = email not matching `@vanta.account|@vanta.test|@example.com` AND/OR an explicit keep-list `[80000035]`), prints the plan, and on `--confirm` deletes the test auth users (cascade removes their accounts/profiles/trades/robots). Default = dry-run.
+- **⚠️ Destructive — requires explicit user confirmation before running with `--confirm`.** Keep-list is mandatory; never delete 80000035.
+- **Acceptance:** Dry-run prints the keep/delete split; after `--confirm`, only real accounts remain; owner login still works; admin dashboard user count drops to the real set.
+
+## 21.3 Live Positions blotter (MT4 "Open Trades") — admin can SEE trades
+- [ ] **Files:** `app/admin/positions.tsx` (new), `server/src/routes/admin.ts` (`GET /api/admin/positions`)
+- **Why:** The operator currently has NO screen listing individual open trades across all users — the #1 missing MT4-Manager feature ("I can't see the trades"). The risk page only aggregates.
+- **What:** `GET /api/admin/positions` returns every `status='open'` trade joined to its account+login (stitch by user_id), with live mid price + computed unrealized P&L + margin used. Page renders a sortable table: login, symbol, side, volume, open price, current price, P&L (colour-coded), margin, open time. Sort by P&L / symbol / age. Summary bar: total open trades, total notional, net long/short.
+- **Acceptance:** Open a trade on any account → it appears in `/admin/positions` with correct live P&L within a refresh.
+
+## 21.4 Force-close / modify any position (MT4 manager intervention)
+- [ ] **Files:** `server/src/routes/admin.ts` (`POST /api/admin/positions/:id/close`, `PATCH /api/admin/positions/:id`), `app/admin/positions.tsx`
+- **What:** Per-row "Force close" (closes at live mid, settles P&L, releases margin, logs `reason='admin_close'`) and "Modify SL/TP". Mirrors MT4 Manager's right-click close/modify on a client position.
+- **Acceptance:** Admin force-closes a client's open trade → trade goes `closed` with `reason='admin_close'`, client balance updates, margin released.
+
+## 21.5 Analytics — metrics by asset (house & client)
+- [ ] **Files:** `server/src/routes/admin.ts` (`GET /api/admin/analytics/by-symbol`), `app/admin/analytics.tsx` (new)
+- **What:** Per-symbol table over a selectable window (24h / 7d / 30d / all): trade count, total volume (lots + notional), open interest (net long/short), realized client P&L (house P&L = −client), win rate, avg hold time, most-active accounts. Sortable; highlight symbols where net exposure exceeds a threshold (B-book risk).
+- **Acceptance:** Numbers reconcile against raw `trades` for at least one symbol; switching the window changes them correctly.
+
+## 21.6 Analytics — platform & per-account dashboards
+- [ ] **Files:** `server/src/routes/admin.ts` (`GET /api/admin/analytics/overview`, `/api/admin/analytics/accounts`), `app/admin/analytics.tsx`
+- **What:**
+  - **Platform time-series:** daily new users, daily trade volume, daily deposits/withdrawals, daily house P&L (last 30d) — simple line/bar charts.
+  - **Per-account leaderboard:** lifetime deposits, withdrawals, net, realized P&L, trade count, win rate, current equity — sortable, links to the user detail page.
+- **Acceptance:** Totals match the dashboard's existing aggregate counts; per-account P&L matches that account's closed-trade sum.
+
+## 21.7 KYC end-to-end verification + fixes
+- [ ] **Files:** `app/admin/kyc.tsx`, `server/src/routes/admin.ts`, `app/kyc.tsx`, `lib/kyc.ts`
+- **What:** Verify the full KYC loop live: user uploads 4 docs → `kyc_submissions` row `pending` → admin queue shows it WITH inline doc images (signed Supabase Storage URLs, 1h expiry) → approve/reject with reason → user status flips, withdrawal gate respects it. Fix anything broken (the admin KYC list currently 200s but image preview may be missing — 18.8 noted it shows status only).
+- **Acceptance:** A test submission flows pending→approved end-to-end; admin sees the actual uploaded images; approved user can withdraw, rejected cannot.
+
+## 21.8 MT4-Manager feature-parity checklist
+- [ ] **Files:** `docs/mt4-manager-parity.md` (new)
+- **What:** Document each MT4 Manager capability and Vanta's status: live positions ✓/✗, account list w/ equity·margin·margin-level, order/trade history, force-close, modify, balance operations (deposit/withdraw/credit/adjust), margin-call & stop-out monitor, exposure by symbol, online-users monitor, per-group spread/markup, reporting (P&L per account/symbol/day), client notifications. Each row: Have / Partial / Missing + which TODO item covers the gap. Turn every "Missing" into a 21.x sub-item.
+- **Acceptance:** `docs/mt4-manager-parity.md` exists with a complete Have/Partial/Missing matrix and linked follow-up items.
+
+---
+
 # Phase 17 — Optional / future
 
 - [ ] Copy trading (follow another trader's positions)
