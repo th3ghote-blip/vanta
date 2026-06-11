@@ -376,15 +376,34 @@ export async function adminRoutes(app: FastifyInstance) {
     const { q } = req.query as { q?: string };
     const search = (q ?? '').trim();
 
+    // PostgREST can't embed accounts from profiles (and vice-versa): both
+    // reference auth.users, so there is no direct FK between them. Fetch the
+    // accounts separately and stitch them on by user_id.
+    async function attachAccounts(profs: any[]): Promise<any[]> {
+      if (!profs.length) return [];
+      const ids = profs.map((p) => p.id);
+      const { data: accts } = await supabaseAdmin
+        .from('accounts')
+        .select('id, login, type, status, balance, currency, user_id')
+        .in('user_id', ids);
+      const byUser: Record<string, any[]> = {};
+      for (const a of accts ?? []) {
+        (byUser[a.user_id] ??= []).push({
+          id: a.id, login: a.login, type: a.type, status: a.status, balance: a.balance, currency: a.currency,
+        });
+      }
+      return profs.map((p) => ({ ...p, accounts: byUser[p.id] ?? [] }));
+    }
+
     if (!search) {
       // No query — return most-recently-created 50 users
       const { data, error } = await supabaseAdmin
         .from('profiles')
-        .select('id, display_name, is_admin, created_at, accounts(id, login, type, status, balance, currency)')
+        .select('id, display_name, is_admin, created_at')
         .order('created_at', { ascending: false })
         .limit(50);
       if (error) return reply.code(500).send({ error: 'query_failed' });
-      return reply.send({ users: data ?? [] });
+      return reply.send({ users: await attachAccounts(data ?? []) });
     }
 
     // Try login number first (numeric exact match)
@@ -392,13 +411,23 @@ export async function adminRoutes(app: FastifyInstance) {
     if (!isNaN(loginNum) && String(loginNum) === search) {
       const { data, error } = await supabaseAdmin
         .from('accounts')
-        .select('id, login, type, status, balance, currency, profiles!inner(id, display_name, is_admin, created_at)')
+        .select('id, login, type, status, balance, currency, user_id')
         .eq('login', loginNum)
         .limit(10);
       if (error) return reply.code(500).send({ error: 'query_failed' });
+      const accts = data ?? [];
+      const uids = accts.map((a: any) => a.user_id);
+      const { data: profs } = uids.length
+        ? await supabaseAdmin
+            .from('profiles')
+            .select('id, display_name, is_admin, created_at')
+            .in('id', uids)
+        : { data: [] as any[] };
+      const profMap: Record<string, any> = {};
+      for (const p of profs ?? []) profMap[p.id] = p;
       // Reshape to profiles-first form
-      const users = (data ?? []).map((a: any) => ({
-        ...a.profiles,
+      const users = accts.map((a: any) => ({
+        ...(profMap[a.user_id] ?? { id: a.user_id }),
         accounts: [{ id: a.id, login: a.login, type: a.type, status: a.status, balance: a.balance, currency: a.currency }],
       }));
       return reply.send({ users });
@@ -420,14 +449,15 @@ export async function adminRoutes(app: FastifyInstance) {
     const ids = matching.map((u: any) => u.id);
     const { data: profiles, error: profErr } = await supabaseAdmin
       .from('profiles')
-      .select('id, display_name, is_admin, created_at, accounts(id, login, type, status, balance, currency)')
+      .select('id, display_name, is_admin, created_at')
       .in('id', ids);
     if (profErr) return reply.code(500).send({ error: 'profile_query_failed' });
 
+    const withAccounts = await attachAccounts(profiles ?? []);
     // Attach email from auth.users
     const emailMap: Record<string, string> = {};
     for (const u of matching) emailMap[u.id] = u.email ?? '';
-    const users = (profiles ?? []).map((p: any) => ({ ...p, email: emailMap[p.id] ?? '' }));
+    const users = withAccounts.map((p: any) => ({ ...p, email: emailMap[p.id] ?? '' }));
     return reply.send({ users });
   });
 
@@ -624,7 +654,7 @@ export async function adminRoutes(app: FastifyInstance) {
       open_price: number | string;
       stop_loss: number | string | null;
       take_profit: number | string | null;
-      opened_at: string;
+      open_time: string;
       accounts: {
         user_id: string;
         balance: number | string;
@@ -637,11 +667,11 @@ export async function adminRoutes(app: FastifyInstance) {
     const { data: rawTradesUnsafe, error: tradesErr } = await supabaseAdmin
       .from('trades')
       .select(
-        'id, account_id, symbol, side, volume, open_price, stop_loss, take_profit, opened_at,' +
+        'id, account_id, symbol, side, volume, open_price, stop_loss, take_profit, open_time,' +
         'accounts!inner(user_id, balance, equity, margin_used, free_margin, leverage)',
       )
       .eq('status', 'open')
-      .order('opened_at', { ascending: false });
+      .order('open_time', { ascending: false });
     const rawTrades = (rawTradesUnsafe ?? []) as unknown as RawOpenTrade[];
 
     if (tradesErr) {
@@ -694,7 +724,7 @@ export async function adminRoutes(app: FastifyInstance) {
         open_price: Number(t.open_price),
         mid_price:  mid,
         pnl,
-        opened_at:  t.opened_at,
+        opened_at:  t.open_time,
       };
     });
 
