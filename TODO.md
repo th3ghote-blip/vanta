@@ -1021,10 +1021,16 @@ vanta-jade.vercel.app
 - **Acceptance:** Visit Deposit screen in a browser → Risk Disclosure shows → "I Understand &
   Accept" button is enabled without needing to scroll (content fits in one view).
 
-## 20.2 Credential recovery / "forgot login" — PARKED
-- [ ] **PARKED** — no email-confirmation flow yet (gated on 10.4 Resend domain).
-- **Problem:** If a user loses their login number or password, there is currently no recovery
-  path in the app. The Login screen has no "Forgot password" or "Lost account number" link.
+## 20.4 Email-based login (account number → admin/support only)
+- [x] **Files:** `server/src/routes/auth.ts`, `stores/auth.ts`, `app/(auth)/login.tsx`, `app/(auth)/signup.tsx`, `app/change-password.tsx`, tests + e2e specs
+- **Done 2026-06-11:** auth switched from MT4 number+generated-password to **real email + user-chosen password**. `accounts.login` is still minted by the signup trigger and shown in profile/admin, but never authenticates. register `{email,password}` (instant, `email_confirm:true`, 409 on duplicate); login `{email,password}`; emails trimmed+lowercased before validation. Signup screen takes email + password + confirm; success screen shows the account number as a support reference only. change-password re-verifies via the session user's email. 164 server tests pass, client+server tsc clean. Existing `80000035` backfilled to `th3ghote@gmail.com`. Old `{login}@vanta.account` test accounts left in place (not the new-user path).
+
+## 20.2 Credential recovery / "forgot password" — PARKED
+- [ ] **PARKED** — self-serve reset needs outbound email (gated on 10.4 Resend domain). Until then, password reset is admin-only (service-role `PUT /auth/v1/admin/users/:id`).
+- **Problem:** If a user forgets their password there is no in-app recovery. The Login screen has no "Forgot password" link.
+- **What:** Add a "Forgot password?" link on the Login screen. Options:
+  - Send a Supabase recovery email via Resend (requires 10.4) → user sets a new password
+  - **Simpler stopgap:** info text "Forgot your password? Email support@vanta.markets" (no code path)
 - **What:** Add a "Lost access?" link on the Login screen. Options:
   - If user has a contact email on file: send recovery email via Resend (requires 10.4)
   - If not: show a "Contact support" mailto link
