@@ -13,13 +13,11 @@ import {
 import { Stack, useRouter } from 'expo-router';
 import { CheckCircle, Lock } from 'lucide-react-native';
 import { useAuthStore } from '@/stores/auth';
-import { useAccountStore } from '@/stores/account';
 import { colors, radius, spacing } from '@/lib/theme';
 
 export default function ChangePasswordScreen() {
   const router = useRouter();
-  const { signIn, changePassword, signOut } = useAuthStore();
-  const account = useAccountStore((s) => s.account);
+  const { signIn, changePassword, signOut, user } = useAuthStore();
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -44,7 +42,7 @@ export default function ChangePasswordScreen() {
       return;
     }
 
-    if (!account?.login) {
+    if (!user?.email) {
       setError('Account not loaded. Please try again.');
       return;
     }
@@ -53,7 +51,7 @@ export default function ChangePasswordScreen() {
     setError(null);
 
     // Step 1: re-verify identity by signing in with current credentials.
-    const signInResult = await signIn(account.login, currentPassword);
+    const signInResult = await signIn(user.email, currentPassword);
     if (signInResult.error) {
       setLoading(false);
       setError('Current password is incorrect.');

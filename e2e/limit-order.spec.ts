@@ -20,16 +20,14 @@ const API_URL =
 
 test.describe('VANTA Limit Order', () => {
   test('register → sign in → Limit tab → place BTC buy-limit → verify Pending → cancel → verify gone → sign out', async ({ page }) => {
-    // ── 1. Register a fresh demo account via the backend API ─────────────────
+    // ── 1. Register a fresh demo account via the backend API (email auth) ─────
+    const email = `e2e+lim${Date.now()}@vanta.test`;
+    const password = 'e2e-limit-pw-1';
     const regRes = await page.request.post(`${API_URL}/api/auth/register`, {
       headers: { 'Content-Type': 'application/json' },
-      data: {},
+      data: { email, password },
     });
     expect(regRes.ok(), `register failed: ${regRes.status()} ${regRes.statusText()}`).toBeTruthy();
-    const { login, password } = (await regRes.json()) as {
-      login: number;
-      password: string;
-    };
 
     // ── 2. Get current BTC price for computing the limit trigger ─────────────
     // We use this to set the trigger 5% below ask so it won't fill immediately.
@@ -54,7 +52,7 @@ test.describe('VANTA Limit Order', () => {
     await page.waitForURL(/login/, { timeout: 20_000 });
 
     // ── 4. Sign in ───────────────────────────────────────────────────────────
-    await page.locator('[data-testid="login-account-input"]').fill(String(login));
+    await page.locator('[data-testid="login-email-input"]').fill(email);
     await page.locator('[data-testid="login-password-input"]').fill(password);
     await page.locator('[data-testid="login-submit"]').click();
 

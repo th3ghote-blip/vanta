@@ -6,7 +6,7 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000';
 
 interface RegisterResult {
   login: number;
-  password: string;
+  email: string;
   error?: undefined;
 }
 
@@ -20,8 +20,8 @@ interface AuthState {
   loading: boolean;
   loginStreak: number;
   init: () => () => void;
-  register: (contactEmail?: string) => Promise<RegisterResult | AuthError>;
-  signIn: (login: number, password: string) => Promise<{ error?: string }>;
+  register: (email: string, password: string) => Promise<RegisterResult | AuthError>;
+  signIn: (email: string, password: string) => Promise<{ error?: string }>;
   changePassword: (newPassword: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
 }
@@ -58,36 +58,37 @@ export const useAuthStore = create<AuthState>((set) => ({
     return () => subscription.subscription.unsubscribe();
   },
 
-  register: async (contactEmail) => {
+  register: async (email, password) => {
     try {
       const res = await fetch(`${API_URL}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(contactEmail ? { contactEmail } : {}),
+        body: JSON.stringify({ email, password }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
+        if (body.error === 'email_taken') return { error: 'That email is already registered. Try signing in.' };
         return { error: body.error ?? `HTTP ${res.status}` };
       }
-      const data = (await res.json()) as { login: number; password: string; session: BackendSession };
+      const data = (await res.json()) as { login: number; email: string; session: BackendSession };
       await setSupabaseSession(data.session);
-      return { login: data.login, password: data.password };
+      return { login: data.login, email: data.email };
     } catch (err: any) {
       return { error: err?.message ?? 'register failed' };
     }
   },
 
-  signIn: async (login, password) => {
+  signIn: async (email, password) => {
     try {
       const res = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ login, password }),
+        body: JSON.stringify({ email, password }),
       });
       if (!res.ok) {
         if (res.status === 429) return { error: 'Too many attempts. Try again in a minute.' };
         const body = await res.json().catch(() => ({}));
-        return { error: body.error === 'invalid_credentials' ? 'Wrong login or password.' : body.error ?? `HTTP ${res.status}` };
+        return { error: body.error === 'invalid_credentials' ? 'Wrong email or password.' : body.error ?? `HTTP ${res.status}` };
       }
       const data = (await res.json()) as { session: BackendSession; login_streak?: number };
       await setSupabaseSession(data.session);

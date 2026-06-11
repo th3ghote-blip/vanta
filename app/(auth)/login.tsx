@@ -10,7 +10,7 @@ import { challengeAndVerify } from '@/lib/2fa';
 
 export default function Login() {
   const signIn = useAuthStore((s) => s.signIn);
-  const [login, setLogin] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -23,13 +23,13 @@ export default function Login() {
   const onSubmit = async () => {
     setBusy(true);
     setError(null);
-    const num = Number(login.trim());
-    if (!Number.isInteger(num) || num <= 0) {
-      setError('Account number must be a number.');
+    const cleanEmail = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setError('Enter a valid email address.');
       setBusy(false);
       return;
     }
-    const res = await signIn(num, password);
+    const res = await signIn(cleanEmail, password);
     if (res.error) {
       setBusy(false);
       setError(res.error);
@@ -139,21 +139,22 @@ export default function Login() {
     <View style={{ flex: 1, padding: spacing.xl, justifyContent: 'center', backgroundColor: colors.bgDeep }}>
       <VantaLogo height={44} />
       <Text style={{ ...typography.body, color: colors.textSecondary, marginBottom: spacing.xxl }}>
-        Welcome back. Sign in with your account number.
+        Welcome back. Sign in with your email.
       </Text>
 
       <Text style={{ ...typography.bodyBold, color: colors.textSecondary, marginBottom: spacing.xs }}>
-        Account number
+        Email
       </Text>
       <TextInput
-        testID="login-account-input"
-        value={login}
-        onChangeText={(t) => setLogin(t.replace(/[^\d]/g, ''))}
+        testID="login-email-input"
+        value={email}
+        onChangeText={setEmail}
         autoCapitalize="none"
-        keyboardType="number-pad"
-        placeholder="80000001"
+        autoComplete="email"
+        keyboardType="email-address"
+        placeholder="you@example.com"
         placeholderTextColor={colors.textMuted}
-        style={[inputStyle, { fontFamily: 'JetBrainsMono', letterSpacing: 1.5 }]}
+        style={inputStyle}
       />
 
       <Text style={{ ...typography.bodyBold, color: colors.textSecondary, marginTop: spacing.lg, marginBottom: spacing.xs }}>

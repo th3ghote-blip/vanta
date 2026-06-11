@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { View, Text, TextInput, Pressable, ActivityIndicator, ScrollView } from 'react-native';
 import { Link, router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
-import { Copy, Check, AlertTriangle } from 'lucide-react-native';
+import { Copy, Check } from 'lucide-react-native';
 
 import { colors, radius, spacing, typography } from '@/lib/theme';
 import { VantaLogo } from '@/components/shared/VantaLogo';
@@ -10,72 +10,68 @@ import { useAuthStore } from '@/stores/auth';
 
 export default function Signup() {
   const register = useAuthStore((s) => s.register);
-  const [contactEmail, setContactEmail] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false);
-  const [credentials, setCredentials] = useState<{ login: number; password: string } | null>(null);
+  const [created, setCreated] = useState<{ login: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [copiedField, setCopiedField] = useState<'login' | 'password' | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const onSubmit = async () => {
-    setBusy(true);
     setError(null);
-    const res = await register(contactEmail.trim() || undefined);
+    const cleanEmail = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setError('Enter a valid email address.');
+      return;
+    }
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
+    if (password !== confirm) {
+      setError('Passwords do not match.');
+      return;
+    }
+    setBusy(true);
+    const res = await register(cleanEmail, password);
     setBusy(false);
     if ('error' in res && res.error) {
       setError(res.error);
     } else if ('login' in res) {
-      setCredentials({ login: res.login, password: res.password });
+      setCreated({ login: res.login });
     }
   };
 
-  const copy = async (text: string, field: 'login' | 'password') => {
-    await Clipboard.setStringAsync(text);
-    setCopiedField(field);
-    setTimeout(() => setCopiedField(null), 1500);
+  const copyNumber = async (value: string) => {
+    await Clipboard.setStringAsync(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
   };
 
-  if (credentials) {
+  if (created) {
     return (
       <ScrollView
         contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: spacing.xl, backgroundColor: colors.bgDeep }}
       >
         <VantaLogo height={38} />
-        <Text style={{ ...typography.heading, fontSize: 22, color: colors.textPrimary, marginBottom: spacing.lg }}>
+        <Text style={{ ...typography.heading, fontSize: 22, color: colors.textPrimary, marginBottom: spacing.sm }}>
           Account created
         </Text>
-
-        <View
-          style={{
-            flexDirection: 'row',
-            gap: spacing.sm,
-            backgroundColor: colors.warning + '22',
-            borderColor: colors.warning,
-            borderWidth: 1,
-            borderRadius: radius.md,
-            padding: spacing.md,
-            marginBottom: spacing.lg,
-          }}
-        >
-          <AlertTriangle color={colors.warning} size={20} />
-          <Text style={{ ...typography.body, color: colors.warning, flex: 1, fontSize: 13, lineHeight: 19 }}>
-            Save these credentials now. The password will not be shown again. Store them in a password manager.
-          </Text>
-        </View>
+        <Text style={{ ...typography.body, color: colors.textSecondary, fontSize: 14, marginBottom: spacing.lg }}>
+          You're all set. Sign in any time with your email and password.
+        </Text>
 
         <CredField
-          label="Account number (login)"
-          value={String(credentials.login)}
-          copied={copiedField === 'login'}
-          onCopy={() => copy(String(credentials.login), 'login')}
+          label="Your account number (for support)"
+          value={String(created.login)}
+          copied={copied}
+          onCopy={() => copyNumber(String(created.login))}
           mono
         />
-        <CredField
-          label="Password"
-          value={credentials.password}
-          copied={copiedField === 'password'}
-          onCopy={() => copy(credentials.password, 'password')}
-          mono
-        />
+        <Text style={{ ...typography.body, fontSize: 12, color: colors.textMuted, marginTop: spacing.xs }}>
+          You log in with your email — the account number is just a reference for support.
+        </Text>
 
         <Pressable
           onPress={() => router.replace('/onboarding')}
@@ -88,12 +84,12 @@ export default function Signup() {
           }}
         >
           <Text style={{ ...typography.heading, color: '#fff', fontSize: 16 }}>
-            I've saved them — continue to Vanta
+            Continue to Vanta
           </Text>
         </Pressable>
 
         <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 12, marginTop: spacing.md, textAlign: 'center' }}>
-          Demo balance: $10,000.00 · Account #{credentials.login}
+          Demo balance: $10,000.00 · Account #{created.login}
         </Text>
       </ScrollView>
     );
@@ -105,30 +101,60 @@ export default function Signup() {
     >
       <VantaLogo height={44} />
       <Text style={{ ...typography.body, color: colors.textSecondary, marginBottom: spacing.xxl }}>
-        Create a new account. We'll generate a login number and password — like MT4. Demo balance starts at $10,000.
+        Create your account with an email and password. Demo balance starts at $10,000.
       </Text>
 
       <Text style={{ ...typography.bodyBold, color: colors.textSecondary, marginBottom: spacing.xs }}>
-        Contact email (optional)
+        Email
       </Text>
       <TextInput
-        value={contactEmail}
-        onChangeText={setContactEmail}
+        testID="signup-email-input"
+        value={email}
+        onChangeText={setEmail}
         autoCapitalize="none"
+        autoComplete="email"
         keyboardType="email-address"
-        placeholder="you@example.com — for support recovery"
+        placeholder="you@example.com"
         placeholderTextColor={colors.textMuted}
         style={inputStyle}
       />
-      <Text style={{ ...typography.body, fontSize: 11, color: colors.textMuted, marginTop: spacing.xs }}>
-        Used only for support contact and password recovery. Not required.
+
+      <Text style={{ ...typography.bodyBold, color: colors.textSecondary, marginTop: spacing.lg, marginBottom: spacing.xs }}>
+        Password
       </Text>
+      <TextInput
+        testID="signup-password-input"
+        value={password}
+        onChangeText={setPassword}
+        secureTextEntry
+        autoCapitalize="none"
+        autoComplete="new-password"
+        placeholder="At least 8 characters"
+        placeholderTextColor={colors.textMuted}
+        style={inputStyle}
+      />
+
+      <Text style={{ ...typography.bodyBold, color: colors.textSecondary, marginTop: spacing.lg, marginBottom: spacing.xs }}>
+        Confirm password
+      </Text>
+      <TextInput
+        testID="signup-confirm-input"
+        value={confirm}
+        onChangeText={setConfirm}
+        secureTextEntry
+        autoCapitalize="none"
+        autoComplete="new-password"
+        placeholder="Re-enter your password"
+        placeholderTextColor={colors.textMuted}
+        style={inputStyle}
+      />
 
       {error ? (
         <Text style={{ ...typography.body, color: colors.loss, marginTop: spacing.md }}>{error}</Text>
       ) : null}
 
       <Pressable
+        testID="signup-submit"
         onPress={onSubmit}
         disabled={busy}
         style={{

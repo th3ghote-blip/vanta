@@ -471,6 +471,9 @@ const auth = {
   },
   admin: {
     async createUser({ email, password }: { email: string; password: string }) {
+      if (users.some((u) => u.email === email)) {
+        return { data: { user: null }, error: { message: 'A user with this email address has already been registered' } };
+      }
       const id = `user-${users.length + 1}`;
       users.push({ id, email, password });
       // mimic auth trigger: auto-create an account row for this user with next login

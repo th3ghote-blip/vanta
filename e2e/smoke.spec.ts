@@ -19,24 +19,22 @@ const API_URL =
 test.describe('VANTA smoke', () => {
   test('register → sign in → trade 0.01 BTC → close → sign out', async ({ page }) => {
     // ── 1. Register a fresh demo account via the backend API ─────────────────
-    // This avoids the UI sign-up flow (which requires saving credentials) and
-    // guarantees a clean $10 k demo balance on every run.
+    // This avoids the UI sign-up flow and guarantees a clean $10 k demo balance
+    // every run. Auth is email-based: a unique email + chosen password.
+    const email = `e2e+${Date.now()}@vanta.test`;
+    const password = 'e2e-smoke-pw-1';
     const regRes = await page.request.post(`${API_URL}/api/auth/register`, {
       headers: { 'Content-Type': 'application/json' },
-      data: {},
+      data: { email, password },
     });
     expect(regRes.ok(), `register failed: ${regRes.status()} ${regRes.statusText()}`).toBeTruthy();
-    const { login, password } = (await regRes.json()) as {
-      login: number;
-      password: string;
-    };
 
     // ── 2. Open the app — should land on login ───────────────────────────────
     await page.goto(BASE_URL);
     await page.waitForURL(/login/, { timeout: 20_000 });
 
-    // ── 3. Sign in ───────────────────────────────────────────────────────────
-    await page.locator('[data-testid="login-account-input"]').fill(String(login));
+    // ── 3. Sign in with email + password ─────────────────────────────────────
+    await page.locator('[data-testid="login-email-input"]').fill(email);
     await page.locator('[data-testid="login-password-input"]').fill(password);
     await page.locator('[data-testid="login-submit"]').click();
 

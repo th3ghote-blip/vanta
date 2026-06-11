@@ -1,44 +1,39 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { randomBytes } from 'node:crypto';
 
 import { supabaseAdmin, signInWithPassword } from '../lib/supabase.js';
 import { awardAchievement } from '../lib/achievements.js';
 
 /**
- * MT4-style auth.
+ * Email-based auth.
  *
- * Users don't have email/password — they get a numeric LOGIN (e.g. 80000001)
- * and a server-generated password. Behind the scenes we store these in
- * Supabase Auth using a synthetic email `${login}@vanta.account`, so all the
- * Supabase Auth machinery (sessions, JWTs, RLS) works unchanged.
+ * Users sign up and log in with their real email + a password they choose.
+ * Behind the scenes the signup trigger (migration 003) still mints a numeric
+ * account LOGIN (e.g. 80000001) on `accounts.login` — kept for support and the
+ * admin dashboard only; it is never used to authenticate. (Older accounts
+ * created before this change use a synthetic `${login}@vanta.account` email;
+ * those keep working but are not the path new users take.)
  *
  * Endpoints:
- * - POST /api/auth/register         → returns { login, password, session }
- * - POST /api/auth/login            → returns { session }
+ * - POST /api/auth/register         → { email, password } → returns { login, email, session }
+ * - POST /api/auth/login            → { email, password } → returns { session }
  * - POST /api/auth/change-password  → authed; takes new password
  */
 
-const SYNTH_DOMAIN = 'vanta.account';
-const PASSWORD_ALPHABET =
-  'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
-const PASSWORD_LEN = 14;
-
-function generatePassword(): string {
-  const bytes = randomBytes(PASSWORD_LEN);
-  let out = '';
-  for (let i = 0; i < PASSWORD_LEN; i++) {
-    out += PASSWORD_ALPHABET[bytes[i] % PASSWORD_ALPHABET.length];
-  }
-  return out;
-}
+// Normalize the email (trim + lowercase) BEFORE validating, so leading/trailing
+// whitespace or mixed case from the client doesn't fail .email() or split identities.
+const emailField = z.preprocess(
+  (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+  z.string().email(),
+);
 
 const RegisterSchema = z.object({
-  contactEmail: z.string().email().optional(),
+  email: emailField,
+  password: z.string().min(8).max(200),
 });
 
 const LoginSchema = z.object({
-  login: z.coerce.number().int().positive(),
+  email: emailField,
   password: z.string().min(1).max(200),
 });
 
@@ -57,25 +52,28 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: 'invalid_input', issues: parsed.error.issues });
       }
 
-      const password = generatePassword();
-      // Use a temporary throwaway email; we'll rewrite it after the account row exists.
-      const tempEmail = `temp-${randomBytes(6).toString('hex')}@${SYNTH_DOMAIN}`;
+      const { email, password } = parsed.data;
 
-      // 1. Create the auth user. The trigger from migration 003 auto-creates
-      //    the profile + accounts row (with a fresh login from the sequence).
+      // 1. Create the auth user with their real email. The trigger from
+      //    migration 003 auto-creates the profile + accounts row (with a fresh
+      //    login from the sequence). email_confirm:true keeps signup instant
+      //    (no confirmation email — gated on a verified Resend domain, PARKED).
       const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
-        email: tempEmail,
+        email,
         password,
         email_confirm: true,
-        user_metadata: parsed.data.contactEmail ? { contact_email: parsed.data.contactEmail } : {},
       });
       if (createErr || !created.user) {
+        const msg = (createErr?.message ?? '').toLowerCase();
+        if (msg.includes('already') || msg.includes('registered') || msg.includes('exists')) {
+          return reply.code(409).send({ error: 'email_taken' });
+        }
         app.log.error({ createErr }, 'auth/register: createUser failed');
         return reply.code(500).send({ error: 'create_user_failed', message: createErr?.message });
       }
       const userId = created.user.id;
 
-      // 2. Look up the auto-assigned login number.
+      // 2. Look up the auto-assigned login number (for display / admin only).
       const { data: account, error: acctErr } = await supabaseAdmin
         .from('accounts')
         .select('login')
@@ -86,34 +84,16 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(500).send({ error: 'account_lookup_failed' });
       }
 
-      // 3. Rewrite the auth user's email to use the login number.
-      const finalEmail = `${account.login}@${SYNTH_DOMAIN}`;
-      const { error: updateErr } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-        email: finalEmail,
-        email_confirm: true,
-      });
-      if (updateErr) {
-        app.log.warn({ updateErr }, 'auth/register: email rewrite failed (non-fatal)');
-      }
-
-      // 4. Sign in to issue a session for the client.
+      // 3. Sign in to issue a session for the client.
       // Use raw fetch (not supabaseAdmin.auth.signInWithPassword) to avoid
       // mutating the shared singleton's in-memory session, which would
       // downgrade subsequent service_role queries to authenticated+RLS.
-      const { session: signedInSession, error: signInErr } = await signInWithPassword(finalEmail, password);
-
+      const { session: signedInSession, error: signInErr } = await signInWithPassword(email, password);
       if (!signedInSession) {
-        // Fall back to temp email if rewrite hadn't propagated yet.
-        const fb = await signInWithPassword(tempEmail, password);
-        if (!fb.session) {
-          return reply
-            .code(500)
-            .send({ error: 'sign_in_failed', message: signInErr ?? fb.error });
-        }
-        return { login: account.login, password, session: fb.session };
+        return reply.code(500).send({ error: 'sign_in_failed', message: signInErr ?? undefined });
       }
 
-      return { login: account.login, password, session: signedInSession };
+      return { login: account.login, email, session: signedInSession };
     },
   );
 
@@ -129,27 +109,24 @@ export async function authRoutes(app: FastifyInstance) {
       if (!parsed.success) {
         return reply.code(400).send({ error: 'invalid_input' });
       }
-      const { login, password } = parsed.data;
+      const { email, password } = parsed.data;
       const ip = req.ip;
       const ua = req.headers['user-agent'] ?? null;
-      const email = `${login}@${SYNTH_DOMAIN}`;
 
       const { session: loginSession, error: loginErr } = await signInWithPassword(email, password);
 
       if (!loginSession) {
-        const isUnknown = (loginErr ?? '').toLowerCase().includes('invalid login');
         await logAttempt({
-          login,
           email,
           ip,
           ua,
-          outcome: isUnknown ? 'invalid_password' : 'error',
+          outcome: 'invalid_password',
           details: loginErr ?? undefined,
         });
         return reply.code(401).send({ error: 'invalid_credentials' });
       }
 
-      await logAttempt({ login, email, ip, ua, outcome: 'success' });
+      await logAttempt({ email, ip, ua, outcome: 'success' });
 
       // Update daily login streak (best-effort -- never blocks login)
       const userId = loginSession.user_id;
@@ -219,8 +196,7 @@ export async function authRoutes(app: FastifyInstance) {
 
 
 async function logAttempt(input: {
-  login: number;
-  email?: string;
+  email: string;
   ip?: string;
   ua?: string | null;
   outcome: 'success' | 'invalid_password' | 'unknown_login' | 'rate_limited' | 'error';
@@ -228,7 +204,6 @@ async function logAttempt(input: {
 }) {
   try {
     await supabaseAdmin.from('login_attempts').insert({
-      login: input.login,
       email: input.email,
       ip_address: input.ip,
       user_agent: input.ua,

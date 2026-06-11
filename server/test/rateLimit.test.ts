@@ -55,7 +55,7 @@ describe('Rate limiting — /api/auth/login', () => {
       const res = await app.inject({
         method: 'POST',
         url: '/api/auth/login',
-        payload: { login: 12345678, password: 'test-password-ok' },
+        payload: { email: 'rl@example.com', password: 'test-password-ok' },
       });
       expect(res.statusCode).not.toBe(429);
     }
@@ -70,14 +70,14 @@ describe('Rate limiting — /api/auth/login', () => {
       await app.inject({
         method: 'POST',
         url: '/api/auth/login',
-        payload: { login: 12345678, password: 'test-password-ok' },
+        payload: { email: 'rl@example.com', password: 'test-password-ok' },
       });
     }
 
     const res = await app.inject({
       method: 'POST',
       url: '/api/auth/login',
-      payload: { login: 12345678, password: 'test-password-ok' },
+      payload: { email: 'rl@example.com', password: 'test-password-ok' },
     });
 
     expect(res.statusCode).toBe(429);
@@ -99,7 +99,7 @@ describe('Rate limiting — /api/auth/register', () => {
       const res = await app.inject({
         method: 'POST',
         url: '/api/auth/register',
-        payload: {},
+        payload: { email: `rl+${i}@example.com`, password: 'test-password-ok' },
       });
       expect(res.statusCode).not.toBe(429);
     }
@@ -114,14 +114,14 @@ describe('Rate limiting — /api/auth/register', () => {
       await app.inject({
         method: 'POST',
         url: '/api/auth/register',
-        payload: {},
+        payload: { email: `rl+${i}@example.com`, password: 'test-password-ok' },
       });
     }
 
     const res = await app.inject({
       method: 'POST',
       url: '/api/auth/register',
-      payload: {},
+      payload: { email: 'rl+11@example.com', password: 'test-password-ok' },
     });
 
     expect(res.statusCode).toBe(429);

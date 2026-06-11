@@ -22,23 +22,21 @@ const API_URL =
 
 test.describe('VANTA Quick Mode', () => {
   test('register → sign in → Quick tab → place $10 BTC Up 60s → verify active round → sign out', async ({ page }) => {
-    // ── 1. Register a fresh demo account via the backend API ─────────────────
+    // ── 1. Register a fresh demo account via the backend API (email auth) ─────
+    const email = `e2e+quick${Date.now()}@vanta.test`;
+    const password = 'e2e-quick-pw-1';
     const regRes = await page.request.post(`${API_URL}/api/auth/register`, {
       headers: { 'Content-Type': 'application/json' },
-      data: {},
+      data: { email, password },
     });
     expect(regRes.ok(), `register failed: ${regRes.status()} ${regRes.statusText()}`).toBeTruthy();
-    const { login, password } = (await regRes.json()) as {
-      login: number;
-      password: string;
-    };
 
     // ── 2. Open the app — should land on login ───────────────────────────────
     await page.goto(BASE_URL);
     await page.waitForURL(/login/, { timeout: 20_000 });
 
     // ── 3. Sign in ───────────────────────────────────────────────────────────
-    await page.locator('[data-testid="login-account-input"]').fill(String(login));
+    await page.locator('[data-testid="login-email-input"]').fill(email);
     await page.locator('[data-testid="login-password-input"]').fill(password);
     await page.locator('[data-testid="login-submit"]').click();
 
