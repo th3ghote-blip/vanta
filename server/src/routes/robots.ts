@@ -26,8 +26,14 @@ Translate the user's natural-language strategy into a strict JSON config:
   "symbols": ["EURUSD", ...],                // symbols this robot trades or watches
   "side": "buy" | "sell" | "either",
   "volume": 0.01,                            // lot size if kind=trade
-  "conditions": [                            // optional indicator/price conditions
-    { "type": "rsi" | "ma_cross" | "price_drop" | "always", ... }
+  "conditions": [                            // optional gating conditions
+    // Only these are enforced by the engine today — prefer them:
+    //   { "type": "always" }                         fire every scheduled tick
+    //   { "type": "price_move_pct", "pct": 3 }        fire only when the FIRST symbol
+    //                                                 moves >= pct% from a rolling baseline
+    // For "alert me when X moves N%" / "when X drops/rises N%" ALWAYS emit
+    // price_move_pct with the right pct (do NOT use a bare interval + always).
+    { "type": "price_move_pct", "pct": 3 }
   ],
   "risk": { "stop_loss_pct": 1.0, "take_profit_pct": 2.0, "max_concurrent": 1 }
 }

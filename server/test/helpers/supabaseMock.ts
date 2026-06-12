@@ -84,6 +84,7 @@ interface Tables {
   achievements: any[];
   robots: any[];
   robot_runs: any[];
+  notifications: any[];
 }
 
 let users: DbUser[] = [];
@@ -97,6 +98,7 @@ let tables: Tables = {
   achievements: [],
   robots: [],
   robot_runs: [],
+  notifications: [],
 };
 let tradeIdCounter = 1;
 let roundIdCounter = 1;
@@ -114,6 +116,7 @@ export function resetDb() {
     achievements: [],
     robots: [],
     robot_runs: [],
+  notifications: [],
   };
   tradeIdCounter = 1;
   roundIdCounter = 1;

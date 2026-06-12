@@ -142,6 +142,19 @@ export const api = {
   deleteRobot: (id: string) =>
     request<{ ok: boolean }>(`/api/robots/${id}`, { method: 'DELETE' }),
 
+  // In-app notifications feed (robot tips, alerts)
+  getNotifications: () =>
+    request<{ notifications: any[] }>(`/api/notifications`),
+
+  getUnreadCount: () =>
+    request<{ unread: number }>(`/api/notifications/unread`),
+
+  markNotificationsRead: (ids?: number[]) =>
+    request<{ ok: boolean }>(`/api/notifications/read`, {
+      method: 'POST',
+      body: JSON.stringify(ids ? { ids } : {}),
+    }),
+
   setRobotVisibility: (id: string, is_public: boolean) =>
     request<{ robot: any }>(`/api/robots/${id}/visibility`, {
       method: 'PATCH',

@@ -380,7 +380,8 @@ export default function Profile() {
             sublabel="Required to withdraw"
             onPress={() => router.push('/kyc')}
           />
-          <Row icon={<Bell color={colors.textSecondary} size={20} />} label="Notifications" onPress={() => router.push('/notifications-settings')} />
+          <Row icon={<Bell color={colors.textSecondary} size={20} />} label="Alerts & Tips" sublabel="Robot tips and market alerts" onPress={() => router.push('/notifications')} />
+          <Row icon={<Bell color={colors.textSecondary} size={20} />} label="Notification Settings" onPress={() => router.push('/notifications-settings')} />
           <Row icon={<MessageSquare color={colors.textSecondary} size={20} />} label="Support Chat" />
           <Row icon={<Phone color={colors.textSecondary} size={20} />} label="Voice Support" sublabel="Available 9am-9pm" />
           <Row

@@ -191,7 +191,7 @@ describe('processRobot — active trade robot with "always" condition', () => {
     expect(runs[0].notes).toContain('max_concurrent');
   });
 
-  it('tip-only robot sends a push, logs tip_sent, opens no trade', async () => {
+  it('tip robot persists an in-app notification, best-effort pushes, opens no trade', async () => {
     seed.account({ id: ACCT, user_id: 'user-robot', free_margin: 10_000_000, margin_used: 0, leverage: 100 });
     getTable('robots').push({ id: 'robot-tip', account_id: ACCT, total_trades: 0 } as any);
 
@@ -212,14 +212,48 @@ describe('processRobot — active trade robot with "always" condition', () => {
     await processRobot(app, robot, new Date());
     await app.close();
 
+    // In-app notification is the source of truth (works on web + mobile)
+    const notes = getTable('notifications');
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toMatchObject({ user_id: 'user-robot', kind: 'robot_tip', body: 'Watch BTC support at 68k' });
+
+    // Push is a best-effort bonus
     expect(sendPushMock).toHaveBeenCalledTimes(1);
     expect(sendPushMock.mock.calls[0][0]).toBe('user-robot');
-    expect(sendPushMock.mock.calls[0][1]).toMatchObject({ body: 'Watch BTC support at 68k' });
 
     expect(getTable('trades')).toHaveLength(0);
     const runs = getTable('robot_runs');
     expect(runs).toHaveLength(1);
-    expect(runs[0].action).toBe('tip_sent');
+    expect(runs[0].action).toBe('tip');
+  });
+
+  it('price_move_pct condition: no fire until the symbol moves enough', async () => {
+    seed.account({ id: ACCT, user_id: 'user-robot', free_margin: 10_000_000, margin_used: 0, leverage: 100 });
+    getTable('robots').push({ id: 'robot-move', account_id: ACCT, total_trades: 0 } as any);
+
+    const robot = mkRobot({
+      id: 'robot-move',
+      user_id: 'user-robot',
+      name: 'BTC 3% Mover',
+      last_run_at: new Date(Date.now() - 120_000).toISOString(),
+      config: {
+        schedule: { type: 'interval', value: 60_000 },
+        kind: 'tip',
+        symbols: ['BTCUSD'],
+        tip_text: 'BTC moved 3%',
+        conditions: [{ type: 'price_move_pct', pct: 3 }],
+      },
+    });
+
+    const app = await mkApp();
+    // Tick 1: sets the baseline, no alert.
+    await processRobot(app, robot, new Date());
+    expect(getTable('notifications')).toHaveLength(0);
+
+    // Tick 2 (mocked quote unchanged) → still under threshold, no alert.
+    await processRobot(app, robot, new Date());
+    expect(getTable('notifications')).toHaveLength(0);
+    await app.close();
   });
 });
 

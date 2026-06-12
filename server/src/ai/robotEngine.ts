@@ -37,6 +37,7 @@ const MARKET_EVENTS: Record<string, { utcHour: number; utcMinute: number }> = {
 // In-memory state — resets on server restart, which is fine.
 const lastFiredMs  = new Map<string, number>();       // robotId → epoch ms
 const firedToday   = new Map<string, string>();       // `${robotId}:${event}` → YYYY-MM-DD
+const moveRefPrice = new Map<string, number>();        // robotId → reference price for price_move_pct
 
 // ---------------------------------------------------------------------------
 // Entry point
@@ -93,19 +94,16 @@ async function processRobot(app: FastifyInstance, robot: any, now: Date) {
 
   if (!shouldFire(robot.id, schedule, robot.last_run_at, now)) return;
 
-  // Evaluate conditions (only 'always' is fully implemented; unknown types pass)
-  const conditions: any[] = robot.config?.conditions ?? [{ type: 'always' }];
-  const condsMet = conditions.every((c: any) => {
-    if (!c?.type || c.type === 'always') return true;
-    // rsi / ma_cross / price_drop — TODO per-condition in future phases
-    return true;
-  });
-
-  // Record last-fired even if conditions not met, so we don't spin on cron/event.
+  // Record last-fired so we don't spin on cron/event.
   lastFiredMs.set(robot.id, now.getTime());
 
-  if (!condsMet) {
-    await logRun(robot.id, 'conditions_not_met', null, 'Conditions not satisfied', now);
+  // Evaluate conditions. The schedule decides *when we check*; conditions decide
+  // *whether to act*. A "3% move" alert checks every tick but only fires on a 3%
+  // move. To avoid spamming robot_runs, a routine "not met" tick is NOT logged —
+  // we only log when the robot actually does something (or hits an error).
+  const { met, reason } = evaluateConditions(robot);
+  if (!met) {
+    await touchRobotLastRun(robot.id, now);
     return;
   }
 
@@ -116,29 +114,105 @@ async function processRobot(app: FastifyInstance, robot: any, now: Date) {
     if (result.ok) {
       await logRun(robot.id, 'trade_opened', result.tradeId ?? null,
         `Opened ${robot.config?.side ?? 'buy'} ${robot.config?.volume ?? 0.01} ` +
-        `${robot.config?.symbols?.[0] ?? '?'} @ ${result.price}`, now);
+        `${robot.config?.symbols?.[0] ?? '?'} @ ${result.price}` +
+        (reason ? ` (${reason})` : ''), now);
       await updateRobotStats(robot.id, robot.total_trades ?? 0, now);
     } else {
       await logRun(robot.id, 'trade_failed', null, result.error ?? 'unknown', now);
       await touchRobotLastRun(robot.id, now);
     }
   } else if (kind === 'tip') {
-    const tipText: string = robot.config?.tip_text
-      ?? robot.config?.description
-      ?? robot.name
-      ?? 'Tip from your robot';
-    const pushOk = await sendPush(robot.user_id, {
-      title: robot.name ?? 'Robot tip',
-      body: tipText,
-      data: { robotId: robot.id, kind: 'tip' },
-    });
-    const notes = pushOk ? `push_sent: ${tipText}` : `push_failed: ${tipText}`;
-    await logRun(robot.id, 'tip_sent', null, notes, now);
+    await deliverTip(robot, reason, now);
     await touchRobotLastRun(robot.id, now);
   } else {
     await logRun(robot.id, 'noop', null, `Unknown kind: ${kind}`, now);
     await touchRobotLastRun(robot.id, now);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Condition evaluation
+//   always         → always fires
+//   price_move_pct → fires when the symbol moves >= pct% from a reference price
+//                    (re-arms from the new level after firing). Aliases:
+//                    price_move / price_drop / price_change, pct read from
+//                    c.pct | c.percent | c.threshold | c.value (default 3).
+//   anything else  → treated as 'always' for now (documented gap), so a robot
+//                    is never silently dead — but real impls land per-type.
+// ---------------------------------------------------------------------------
+function evaluateConditions(robot: any): { met: boolean; reason: string } {
+  const conditions: any[] = robot.config?.conditions ?? [{ type: 'always' }];
+  const reasons: string[] = [];
+  for (const c of conditions) {
+    const type = c?.type ?? 'always';
+    if (type === 'always') continue;
+    if (type === 'price_move_pct' || type === 'price_move' || type === 'price_drop' || type === 'price_change') {
+      const r = checkPriceMove(robot, c);
+      if (!r.met) return r;
+      reasons.push(r.reason);
+      continue;
+    }
+    // Unimplemented condition type — pass (treated as always) but note it.
+    reasons.push(`${type}:passthrough`);
+  }
+  return { met: true, reason: reasons.join(', ') };
+}
+
+function checkPriceMove(robot: any, c: any): { met: boolean; reason: string } {
+  const symbol: string = robot.config?.symbols?.[0];
+  if (!symbol) return { met: false, reason: 'no symbol' };
+  const quote = getQuote(symbol);
+  if (!quote) return { met: false, reason: `no quote for ${symbol}` };
+  const mid = (quote.bid + quote.ask) / 2;
+  const pct = Number(c.pct ?? c.percent ?? c.threshold ?? c.value ?? 3);
+
+  const ref = moveRefPrice.get(robot.id);
+  if (ref == null || ref <= 0) {
+    moveRefPrice.set(robot.id, mid);
+    return { met: false, reason: `baseline ${symbol} @ ${mid.toFixed(2)}` };
+  }
+  const movePct = ((mid - ref) / ref) * 100;
+  if (Math.abs(movePct) >= pct) {
+    moveRefPrice.set(robot.id, mid); // re-arm from the new level
+    const dir = movePct >= 0 ? '+' : '';
+    return { met: true, reason: `${symbol} moved ${dir}${movePct.toFixed(2)}% (≥${pct}%)` };
+  }
+  return { met: false, reason: `${symbol} ${movePct.toFixed(2)}% < ${pct}%` };
+}
+
+// ---------------------------------------------------------------------------
+// Tip delivery — persist an in-app notification (works on web AND mobile) and
+// best-effort push (mobile bonus). The in-app feed is the source of truth, so a
+// missing push token is NOT a failure.
+// ---------------------------------------------------------------------------
+async function deliverTip(robot: any, reason: string, now: Date) {
+  const userId: string | undefined = robot.accounts?.user_id ?? robot.user_id;
+  const symbol: string | undefined = robot.config?.symbols?.[0];
+  const tipText: string =
+    robot.config?.tip_text ?? robot.config?.description ?? robot.name ?? 'Alert from your robot';
+  const title = robot.name ?? 'Robot alert';
+  const body = reason ? `${tipText} — ${reason}` : tipText;
+
+  let persisted = false;
+  if (userId) {
+    const { error } = await supabaseAdmin.from('notifications').insert({
+      user_id: userId,
+      kind: 'robot_tip',
+      title,
+      body,
+      symbol: symbol ?? null,
+      data: { robotId: robot.id },
+    });
+    persisted = !error;
+  }
+
+  let pushed = false;
+  if (userId) {
+    pushed = await sendPush(userId, { title, body, data: { robotId: robot.id, kind: 'tip' } });
+  }
+
+  const tag = persisted ? 'alert created' : 'alert NOT persisted (no user)';
+  await logRun(robot.id, 'tip', null, `${tag}${pushed ? ' + pushed' : ''}: ${body}`, now);
 }
 
 // ---------------------------------------------------------------------------
@@ -362,4 +436,4 @@ async function touchRobotLastRun(robotId: string, now: Date) {
 // ---------------------------------------------------------------------------
 // Test-only exports (mirrors _riskInternals / _ordersTriggerInternals pattern)
 // ---------------------------------------------------------------------------
-export const _robotInternals = { shouldFire, matchesCron, matchField, matchesMarketEvent, processRobot, openRobotTrade, tick };
+export const _robotInternals = { shouldFire, matchesCron, matchField, matchesMarketEvent, processRobot, openRobotTrade, tick, evaluateConditions, checkPriceMove, moveRefPrice };
