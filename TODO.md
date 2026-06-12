@@ -808,11 +808,13 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** Draw a horizontal line → refresh → line still there. Draw trendline → fib → all render correctly.
 
 ## 18.3 Light / dark mode fix
-- [ ] **Files:** `stores/theme.ts` (or equivalent), `constants/colors.ts`
-> BLOCKED for offline auto-runs (verified 2026-06-04): ~58 components import the static dark-only `colors`; converting every one to theme tokens is a multi-hour mechanical refactor whose only acceptance is visual (toggle → entire app goes light). Unverifiable offline and risky to ship blind (a missed token = broken render no one can see). Resume on a screenshot-capable run, or split into per-screen sub-items.
+- [ ] **Files:** `stores/theme.ts`, `lib/theme.ts` (`colors`), ~58 components that import `colors`
+> RE-REPORTED by user 2026-06-11: confirmed still broken — Profile → Display → Light has no visible effect, app stays dark.
+> Root cause (verified): the theme store + light tokens exist and `resolveScheme()` works, but ~58 components `import { colors } from '@/lib/theme'` where `colors` is a STATIC dark-only object. Only ~1 component reads a `useThemeColors()`-style hook. Toggling the store changes nothing because nothing re-reads on theme change. This is a mechanical refactor: every `colors.x` must become a themed lookup, and components must re-render on theme change (hook/context). Acceptance is visual, so it needs a screenshot/preview run to verify safely (a missed token = broken render).
+> **Recommended approach:** (1) expose a `useColors()` hook backed by the theme store that returns the dark OR light palette; (2) convert screens incrementally, highest-traffic first — split into sub-items so each is verifiable: 18.3a auth+onboarding, 18.3b Trade/OrderEntry/TradeBook, 18.3c Portfolio, 18.3d Robots, 18.3e Profile/settings, 18.3f admin, 18.3g shared components. Verify each in browser preview with `preview_resize colorScheme:light`.
 - **Problem:** Theme toggle exists in Profile → Display but switching to Light has no visible effect — the app stays dark.
-- **What:** Audit every component that uses hardcoded dark hex values instead of theme tokens. Replace with token references. Light theme tokens already defined — just need components to read them.
-- **Acceptance:** Toggle Profile → Light → entire app goes light. Toggle back → dark. Persists across reload.
+- **What:** Audit every component using the static `colors` import; route them through a theme-aware hook so they re-render on toggle. Light tokens already defined.
+- **Acceptance:** Toggle Profile → Light → entire app goes light. Toggle back → dark. Persists across reload. Verified per-screen in browser preview.
 
 ## 18.10 Risk disclosure — fix accept flow
 - [ ] **Files:** `app/legal/` (risk disclosure page), `app/(auth)/` or onboarding flow
