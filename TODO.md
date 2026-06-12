@@ -1175,6 +1175,48 @@ by `user_id`, see the `attachAccounts` helper added in the 0d4d991 fix).
 
 ---
 
+# Phase 22 — Gamification & engagement (requested 2026-06-11)
+
+Builds on what exists (Phase 11: first-trade confetti, login streak, achievements
+table + `checkFirstTrade/checkFiveWins/checkRiskMaster/checkBalance1000/checkRobotEngineer/seven_day_streak`,
+win-flash). Goal: more reasons to come back daily + a market-news feed that ties
+real events to the assets they move.
+
+## 22.1 Expanded achievements catalogue
+- [ ] **Files:** `server/src/lib/achievements.ts`, `app/(tabs)/profile.tsx` (Achievements section), migration if new codes need metadata
+- **What:** Add a broad set of unlockable badges beyond the current 7. Each = a code + check fired after the relevant event (mirror existing `checkX` helpers, fire-and-forget). Candidate list (pick a sensible ~15):
+  - **Volume:** First 1 lot total, 10 lots, 100 lots traded
+  - **Profit:** First green trade, +$100 realized, +$1,000 realized, +10% on the demo
+  - **Discipline:** 10 trades with SL set (exists as Risk Master — extend), 5 wins in a row, close in profit 3 days running
+  - **Variety:** Trade 5 different symbols, trade crypto + forex + stock, use a limit order, use a robot
+  - **Streaks:** 3/7/30-day login streak, 7-day trading streak
+  - **Quick mode:** First binary round, 5-win round streak
+  - **Social:** Make a robot public, get copied by another trader, share a trade to X
+- **Acceptance:** Each badge unlocks on its trigger, shows in Profile → Achievements (unlocked vs locked silhouette + criteria), and fires at most once.
+
+## 22.2 Market news feed tagged to assets
+- [ ] **Files:** `server/src/workers/news.ts` (new), migration `news_items (id, headline, summary, url, source, symbols text[], sentiment, published_at)`, `GET /api/news?symbol=`, `components/NewsFeed.tsx`, surface on Trade screen + a News tab
+- **What:** A worker pulls market headlines on a schedule and tags each to the asset(s) it impacts (e.g. an ETF approval → BTCUSD; an earnings beat → AAPL), with a bull/bear/neutral sentiment tag. The chart/trade screen for a symbol shows a "News affecting BTCUSD" strip; a global feed shows latest items with their asset chips. **Free sources first** (per stack rules): RSS/JSON from CoinGecko/CryptoPanic free tier, Yahoo Finance RSS, or a free news API — quote cost before any paid feed. Symbol tagging: keyword match against the symbol catalogue, optionally a cheap Haiku classify (~$0.001/item) for sentiment + which symbols — quote the per-day cost before enabling.
+- **Decisions to lock at build time:**
+  ```
+  Source:    (a) free RSS/CryptoPanic ✅   (b) paid news API (quote first)
+  Tagging:   (a) keyword match ✅          (b) Haiku classify (~$X/day)
+  Schedule:  (a) Claude cron / worker every 30–60 min ✅   (b) on-demand
+  Storage:   (a) Supabase news_items ✅
+  ```
+- **Acceptance:** Open BTCUSD → see recent headlines tagged to BTC with sentiment; open a News tab → chronological feed with asset chips; tapping a chip filters to that symbol. Stale items age out.
+
+## 22.3 Push a "tip" when news strongly impacts a held/watched asset
+- [ ] **Files:** `server/src/workers/news.ts` (extend), reuse `lib/push.ts` + `profiles.notification_prefs`
+- **What:** When a high-sentiment news item lands for a symbol the user holds (open trade) or has on their watchlist, send a push: "📈 Bitcoin: [headline] — you hold BTCUSD". Respects the existing notification preferences (robot signals / price alerts toggles; add a "market news" toggle). Tip-only robots (Phase 3.4) already have the push plumbing — reuse it.
+- **Acceptance:** A flagged BTC news item with an open BTC position → push received; toggling "market news" off in settings stops them.
+
+## 22.4 Daily challenges / quests (optional, lower priority)
+- [ ] **What:** A rotating daily task ("place a trade with a stop-loss", "try Quick mode", "check the news feed") that grants a badge or a small demo-balance bonus on completion. Keeps daily-active users engaged beyond the login streak.
+- **Acceptance:** A daily quest shows on the Trade tab, completes when its condition is met, resets next day.
+
+---
+
 # Phase 17 — Optional / future
 
 - [ ] Copy trading (follow another trader's positions)
