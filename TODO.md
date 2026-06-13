@@ -779,6 +779,16 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 
 # Phase 18 — UX fixes (reported 2026-05-28)
 
+## 18.15 Quick mode — short rounds (5s) show no trade and no result
+- [ ] **Files:** `components/fun/ActiveRounds.tsx`, `components/fun/QuickTradeScreen.tsx`, maybe `components/fun/RoundResultModal.tsx`; confirm Supabase realtime replication is ON for `binary_rounds`.
+- **Reported 2026-06-13 (user):** placing a 5-second up/down bet shows neither an active round nor a win/loss result. Stake is deducted but the round is invisible.
+- **Root cause (traced):** the Quick-mode UI depends ENTIRELY on Supabase realtime. `ActiveRounds` only renders a round when a realtime `INSERT` on `binary_rounds` arrives, and the result modal (`onRoundSettled`) only fires on a realtime `UPDATE`. There is NO optimistic insert from the `POST /api/rounds/open` response and NO polling fallback. A 5s round is created AND settled by the rounds worker (1s tick) within ~5s, so both realtime events race the channel subscription — if either is slow or missed, the user sees nothing. Longer durations (60s+) work because realtime has time to deliver. (Also verify realtime replication is actually enabled for `binary_rounds` in Supabase — if not, ALL durations rely on a fallback that doesn't exist yet.)
+- **What to build:**
+  1. **Optimistic insert:** on a successful `POST /api/rounds/open`, immediately add the returned round to `ActiveRounds` state (don't wait for the realtime INSERT). The server already returns `{ round }`.
+  2. **Settlement fallback (don't rely solely on realtime UPDATE):** for each active round, when `now >= closes_at`, re-fetch that round from Supabase (or poll `binary_rounds` by id) and, once `outcome != 'pending'`, fire the result modal + update balance. Keep the realtime UPDATE path too — whichever lands first wins (dedup by id).
+  3. Make sure `RoundResultModal` fires for ties as well (a 5s round often has entry≈exit → `tie`); show a "push/refund" state instead of silently nothing.
+- **Acceptance:** Place a 5s round → it appears immediately with a countdown → ~5s later a win/loss/tie result modal shows and balance reflects it. Same for 10s/30s. Verify in browser preview (Quick mode, 5s).
+
 ## 18.13 Trade row density — text too small, too many lines
 - [x] **Files:** `components/pro/TradeBook.tsx`
 - **Problem:** Each open trade row shows 5 lines of small text (symbol + age, notional · leverage · margin, TP value, open→now price, P&L). Too much information crammed into too little space. Hard to scan quickly.
