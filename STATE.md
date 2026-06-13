@@ -18,9 +18,8 @@ inode); **create files inside the existing `.git/objects/pack/` dir**; overwrite
 (clone the mount to /tmp, commit there, `git pack-objects --revs` the new objects only, copy the
 `.pack`/`.idx` into the mount's existing `.git/objects/pack/`, overwrite `refs/heads/main` with the
 new sha, and rebuild `.git/index` via `GIT_INDEX_FILE=/tmp/... git read-tree <sha>` then
-`cat` it over `.git/index`). This run used exactly that and left `git status` clean.
-NB: `.git/packed-refs` also has a stale `refs/heads/main` (8beb509); the **loose** ref wins, so
-always overwrite the loose `.git/refs/heads/main`.
+`cat` it over `.git/index`). NB: `.git/packed-refs` also has a stale `refs/heads/main` (8beb509);
+the **loose** ref wins, so always overwrite the loose `.git/refs/heads/main`.
 
 ## ⚠️ DO NOT edit code files with the Edit/Write file tools — use bash/python
 Editing `.tsx` via the Edit tool has produced files `tsc` rejected with bogus parse errors even
@@ -28,109 +27,70 @@ though the bytes looked clean. Make all repo code edits through bash/python here
 `open(...,'w')`, then verify with `npx --no-install tsc --noEmit` before committing. (.md files are
 fine via Edit/Write — no compile step.)
 
-## 🛑 2026-06-11 14:28 UTC (auto) — SKIPPED: dirty working tree (USER MID-EDIT on 18.11)
-Skipped run, no TODO work, touched nothing but this note. Working tree is dirty with in-flight
-work on **item 18.11 (share winning trade → X)** that I did NOT create and that an auto-run is
-not allowed to create: `package.json`/`package-lock.json` add `expo-sharing` + `react-native-view-shot`
-(the exact two deps 18.11 needs — and auto-runs are forbidden to `npm install` packages not listed
-in a TODO item), plus new files `lib/shareCard.ts` (the file 18.11 names) and
-`components/pro/TradeShareCard.tsx`, plus `components/pro/TradeBook.tsx` modified (+68/−2). Files
-dated Jun 10 14:26–14:29, i.e. AFTER the prior run's 14:07 skip — and no auto-run logged starting
-18.11. Conclusion: the user is building 18.11 by hand (they added the deps the agent can't). Per
-the "dirty tree you didn't create = STOP, user is mid-edit" rule I did not pick or run any item.
-Next run: if these changes are committed or reverted by the user, the tree will be clean and work
-can resume — the topmost actionable items are 18.10 (server-side risk_accepted_at persist) and
-18.6 (share_trades 403 + Profile toggle), both pure code, both UNBLOCKED per their TODO notes.
-STATE.md is also dirty (the carried 14:07 handoff entry, uncommitted) — that's the usual handoff
-dirty, not user code.
+## ⏭️ 2026-06-13 00:48 UTC (auto) — No-op: precheck fails (deploy targets unreachable, no CLIs). Tree CLEAN.
+Tree is clean (only STATE.md dirty — this handoff). HEAD `061a381`, branch main, up to date with
+origin/main. The 06-11/06-12 source-file corruption is gone and the dirty-tree block is resolved.
 
-## 🛑 2026-06-10 14:07 UTC (auto) — SKIPPED: dirty tree w/ CORRUPTED source files (not user mid-edit)
-Skipped run: working tree dirty in a way I did not create. `git status` shows 5 modified files.
-STATE.md + TODO.md are the expected agent-handoff dirties. But THREE tracked **source files are
-corrupted** — each truncated mid-token with "No newline at end of file" (one even has a stray
-binary byte). Did NOT do any TODO work and did NOT touch the corrupted files (autonomous run,
-ambiguous cause). Env note: this run `git status` says "up to date with origin/main" (clean base),
-contradicting prior runs' "ahead by 4 commits" — looks like the mount was re-synced/reset.
+Re-probed the env (didn't trust notes): `curl` to railway `/health` → **000**, vanta-jade.vercel.app
+→ **000**, github.com → **200** (control passes, so egress works only for allowlisted domains).
+`which railway vercel` → neither installed (only python3/node/npx/git). Client `tsc --noEmit` ran
+clean. The TODO header makes the two live-URL curls a MANDATORY precheck and `railway up`/
+`vercel --prod` a mandatory step — both impossible here. Per "if any precheck fails, do not start a
+task" I picked nothing, committed nothing, changed nothing but this note. No fabrication, no blind
+ship. Topmost actionable item remains **18.10** — fully scoped in the entry below; a networked run
+can execute it fast.
 
-Corrupted files (working tree vs committed = good):
-- `components/pro/OrderEntry.tsx`  — truncated at `ActionButton`, ends `...backgroundColor: color,\n  pa`
-- `.github/workflows/backup-check.yml` — truncated after `- name: Export tables` / `run:`
-- `e2e/smoke.spec.ts` — truncated at `await closeBt`, with a stray binary byte before the cut
+### 18.10 — persist risk acceptance server-side (topmost unchecked, pure code, migration 028 applied)
+Current state: acceptance is AsyncStorage-only. `components/RiskDisclosureModal.tsx` writes
+`vanta:risk_ack` (deposit gate, used by `app/deposit.tsx`) and `vanta:risk_ack_trade` (trade gate,
+used by `app/(tabs)/trade.tsx`) via `acknowledgeRisk(key)`. Nothing hits the server. The
+`profiles.risk_accepted_at timestamptz` column exists (028 applied per prior note).
+EXACT changes for the next run:
+1. **Server** `server/src/routes/account.ts` (mounted at `/api/account`; already has `GET /profile`
+   returning the full profile row incl. `risk_accepted_at`, and `PUT /notification-prefs` as a
+   pattern to copy): add `POST /risk-accept` → `authUser(req.headers.authorization)`; if null 401;
+   `supabaseAdmin.from('profiles').update({ risk_accepted_at: new Date().toISOString() })
+   .eq('id', userId).select('risk_accepted_at').single()`; return `{ risk_accepted_at }`.
+2. **Client** `lib/api.ts`: add `acceptRiskServer()` POST to `/api/account/risk-accept`
+   (copy an existing authed POST helper for the base-URL + bearer pattern).
+3. **Client** `components/RiskDisclosureModal.tsx` `handleAccept`: after `acknowledgeRisk(ackKey)`,
+   also `void acceptRiskServer().catch(()=>{})` — best-effort, must NOT block the UX.
+4. **Client app start** (`app/_layout.tsx`, after the session is set — same place push-token/prefs
+   hydrate): GET `/api/account/profile`; if `profile.risk_accepted_at != null`, set BOTH
+   AsyncStorage keys (`vanta:risk_ack`, `vanta:risk_ack_trade`) to `'1'` so acceptance survives
+   device changes (the "existing users go straight through" acceptance criterion).
+5. **Server test** `server/test/account.test.ts` (extend if it exists, else new, hermetic
+   supabaseMock — see `server/test/helpers/supabaseMock.ts`): assert `POST /risk-accept` 401s
+   without auth, and with auth writes `risk_accepted_at` + returns it.
+Verify offline: client `npx --no-install tsc --noEmit`; `cd server && npx --no-install tsc
+--noEmit && npm test`. Then DEPLOY: `cd server && railway up --detach` (new route) +
+`cd .. && vercel --prod --yes`. Live-verify: accept on device A → confirm `profiles.risk_accepted_at`
+set → open fresh browser B → trade gate passes without re-accepting.
 
-These would also fail the mandatory `tsc` precheck, so no item is completable until fixed.
+After 18.10, the next pure-code item is **18.6** (share_trades 403 + Profile Privacy toggle;
+migration 027 applied). 18.2/18.3 (above 18.10) stay BLOCKED for offline auto-runs (interactive +
+visual). 18.7/18.8 blocked (network / oversized).
 
-➡️ REMEDIATION (user or next run, after confirming none of these are intentional edits): the
-committed versions are intact, so restore them with:
-```bash
-cd /c/Claude/vanta
-git restore components/pro/OrderEntry.tsx .github/workflows/backup-check.yml e2e/smoke.spec.ts
-git status   # should then show only STATE.md + TODO.md dirty (the handoff files)
-```
-After that the next auto-run can proceed normally. I left this for a human because silently
-discarding working-tree changes on an autonomous pass violates the "dirty tree = stop" rule.
+⚠️ CARRIED DEPLOY DEBT (still NOT live): 19.1 ($ amount sizing) + 20.3 (trade risk gate) are
+committed but never deployed/verified. Next networked run: `vercel --prod --yes` then browser-check.
+Both client-only — no Railway deploy needed.
 
-## ⏭️ 2026-06-10 12:36 UTC (auto) — No-op run #2: env re-verified fresh, still fully blocked
-Did NOT trust prior notes — re-probed everything myself this run AND re-read every unchecked item
-in TODO.md directly. Findings identical: all three VANTA domains `000`
-(railway/vercel/supabase REST), no `railway`/`vercel` CLI (only python3/node/npx/git), github→200.
-The TODO header makes deploy + live-verify + a `curl …/health|grep ok` & `curl vanta-jade|grep 200`
-precheck MANDATORY for ANY item, so nothing is completable end-to-end. Picked nothing, fabricated
-nothing, shipped no blind change. Only change this run = this STATE.md entry (edited in place).
-
-⚠️ HANDOFF-COMMIT DEBT (new observation): HEAD is now `5dd266a` and `git status` says "ahead of
-origin/main by 4 commits", so commits DO persist here — but the working tree STILL carries
-UNCOMMITTED edits to STATE.md + TODO.md left by the previous run (committed STATE.md ends
-mid-sentence at the 06-09 entry; the working tree has the fuller 06-10 content). I did NOT treat
-this as a user mid-edit (clearly agent handoff files, not user code). I did NOT run the fragile
-pack-workaround for two .md files. Next run / the user: these two files are dirty by design; safe
-to commit-in-place or leave. Per-item block rationale below in the 06-09 entry is still current.
-
-## ⏭️ 2026-06-09 (auto) — No-op run: all remaining items blocked under this env
-Picked nothing. Verified every unchecked, non-PARKED item is un-completable AND un-verifiable in
-this run's environment, so per the hard rules I did NOT fabricate work or ship a blind refactor.
-No code changed; only this STATE.md entry.
-
-ENV FINDING (more precise than past "no network" notes): this run DID have general internet
-(github.com → 200, api.anthropic.com → 404=reachable) BUT all three VANTA domains return 000 on
-repeated tries — `vanta-server-production.up.railway.app`, `vanta-jade.vercel.app`,
-`auavcfwytrwurawcvrsc.supabase.co` (REST too). Likely an egress allowlist, not infra downtime.
-Also: neither `railway` nor `vercel` CLI is installed (only python3). Net effect = cannot deploy,
-cannot apply migrations, cannot live/visually verify. `SUPABASE_PAT` IS present in server/.env.
-
-REMAINING ITEMS — why each is blocked here (re-confirmed):
-- R.7 Better-Stack → external signup (user). 18.2 chart-drawing → migration + interactive/visual
-  + multi-hour. 18.3 light/dark → confirmed 58/60 files import static dark `colors`, only 1 uses
-  `useThemeColors()`; full hook refactor is multi-hour and acceptance is visual-only (unsafe to
-  ship blind — tsc can't catch a missed token). 18.6 share-trades → migration (Supabase
-  unreachable). 18.7 AI assistant → Railway backend unreachable + multi-page UI + live verify.
-  18.8 manager panel → oversized, must be split first. 18.10 risk-accept → migration + visual.
-  18.11 share-to-X → new dependency + user decision + X-web platform limit. 19.2 robots E2E →
-  pure live verification vs unreachable Vercel/Railway. 20.2 PARKED. Phase 17 optional/future.
-
-TO UNBLOCK (pick any, for the user or a future run): (1) grant the sandbox egress to the
-railway/vercel/supabase domains + install the deploy CLIs → unblocks 19.2 verify, 18.7, and the
-deploy of already-committed-but-undeployed work (19.1, 20.3); (2) run on a screenshot-capable
-host → unblocks 18.3 / 18.2 visual acceptance; (3) pre-apply the 18.6 / 18.10 migrations via
-`scripts/apply-migration.py` (PAT is in server/.env); (4) split 18.8 into per-page sub-items;
-(5) approve the 18.11 dependency + web descope.
-
-⚠️ DEPLOY DEBT (carried, still NOT live): 19.1 ($ amount sizing) and 20.3 (trade risk gate) are
-committed but never deployed/verified. Next networked run: `vercel --prod --yes` then browser-check
-both. No Railway deploy needed for either (both client-only).
-
-Parent commit (pre-this-run HEAD): db811b279dc59de324d9ba9e86b681f697c808b2 (unchanged this run).
+TO UNBLOCK auto-runs (user action): give the sandbox egress to the railway/vercel/supabase domains
++ install the deploy CLIs. That alone unblocks 18.10, 18.6, the 19.1/20.3 deploy debt, and 19.2
+live verification.
 
 ## Earlier (pruned)
-- 2026-06-09 (auto): Completed 19.1 ($ amount/notional sizing) client-only; committed; NOT
-  deployed (VANTA domains unreachable that run).
-- 2026-06-09 (auto): Completed 20.3 (risk disclosure gates trading) client-only; committed
-  db811b2; NOT deployed.
+- 2026-06-12 (auto): three runs — two SKIPPED on a dirty tree (9 modified code files with large
+  deletions, suspected truncation/CRLF corruption, not my edits) and one no-op (offline env). All
+  resolved: tree is clean again as of this run (user restored or committed).
+- 2026-06-11 (auto): SKIPPED (corrupted-source dirty tree, since resolved) + 18.11 finished by user.
+- 2026-06-09/10 (auto): 19.1 + 20.3 completed client-only & committed (NOT deployed — see debt
+  above); other runs no-op (all remaining items blocked offline). `SUPABASE_PAT` is in `server/.env`.
 - 2026-06-08: 20.1 (risk disclosure web scroll-lock) committed ff1436d.
 
 ## Untracked cruft the mount cannot delete (ignore; never `git add`)
 `.sync_probe_18_1.txt`, `.write_probe_tmp`, `STATE.regen.md`, `TODO.regen.md`,
 `components/pro/OrderEntry.fresh.tsx`, `components/pro/SymbolPickerModal.regen.tsx`,
 `server/src/routes/_state_entry_18_12.md`, `server/src/routes/orders.regen.ts`,
-`server/src/routes/transactions.regen.ts`. Plus this run's harmless probe leftovers (also
-un-rm-able): `.git/index.lock.probe`, `.git/objects/pack/.probe_write_test`. The user can `rm`
-these from Windows.
+`server/src/routes/transactions.regen.ts`, plus prior probe leftovers under `.git/`. The user can
+`rm` these from Windows.

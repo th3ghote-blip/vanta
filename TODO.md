@@ -8,7 +8,14 @@
 
 **Always cd to `/c/Claude/vanta` first.** Working directory drifts between Bash invocations otherwise.
 
-### Precheck (run on every session start, must all pass)
+### ⚠️ DEPLOY MODEL: push → GitHub Actions (do NOT run railway/vercel CLI)
+Deploys are automatic: pushing to `main` triggers `.github/workflows/deploy.yml`, which runs
+tsc + tests and ships BOTH Railway (backend) and Vercel (frontend). The auto-run sandbox CANNOT
+reach the railway/vercel/supabase domains (egress allowlist — only github.com is reachable) and
+has NO railway/vercel CLI. That is EXPECTED and is NOT a blocker. **Never** treat an unreachable
+live URL or a missing CLI as a precheck failure — those checks do not apply here.
+
+### Precheck (run on every session start)
 
 ```bash
 cd /c/Claude/vanta
@@ -17,33 +24,30 @@ git status                          # must say "nothing to commit, working tree 
 git branch --show-current           # must say "main"
 npx --no-install tsc --noEmit       # client TypeScript — must be silent
 cd server && npx --no-install tsc --noEmit && cd ..   # server TypeScript — must be silent
-curl -sf https://vanta-server-production.up.railway.app/health | grep -q '"ok":true'
-curl -sf -o /dev/null -w "%{http_code}" https://vanta-jade.vercel.app/ | grep -q 200
 ```
 
-If any precheck fails: investigate, leave a note in `STATE.md`, **do not** start a task.
+Only these matter. If the **tree is dirty with code you did not create**, STOP (user mid-edit).
+If only `STATE.md`/`TODO.md` are dirty (the usual handoff), that's fine — proceed.
+Do NOT curl the live URLs and do NOT gate on them.
 
 ### Then
 
 1. Read **`/c/Claude/vanta/STATE.md`** for context the previous agent left.
 2. Pick the topmost unchecked task whose dependencies are met. **Skip any task tagged `PARKED` — it's externally gated and only resumes when the user explicitly says so.**
-3. Implement it fully (code + verification per the acceptance criteria).
-4. Deploy:
-   - Backend: `cd /c/Claude/vanta/server && railway up --detach`
-   - Frontend: `cd /c/Claude/vanta && vercel --prod --yes`
-5. Verify acceptance criteria using `curl`, the live URL, or a preview screenshot.
-6. Re-run the precheck — must still pass after your changes.
-7. `git add <files you touched>` (never `git add -A`).
-8. `git commit -m "auto: <short item title>"`.
-9. Mark `[x]` in this file. Update **`STATE.md`** with anything notable.
-10. Move to next.
+3. Implement it fully (code + tests per the acceptance criteria).
+4. Verify offline: client `npx --no-install tsc --noEmit`; `cd server && npx --no-install tsc --noEmit && npm test` (all green). Migrations apply fine — `apply-migration.py` IS reachable (Supabase Management API is allowlisted).
+5. `git add <files you touched>` (never `git add -A`).
+6. `git commit -m "auto: <short item title>"` then **`git push origin main`** — CI deploys both. Confirm the push landed (`git status -sb` shows no "ahead"). Live/visual verification is deferred to the next interactive session; note it under "PENDING LIVE VERIFY" in STATE.md.
+7. Mark `[x]` in this file. Update **`STATE.md`** with what shipped.
+8. Move to next.
 
 **Migrations:** apply via `python scripts/apply-migration.py supabase/migrations/00X_name.sql` with `SUPABASE_PAT` env var set. PAT is in `server/.env` as `SUPABASE_PAT` (add it if missing — value already in conversation history; if not, ask the user).
 
 **Live URLs:**
 - Frontend: https://vanta-jade.vercel.app
 - Backend: https://vanta-server-production.up.railway.app
-- Supabase: https://supabase.com/dashboard/project/auavcfwytrwurawcvrsc
+- Supabase: https://supabase.com/dashboard/project/pepqcrzbxyuhwqesuejk (org: nifield; old `auavcfwytrwurawcvrsc` is DEAD)
+- Auth is EMAIL + password now (the numeric account login is admin/support only — do not "fix" it back to number login)
 
 **Already-built features (don't re-do):**
 - MT4-style auth (login number + password)
