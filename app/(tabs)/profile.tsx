@@ -35,6 +35,8 @@ export default function Profile() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [copied, setCopied] = useState(false);
   const [hedgingBusy, setHedgingBusy] = useState(false);
+  const [shareTrades, setShareTrades] = useState(true);
+  const [shareBusy, setShareBusy] = useState(false);
   const [openingAccount, setOpeningAccount] = useState(false);
   const [openAccountError, setOpenAccountError] = useState<string | null>(null);
   const [has2FA, setHas2FA] = useState(false);
@@ -43,7 +45,10 @@ export default function Profile() {
 
   useEffect(() => {
     api.getProfile()
-      .then(({ profile }) => setIsAdmin(Boolean(profile.is_admin)))
+      .then(({ profile }) => {
+        setIsAdmin(Boolean(profile.is_admin));
+        setShareTrades(profile.share_trades !== false); // default ON
+      })
       .catch(() => {});
     listVerifiedFactors()
       .then(({ factors }) => setHas2FA(factors.length > 0))
@@ -361,6 +366,49 @@ export default function Profile() {
                 />
               </View>
             </Pressable>
+          </View>
+        </View>
+
+        {/* Privacy — 18.6 share my trades */}
+        <View
+          style={{
+            backgroundColor: colors.bgElevated,
+            borderRadius: radius.lg,
+            padding: spacing.md,
+            borderWidth: 1,
+            borderColor: colors.border,
+          }}
+        >
+          <Text style={{ ...typography.bodyBold, color: colors.textPrimary, fontSize: 14, marginBottom: spacing.sm }}>
+            Privacy
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flex: 1, marginRight: spacing.md }}>
+              <Text style={{ ...typography.bodyBold, color: colors.textPrimary, fontSize: 13 }}>
+                Share my trades
+              </Text>
+              <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 11, marginTop: 2 }}>
+                {shareTrades
+                  ? 'ON \u2014 your closed trades appear on leaderboards and copy-trading discovery'
+                  : 'OFF \u2014 your trades are private; other users can\u2019t see them'}
+              </Text>
+            </View>
+            <Switch
+              value={shareTrades}
+              disabled={shareBusy}
+              onValueChange={async (val) => {
+                setShareBusy(true);
+                const prev = shareTrades;
+                setShareTrades(val);
+                try {
+                  await api.setShareTrades(val);
+                } catch {
+                  setShareTrades(prev); // revert on failure
+                }
+                setShareBusy(false);
+              }}
+              trackColor={{ false: colors.border, true: colors.primary }}
+            />
           </View>
         </View>
 

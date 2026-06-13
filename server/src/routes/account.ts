@@ -102,6 +102,38 @@ export async function accountRoutes(app: FastifyInstance) {
   });
 
   /**
+   * PATCH /api/account/privacy
+   * Toggle the caller's "share my trades" privacy flag (18.6).
+   * Body: { share_trades: boolean }. When false, other logged-in users cannot
+   * see this user's trades — the copy-trading leaderboard excludes them and the
+   * per-trader trade-history route returns 403. Default is true for everyone
+   * (migration 027). Persisted to profiles.share_trades.
+   */
+  app.patch('/privacy', async (req, reply) => {
+    const userId = await authUser(req.headers.authorization);
+    if (!userId) return reply.code(401).send({ error: 'unauthorized' });
+
+    const body = req.body as { share_trades?: unknown };
+    if (typeof body?.share_trades !== 'boolean') {
+      return reply.code(400).send({ error: 'invalid_body', message: 'share_trades (boolean) required' });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('profiles')
+      .update({ share_trades: body.share_trades })
+      .eq('id', userId)
+      .select('share_trades')
+      .single();
+
+    if (error || !data) {
+      app.log.error({ error }, 'account/privacy: update failed');
+      return reply.code(500).send({ error: error?.message ?? 'update_failed' });
+    }
+
+    return reply.send({ share_trades: data.share_trades });
+  });
+
+  /**
    * PUT /api/account/notification-prefs
    * Update the caller's notification preference flags.
    * Body: { prefs: { price_alerts?: boolean, robot_signals?: boolean,

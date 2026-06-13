@@ -31,7 +31,8 @@ export async function tradersRoutes(app: FastifyInstance) {
     const { data: leaders, error: lErr } = await supabaseAdmin
       .from('profiles')
       .select('id')
-      .eq('copy_leader_enabled', true);
+      .eq('copy_leader_enabled', true)
+      .eq('share_trades', true); // 18.6 — private users never appear on the board
 
     if (lErr) return reply.code(500).send({ error: 'db_error' });
     if (!leaders || leaders.length === 0) return { leaderboard: [], period };
@@ -86,6 +87,40 @@ export async function tradersRoutes(app: FastifyInstance) {
       .slice(0, 20);
 
     return { leaderboard: rows, period };
+  });
+
+  // ── GET /api/traders/:leaderId/trades ─────────────────────────────────────
+  // A leader's recent closed-trade history (copy-trading discovery / track
+  // record). 18.6: gated by the leader's `share_trades` flag — returns 403 when
+  // the leader has made their trades private (or has no profile). No account ids
+  // leak; only trade-level fields are returned.
+  app.get<{ Params: { leaderId: string } }>('/:leaderId/trades', async (req, reply) => {
+    const userId = await authUser(req.headers.authorization);
+    if (!userId) return reply.code(401).send({ error: 'unauthorized' });
+
+    const { leaderId } = req.params;
+
+    const { data: leader } = await supabaseAdmin
+      .from('profiles')
+      .select('share_trades')
+      .eq('id', leaderId)
+      .single();
+
+    // No profile, or sharing turned off → trades are private.
+    if (!leader || leader.share_trades === false) {
+      return reply.code(403).send({ error: 'trades_private' });
+    }
+
+    const { data: trades, error } = await supabaseAdmin
+      .from('trades')
+      .select('symbol, side, volume, open_price, close_price, profit, opened_at, closed_at')
+      .eq('user_id', leaderId)
+      .eq('status', 'closed')
+      .order('closed_at', { ascending: false })
+      .limit(50);
+    if (error) return reply.code(500).send({ error: 'db_error' });
+
+    return { leaderId, trades: trades ?? [] };
   });
 
   // ── PATCH /api/traders/opt-in ─────────────────────────────────────────────

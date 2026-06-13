@@ -28,6 +28,7 @@ export interface DbAccount {
 export interface DbTrade {
   id: number;
   account_id: string;
+  user_id?: string;
   symbol: string;
   side: 'buy' | 'sell';
   volume: number;
@@ -64,6 +65,7 @@ export interface DbProfile {
   last_login_date?: string;
   login_streak?: number;
   copy_leader_enabled?: boolean;
+  share_trades?: boolean;
 }
 
 export interface DbCopyRelationship {
@@ -168,6 +170,8 @@ export const seed = {
       id: overrides.id ?? 'user-1',
       last_login_date: overrides.last_login_date,
       login_streak: overrides.login_streak ?? 0,
+      copy_leader_enabled: overrides.copy_leader_enabled ?? false,
+      share_trades: overrides.share_trades ?? true,
     };
     tables.profiles.push(p);
     return p;
@@ -176,6 +180,7 @@ export const seed = {
     const t: DbTrade = {
       id: overrides.id ?? tradeIdCounter++,
       account_id: overrides.account_id ?? 'acct-1',
+      user_id: overrides.user_id,
       symbol: overrides.symbol ?? 'EURUSD',
       side: overrides.side ?? 'buy',
       volume: overrides.volume ?? 0.1,
@@ -218,7 +223,7 @@ export function getTable<K extends keyof Tables>(name: K): Tables[K] {
 
 interface Filter {
   col: string;
-  op: 'eq' | 'gte' | 'in';
+  op: 'eq' | 'gte' | 'in' | 'not_null';
   val: any;
 }
 
@@ -280,6 +285,11 @@ class Query {
     this.filters.push({ col, op: 'in', val: vals });
     return this;
   }
+  // Supports the supabase `.not(col, 'is', null)` form → keep rows where col is not null.
+  not(col: string, op: string, val: any) {
+    if (op === 'is' && val === null) this.filters.push({ col, op: 'not_null', val: null });
+    return this;
+  }
   order(col: string, opts?: { ascending?: boolean }) {
     this.orderCol = col;
     this.orderAsc = opts?.ascending ?? true;
@@ -313,6 +323,7 @@ class Query {
       if (f.op === 'eq') return row[f.col] === f.val;
       if (f.op === 'gte') return row[f.col] >= f.val;
       if (f.op === 'in') return Array.isArray(f.val) && (f.val as any[]).includes(row[f.col]);
+      if (f.op === 'not_null') return row[f.col] !== null && row[f.col] !== undefined;
       return false;
     });
   }

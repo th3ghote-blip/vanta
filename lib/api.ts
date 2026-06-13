@@ -218,6 +218,15 @@ export const api = {
       method: 'POST',
     }),
 
+  // Privacy (18.6 — "Share my trades")
+  /** Persist the caller's share-trades privacy flag. When false, other users
+   *  can't see this user's trades (leaderboard excludes them; history → 403). */
+  setShareTrades: (share_trades: boolean) =>
+    request<{ share_trades: boolean }>('/api/account/privacy', {
+      method: 'PATCH',
+      body: JSON.stringify({ share_trades }),
+    }),
+
   // Notification preferences (Phase 6.5)
   getNotificationPrefs: async (): Promise<NotificationPrefs> => {
     const { profile } = await request<{ profile: any }>('/api/account/profile');
