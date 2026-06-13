@@ -821,7 +821,8 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** Toggle Profile → Light → entire app goes light. Toggle back → dark. Persists across reload. Verified per-screen in browser preview.
 
 ## 18.10 Risk disclosure — fix accept flow
-- [ ] **Files:** `app/legal/` (risk disclosure page), `app/(auth)/` or onboarding flow
+- [x] **Files:** `app/legal/` (risk disclosure page), `app/(auth)/` or onboarding flow
+- **Done 2026-06-13 (auto):** persisted risk acceptance server-side. New `POST /api/account/risk-accept` (`server/src/routes/account.ts`) auths the caller, sets `profiles.risk_accepted_at = now()`, returns it (401 unauth, 500 on db error). Client `api.acceptRiskServer()` (`lib/api.ts`) called best-effort from `RiskDisclosureModal.handleAccept` after the AsyncStorage write — never blocks the UX. On app start (`app/_layout.tsx`, same place push-token hydrates), a best-effort `api.getProfile()` syncs BOTH AsyncStorage keys (`vanta:risk_ack`, `vanta:risk_ack_trade`) to '1' when `risk_accepted_at` is non-null, so acceptance survives device changes / fresh browsers. New hermetic test `server/test/account.test.ts` (2 tests: 401 unauth; authed writes+returns the timestamp). Migration 028 (`risk_accepted_at`) already applied per prior note — no migration this run. Verified offline: client tsc clean, server tsc clean, `npm test` 167 passing. PENDING LIVE VERIFY (next interactive session): accept on device A → confirm `profiles.risk_accepted_at` set → open fresh browser B → trade gate passes without re-accepting.
 > UNBLOCKED 2026-06-10: migration `028_risk_accepted_at.sql` is APPLIED to the live DB (`profiles.risk_accepted_at timestamptz` verified). Scroll-lock fixed in 20.1; trading gate shipped in 20.3 (AsyncStorage). REMAINING: persist acceptance server-side — on accept, also PATCH the profile's `risk_accepted_at = now()` (new or existing profile route), and on app start treat a non-null `risk_accepted_at` as accepted (sync to AsyncStorage) so acceptance survives device changes. Pure code; no migration, no visual redesign.
 - **Problem:** The risk disclosure modal/page cannot be read and accepted — user gets stuck. Likely a scroll lock, missing Accept button, or the button fires but doesn't record acceptance.
 - **What:**
@@ -1228,34 +1229,4 @@ real events to the assets they move.
 # Phase 17 — Optional / future
 
 - [ ] Copy trading (follow another trader's positions)
-- [ ] Public social feed (trade cards as posts)
-- [ ] Live chat rooms by symbol
-- [ ] Voice trading ("hey Vanta, buy 0.1 BTC")
-- [ ] NFT-style trade card sharing
-- [ ] Educational content with progress tracking
-- [ ] Affiliate program / referral codes
-- [ ] Multiple accounts per user (demo + multiple live)
-- [ ] Multi-currency accounts (EUR, GBP, USDT)
-- [ ] TradingView webhook → robot trigger
-- [ ] AI copilot chat ("Should I close my EURUSD?") — Claude API with read access to user's positions
-
----
-
-# Operational notes for the agent
-
-- **Never commit secrets.** All API keys live in `server/.env` (gitignored) and Vercel/Railway env vars.
-- **Database migrations are append-only.** Don't edit existing migration files; create new ones.
-- **Both deploys are atomic.** Vercel old version stays live until new build passes; same for Railway. Safe to deploy frequently.
-- **If a TypeScript error blocks deploy:** check Railway build logs (`railway logs --build`), fix, redeploy. Don't comment out the type — fix it.
-- **CORS must be updated when domain changes** in `server/src/index.ts` `ALLOWED_ORIGINS`.
-- **Supabase RLS protects everything.** Server uses service role key (bypasses RLS) for admin operations. Client uses publishable key + user JWT.
-- **Push to production immediately after each task** — frequent atomic deploys are cheaper than batched ones.
-- **When in doubt, leave a note in `STATE.md`** for the next agent.
-- **If a task changes data shapes:** write the migration first, deploy backend, then frontend.
-- **Workspace state may have hot-reload caches** — restart Expo if web behaves weirdly.
-- **Twelve Data free tier is 800 credits/day, 8/min** — keep `pollYahoo` removed and respect rate limits in any new endpoint that hits it.
-- **Coinbase, Resend, Anthropic, Twelve Data, Supabase keys are all in `server/.env` and Railway env vars.**
-
----
-
-*Maintain ordering within phases (dependencies flow downward). Strike `[x]` completed items in place — don't delete (history is useful).*
+- [ ] Public social feed (trade cards as 

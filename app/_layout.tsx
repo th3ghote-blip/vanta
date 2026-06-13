@@ -54,6 +54,8 @@ import {
   unregisterPushToken,
 } from '@/lib/notifications';
 import { CookieConsentBanner } from '@/components/shared/CookieConsentBanner';
+import { api } from '@/lib/api';
+import { acknowledgeRisk, RISK_ACK_KEY, RISK_ACK_TRADE_KEY } from '@/components/RiskDisclosureModal';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -148,6 +150,18 @@ function RootLayout() {
         registerForPushNotificationsAsync(userId).catch(() => {});
         // Tag Sentry events with this user (no-op on web).
         Sentry.setUser({ id: userId });
+        // 18.10 — hydrate risk acceptance from the server so it survives device
+        // changes. If the profile has risk_accepted_at set, mark both ack keys
+        // locally. Best-effort; never blocks startup.
+        api
+          .getProfile()
+          .then(({ profile }) => {
+            if (profile?.risk_accepted_at) {
+              acknowledgeRisk(RISK_ACK_KEY).catch(() => {});
+              acknowledgeRisk(RISK_ACK_TRADE_KEY).catch(() => {});
+            }
+          })
+          .catch(() => {});
       }
     } else {
       // User signed out - clear push token so this device stops receiving pushes.

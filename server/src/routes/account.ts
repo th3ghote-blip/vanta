@@ -76,6 +76,32 @@ export async function accountRoutes(app: FastifyInstance) {
   });
 
   /**
+   * POST /api/account/risk-accept
+   * Records that the caller has accepted the risk disclosure (18.10).
+   * Sets profiles.risk_accepted_at = now() so acceptance persists server-side
+   * and survives device changes. Idempotent — re-accepting just refreshes the
+   * timestamp. Returns the stored timestamp.
+   */
+  app.post('/risk-accept', async (req, reply) => {
+    const userId = await authUser(req.headers.authorization);
+    if (!userId) return reply.code(401).send({ error: 'unauthorized' });
+
+    const { data, error } = await supabaseAdmin
+      .from('profiles')
+      .update({ risk_accepted_at: new Date().toISOString() })
+      .eq('id', userId)
+      .select('risk_accepted_at')
+      .single();
+
+    if (error || !data) {
+      app.log.error({ error }, 'account/risk-accept: update failed');
+      return reply.code(500).send({ error: error?.message ?? 'update_failed' });
+    }
+
+    return reply.send({ risk_accepted_at: data.risk_accepted_at });
+  });
+
+  /**
    * PUT /api/account/notification-prefs
    * Update the caller's notification preference flags.
    * Body: { prefs: { price_alerts?: boolean, robot_signals?: boolean,

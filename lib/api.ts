@@ -211,6 +211,13 @@ export const api = {
       body: JSON.stringify({ accountId }),
     }),
 
+  // Risk disclosure (18.10)
+  /** Persist risk-disclosure acceptance server-side. Sets profiles.risk_accepted_at. */
+  acceptRiskServer: () =>
+    request<{ risk_accepted_at: string }>('/api/account/risk-accept', {
+      method: 'POST',
+    }),
+
   // Notification preferences (Phase 6.5)
   getNotificationPrefs: async (): Promise<NotificationPrefs> => {
     const { profile } = await request<{ profile: any }>('/api/account/profile');

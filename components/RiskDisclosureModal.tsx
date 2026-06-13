@@ -17,6 +17,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AlertTriangle } from 'lucide-react-native';
 import { colors, radius, spacing, typography } from '@/lib/theme';
+import { api } from '@/lib/api';
 
 export const RISK_ACK_KEY = 'vanta:risk_ack';
 // Separate key gating the user's first *trade* (20.3). Kept independent from the
@@ -99,6 +100,9 @@ export function RiskDisclosureModal({
     } catch {
       // best-effort
     }
+    // 18.10 — also persist acceptance server-side so it survives device changes.
+    // Best-effort: never block the UX on the network round-trip.
+    void api.acceptRiskServer().catch(() => {});
     setSaving(false);
     onAccept();
   }
