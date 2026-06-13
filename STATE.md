@@ -71,4 +71,10 @@ all need network / screenshots / a user decision / splitting — see each item's
   `profiles.risk_accepted_at`; `app/_layout.tsx` syncs ack keys on start). 167→passing then.
 - 2026-06-13 00:48 (auto): no-op — old precheck gated on unreachable live URLs; superseded (push→CI).
 - 2026-06-11/12: 18.11, 20.4, 19.3, 19.4, 19.2, 21.2, 22.0 done. Auth switched to email+password.
-- 2026-06-09/10: 19.1 + 20.3 completed client-only & committed. `SUPABASE_PAT` is in `ser
+- 2026-06-09/10: 19.1 + 20.3 completed client-only & committed. `SUPABASE_PAT` is in `server/.env`.
+
+## Untracked cruft the mount cannot delete (ignore; never `git add`)
+`.sync_probe_18_1.txt`, `.write_probe_tmp`, `STATE.regen.md`, `TODO.regen.md`,
+`components/pro/OrderEntry.fresh.tsx`, `components/pro/SymbolPickerModal.regen.tsx`,
+`server/src/routes/_state_entry_18_12.md`, `server/src/routes/orders.regen.ts`,
+`server/src/routes/transactions.regen.ts`. The user can `rm` these from Windows.
