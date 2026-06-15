@@ -94,9 +94,29 @@ export async function roundsRoutes(app: FastifyInstance) {
   });
 }
 
+// Payout multiplier per duration. MUST match the DURATIONS table the client
+// shows on the Quick screen (components/fun/QuickTradeScreen.tsx) — otherwise
+// the odds on the button differ from what we actually credit on a win.
+// Source of truth: the displayed value is the promise; honour it exactly.
+const PAYOUT_BY_SECONDS: Record<number, number> = {
+  5: 2.0,
+  30: 1.92,
+  60: 1.85,
+  300: 1.78,
+  900: 1.72,
+  1800: 1.65,
+  14400: 1.55,
+  86400: 1.45,
+};
+
 function payoutFor(seconds: number): number {
+  // Exact match for a known duration; otherwise interpolate down a sane curve
+  // (shorter = higher) so an unlisted duration never over- or under-pays wildly.
+  if (PAYOUT_BY_SECONDS[seconds] != null) return PAYOUT_BY_SECONDS[seconds];
   if (seconds <= 60) return 1.85;
   if (seconds <= 300) return 1.78;
   if (seconds <= 900) return 1.72;
-  return 1.65;
+  if (seconds <= 1800) return 1.65;
+  if (seconds <= 14400) return 1.55;
+  return 1.45;
 }
