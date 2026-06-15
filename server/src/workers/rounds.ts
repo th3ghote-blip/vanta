@@ -230,8 +230,8 @@ export function startRoundsWorker(app: FastifyInstance): NodeJS.Timeout {
     } finally {
       running = false;
     }
-  }, 1000);
+  }, 500); // 500ms so short (5s) rounds settle within ~0.5s of closing
 
-  app.log.info('Rounds worker started (1s tick).');
+  app.log.info('Rounds worker started (500ms tick).');
   return handle;
 }

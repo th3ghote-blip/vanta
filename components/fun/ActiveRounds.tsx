@@ -251,9 +251,11 @@ export function ActiveRounds({ accountId, onRoundSettled, injectedRound }: Props
     );
   }, [injectedRound]);
 
-  // Settlement fallback: realtime UPDATE can be missed (slow channel, very short
-  // rounds). Every 1.5s, re-fetch any local round whose close time has passed and
-  // is still pending; settle it from the DB. Guarantees the result modal fires.
+  // Settlement fallback + primary path: Supabase realtime is unreliable here
+  // (postgres_changes RLS authorization), so we poll fast. Every 600ms, re-fetch
+  // any local round whose close time has passed and is still pending; settle it
+  // from the DB. Guarantees the result modal fires within ~0.6s of the server
+  // settling, regardless of realtime.
   useEffect(() => {
     const iv = setInterval(async () => {
       const now = Date.now();
@@ -271,7 +273,7 @@ export function ActiveRounds({ accountId, onRoundSettled, injectedRound }: Props
       for (const row of (data ?? []) as BinaryRound[]) {
         if (row.outcome !== 'pending') reportSettled(row);
       }
-    }, 1500);
+    }, 600);
     return () => clearInterval(iv);
   }, [rounds, reportSettled]);
 
