@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { useState } from 'react';
 
 import { colors, spacing, typography } from '@/lib/theme';
@@ -22,6 +22,12 @@ export function ProTradeScreen({ onFirstTrade, onWinClose }: { onFirstTrade?: ()
 
   const quote = usePriceStore((s) => s.quotes[symbol]);
   const currentPrice = quote ? (quote.bid + quote.ask) / 2 : null;
+
+  // On wide screens put the order entry and order book side by side so the
+  // order panel doesn't stretch full-width with wasted space and the book
+  // isn't buried far below the fold.
+  const { width } = useWindowDimensions();
+  const wide = width >= 900;
 
   return (
     <View style={{ paddingHorizontal: spacing.md, gap: spacing.md }}>
@@ -49,12 +55,29 @@ export function ProTradeScreen({ onFirstTrade, onWinClose }: { onFirstTrade?: ()
         </Text>
       </TouchableOpacity>
 
-      <OrderEntry symbol={symbol} onFirstTrade={onFirstTrade} />
-
-      <Text style={{ ...typography.heading, fontSize: 18, color: colors.textPrimary, marginTop: spacing.md }}>
-        Order Book
-      </Text>
-      <TradeBook onWinClose={onWinClose} />
+      {wide ? (
+        <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' }}>
+          {/* Order entry — fixed-width rail so its fields aren't stretched */}
+          <View style={{ width: 420 }}>
+            <OrderEntry symbol={symbol} onFirstTrade={onFirstTrade} />
+          </View>
+          {/* Order book fills the rest of the width, beside the entry */}
+          <View style={{ flex: 1 }}>
+            <Text style={{ ...typography.heading, fontSize: 18, color: colors.textPrimary, marginBottom: spacing.sm }}>
+              Order Book
+            </Text>
+            <TradeBook onWinClose={onWinClose} />
+          </View>
+        </View>
+      ) : (
+        <>
+          <OrderEntry symbol={symbol} onFirstTrade={onFirstTrade} />
+          <Text style={{ ...typography.heading, fontSize: 18, color: colors.textPrimary, marginTop: spacing.md }}>
+            Order Book
+          </Text>
+          <TradeBook onWinClose={onWinClose} />
+        </>
+      )}
 
       <PriceAlertModal
         visible={alertVisible}
