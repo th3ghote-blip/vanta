@@ -51,7 +51,7 @@ export default function Portfolio() {
     Promise.all([
       supabase.from('trades').select('*').eq('account_id', account.id).order('open_time', { ascending: false }).limit(100),
       supabase.from('transactions').select('*').eq('account_id', account.id).order('created_at', { ascending: false }).limit(20),
-      supabase.from('binary_rounds').select('id, symbol, direction, stake, payout, outcome, closes_at').eq('account_id', account.id).neq('outcome', 'pending').order('closes_at', { ascending: false }).limit(20),
+      supabase.from('binary_rounds').select('id, symbol, direction, stake, payout, outcome, closes_at').eq('account_id', account.id).neq('outcome', 'pending').order('closes_at', { ascending: false }).limit(1000),
     ]).then(([t, x, r]) => {
       if (cancelled) return;
       if (t.data) setTrades(t.data as Trade[]);
@@ -62,11 +62,22 @@ export default function Portfolio() {
   }, [account]);
 
   const stats = useMemo(() => {
+    // Count BOTH Pro trades and Quick rounds — a Quick-mode player's whole
+    // history is rounds, so excluding them made the stats read "2 trades".
     const closed = trades.filter((t) => t.status === 'closed');
-    const wins = closed.filter((t) => t.profit > 0).length;
-    const winRate = closed.length > 0 ? Math.round((wins / closed.length) * 100) : 0;
-    const bestTrade = closed.reduce((max, t) => (t.profit > max ? t.profit : max), 0);
-    const totalRealized = closed.reduce((sum, t) => sum + t.profit, 0);
+    const roundNet = (r: any) =>
+      r.outcome === 'win' ? (Number(r.payout) || 0) - Number(r.stake)
+      : r.outcome === 'tie' ? 0 : -Number(r.stake);
+
+    const tradeWins = closed.filter((t) => t.profit > 0).length;
+    const roundWins = rounds.filter((r) => r.outcome === 'win').length;
+    const decided = closed.length + rounds.filter((r) => r.outcome !== 'tie').length;
+    const winRate = decided > 0 ? Math.round(((tradeWins + roundWins) / decided) * 100) : 0;
+
+    const totalRealized =
+      closed.reduce((sum, t) => sum + t.profit, 0) +
+      rounds.reduce((sum, r) => sum + roundNet(r), 0);
+
     const totalUnrealized = trades
       .filter((t) => t.status === 'open')
       .reduce((sum, t) => {
@@ -74,14 +85,14 @@ export default function Portfolio() {
         const live = q ? (t.side === 'buy' ? q.bid : q.ask) : t.open_price;
         return sum + calculatePnL(t.side, t.volume, t.open_price, live, t.symbol);
       }, 0);
+
     return {
-      total: trades.length,
+      total: closed.length + rounds.length,
       winRate,
-      bestTrade,
       totalRealized,
       totalUnrealized,
     };
-  }, [trades, quotes]);
+  }, [trades, rounds, quotes]);
 
   if (accountLoading || !account) {
     return <PortfolioSkeleton />;
