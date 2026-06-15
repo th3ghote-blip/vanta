@@ -247,6 +247,38 @@ export function RoundResultModal({ round, onDismiss }: Props) {
               {round.symbol} · {round.direction === 'buy' ? '▲ Up' : '▼ Down'} · ${round.stake.toFixed(2)} stake
             </Text>
 
+            {/* Open → Close: shows WHY the round won/lost (price moved vs your bet) */}
+            {round.exit_price != null && (() => {
+              const entry = round.entry_price;
+              const exit = round.exit_price;
+              const delta = exit - entry;
+              const pct = entry ? (delta / entry) * 100 : 0;
+              const fmtPx = (v: number) =>
+                v >= 100
+                  ? v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                  : v.toFixed(5);
+              const moveColor = delta > 0 ? colors.profit : delta < 0 ? colors.loss : colors.textSecondary;
+              const arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
+              return (
+                <View style={{ alignItems: 'center', gap: 2, marginTop: spacing.xs ?? 4 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                    <View style={{ alignItems: 'center' }}>
+                      <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 10 }}>OPEN</Text>
+                      <Text style={{ ...typography.monoBold, color: colors.textSecondary, fontSize: 13 }}>{fmtPx(entry)}</Text>
+                    </View>
+                    <Text style={{ color: moveColor, fontSize: 16 }}>→</Text>
+                    <View style={{ alignItems: 'center' }}>
+                      <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 10 }}>CLOSE</Text>
+                      <Text style={{ ...typography.monoBold, color: colors.textSecondary, fontSize: 13 }}>{fmtPx(exit)}</Text>
+                    </View>
+                  </View>
+                  <Text style={{ ...typography.mono, color: moveColor, fontSize: 11 }}>
+                    {arrow} {delta >= 0 ? '+' : ''}{delta.toFixed(entry >= 100 ? 2 : 5)} ({pct >= 0 ? '+' : ''}{pct.toFixed(3)}%) — price went {delta > 0 ? 'up' : delta < 0 ? 'down' : 'nowhere'}
+                  </Text>
+                </View>
+              );
+            })()}
+
             {/* Dismiss hint */}
             <Text
               style={{
