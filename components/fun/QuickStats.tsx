@@ -9,7 +9,8 @@
  * Re-fetches whenever `refreshSignal` changes (pass the just-settled round id).
  */
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Flame } from 'lucide-react-native';
 
 import { colors, radius, spacing, typography } from '@/lib/theme';
@@ -57,6 +58,7 @@ export function QuickStats({
   streak: number;
   refreshSignal?: unknown;
 }) {
+  const router = useRouter();
   const [rounds, setRounds] = useState<Round[]>([]);
 
   const load = useCallback(async () => {
@@ -107,9 +109,16 @@ export function QuickStats({
 
       {/* Recent results */}
       <View>
-        <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: spacing.xs }}>
-          RECENT RESULTS
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xs }}>
+          <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 11, letterSpacing: 1, flex: 1 }}>
+            RECENT RESULTS
+          </Text>
+          <Pressable onPress={() => router.push('/activity')} hitSlop={8}>
+            <Text style={{ ...typography.body, color: colors.primary, fontSize: 12 }}>
+              View all & filter →
+            </Text>
+          </Pressable>
+        </View>
         {rounds.length === 0 ? (
           <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 13, paddingVertical: spacing.md, textAlign: 'center' }}>
             No rounds yet — place an Up or Down bet above.

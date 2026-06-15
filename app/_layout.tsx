@@ -54,6 +54,7 @@ import {
   unregisterPushToken,
 } from '@/lib/notifications';
 import { CookieConsentBanner } from '@/components/shared/CookieConsentBanner';
+import { UpdateBanner } from '@/components/shared/UpdateBanner';
 import { api } from '@/lib/api';
 import { acknowledgeRisk, RISK_ACK_KEY, RISK_ACK_TRADE_KEY } from '@/components/RiskDisclosureModal';
 
@@ -204,6 +205,7 @@ function RootLayout() {
               <Stack.Screen name="kyc" options={{ title: 'Identity Verification' }} />
             </Stack>
             <CookieConsentBanner />
+            <UpdateBanner />
           </View>
         </QueryClientProvider>
       </SafeAreaProvider>
