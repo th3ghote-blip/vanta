@@ -12,6 +12,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { View, Text, Pressable, Modal, TouchableOpacity, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronDown, CheckCircle2 } from 'lucide-react-native';
 
 import { calculatePnL } from '@/lib/contracts';
@@ -187,6 +188,7 @@ function AccountSwitcherModal({
 // --- component ---------------------------------------------------------------
 
 export function AccountHeader() {
+  const insets = useSafeAreaInsets();
   const account = useAccountStore((s) => s.account);
   const allAccounts = useAccountStore((s) => s.allAccounts);
   const quotes = usePriceStore((s) => s.quotes);
@@ -265,7 +267,10 @@ export function AccountHeader() {
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
           paddingHorizontal: spacing.md,
-          paddingVertical: 6,
+          // Top inset so the balance row isn't clipped under the status bar /
+          // browser chrome (was rendering half off-screen on web).
+          paddingTop: insets.top + 6,
+          paddingBottom: 6,
           gap: 6,
         }}
       >

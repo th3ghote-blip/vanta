@@ -12,6 +12,7 @@ import { BinaryCard } from './BinaryCard';
 import { ActiveRounds } from './ActiveRounds';
 import type { BinaryRound } from './ActiveRounds';
 import { RoundResultModal } from './RoundResultModal';
+import { QuickStats } from './QuickStats';
 
 const DURATIONS = [
   { label: '5s',    seconds: 5,     multiplier: 2.00 },
@@ -421,6 +422,18 @@ export function QuickTradeScreen() {
           accountId={account.id}
           onRoundSettled={setSettledRound}
           injectedRound={openedRound}
+        />
+      )}
+
+      {/* 18.16 — balance + session stats + recent results so the player can
+          see how they're doing (the empty space below the buttons). Refreshes
+          when a round settles (settledRound) or a new one opens (openedRound). */}
+      {account && (
+        <QuickStats
+          accountId={account.id}
+          balance={Number(account.balance)}
+          streak={streak}
+          refreshSignal={`${settledRound?.id ?? ''}:${openedRound?.id ?? ''}`}
         />
       )}
 

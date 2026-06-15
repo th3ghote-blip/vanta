@@ -791,7 +791,9 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
 - **Acceptance:** Place a 5s round → it appears immediately with a countdown → ~5s later a win/loss/tie result modal shows and balance reflects it. Same for 10s/30s. Verify in browser preview (Quick mode, 5s).
 
 ## 18.16 Quick mode — comprehensive view (balance, P&L, stats, history)
-- [ ] **Files:** `components/fun/QuickTradeScreen.tsx`, `components/shared/AccountHeader.tsx`, maybe new `components/fun/QuickStats.tsx`
+- [x] **Done 2026-06-15:** new `components/fun/QuickStats.tsx` panel on the Quick screen — Balance, Today's P&L (sum of net per settled round), Win rate + W/L/T record, current 🔥 streak, and a Recent Results list (last 10 settled rounds: symbol, direction, stake, outcome, ±net, time-ago) pulled from `binary_rounds`; refreshes when a round opens/settles. `AccountHeader` now applies `useSafeAreaInsets().top` so the balance strip is no longer clipped at the top. Verified live in preview: header login row at y=10 (fully visible), stats + real recent-results render. tsc clean.
+- [x] ~~original spec below~~
+- **Files:** `components/fun/QuickTradeScreen.tsx`, `components/shared/AccountHeader.tsx`, new `components/fun/QuickStats.tsx`
 - **Reported 2026-06-15 (user, with screenshot):** on the Quick screen you can't see your balance or how you're doing. The account header strip is clipped off the very top of the viewport (only a sliver of "Bal $… Eq $… Free $…" is visible), and the entire lower half of the screen below the Up/Down buttons is empty — no balance, no P&L, no record of past rounds.
 - **Two problems:**
   1. **Header clipped:** `AccountHeader` uses `paddingTop: spacing.md` with no safe-area / top inset, so on web (and notched devices) the balance row renders half off-screen at the top. Fix: add the top safe-area inset (`useSafeAreaInsets().top`) or a min top padding so the balance is always fully visible.
