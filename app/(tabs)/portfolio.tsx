@@ -258,11 +258,11 @@ export default function Portfolio() {
                   <Text
                     style={{
                       ...typography.monoBold,
-                      color: r.amount >= 0 ? colors.profit : colors.loss,
+                      color: r.amount > 0 ? colors.profit : r.amount < 0 ? colors.loss : colors.textSecondary,
                       fontSize: 13,
                     }}
                   >
-                    {r.amount >= 0 ? '+' : ''}${Math.abs(r.amount).toFixed(2)}
+                    {r.amount > 0 ? '+' : r.amount < 0 ? '-' : ''}${Math.abs(r.amount).toFixed(2)}
                   </Text>
                 </View>
               ))}
