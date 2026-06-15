@@ -60,6 +60,8 @@ export function QuickStats({
 }) {
   const router = useRouter();
   const [rounds, setRounds] = useState<Round[]>([]);
+  const [outcomeFilter, setOutcomeFilter] = useState<'all' | 'win' | 'loss'>('all');
+  const [sortBy, setSortBy] = useState<'date' | 'amount'>('date');
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -84,6 +86,16 @@ export function QuickStats({
   const ties = rounds.filter((r) => r.outcome === 'tie').length;
   const decided = wins + losses;
   const winRate = decided > 0 ? Math.round((wins / decided) * 100) : null;
+
+  // Inline filtering of the recent-results list (in the trading area).
+  const displayed = rounds
+    .filter((r) => (outcomeFilter === 'all' ? true : r.outcome === outcomeFilter))
+    .sort((a, b) =>
+      sortBy === 'amount'
+        ? Math.abs(net(b)) - Math.abs(net(a))
+        : new Date(b.closes_at).getTime() - new Date(a.closes_at).getTime(),
+    )
+    .slice(0, 20);
 
   return (
     <View style={{ gap: spacing.md, marginTop: spacing.sm }}>
@@ -115,15 +127,39 @@ export function QuickStats({
           </Text>
           <Pressable onPress={() => router.push('/activity')} hitSlop={8}>
             <Text style={{ ...typography.body, color: colors.primary, fontSize: 12 }}>
-              View all & filter →
+              View all →
             </Text>
           </Pressable>
         </View>
+
+        {/* Inline filters */}
+        {rounds.length > 0 && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: spacing.sm }}>
+            <FilterPill label="All" active={outcomeFilter === 'all'} onPress={() => setOutcomeFilter('all')} />
+            <FilterPill label="Wins" active={outcomeFilter === 'win'} onPress={() => setOutcomeFilter('win')} color={colors.profit} />
+            <FilterPill label="Losses" active={outcomeFilter === 'loss'} onPress={() => setOutcomeFilter('loss')} color={colors.loss} />
+            <View style={{ flex: 1 }} />
+            <Pressable
+              onPress={() => setSortBy((s) => (s === 'date' ? 'amount' : 'date'))}
+              hitSlop={6}
+              style={{ paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border }}
+            >
+              <Text style={{ ...typography.body, color: colors.textSecondary, fontSize: 11 }}>
+                Sort: {sortBy === 'date' ? 'Recent' : 'Amount'}
+              </Text>
+            </Pressable>
+          </View>
+        )}
         {rounds.length === 0 ? (
           <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 13, paddingVertical: spacing.md, textAlign: 'center' }}>
             No rounds yet — place an Up or Down bet above.
           </Text>
         ) : (
+          displayed.length === 0 ? (
+            <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 13, paddingVertical: spacing.md, textAlign: 'center' }}>
+              No {outcomeFilter === 'win' ? 'wins' : 'losses'} yet.
+            </Text>
+          ) : (
           <View
             style={{
               backgroundColor: colors.bgElevated,
@@ -133,7 +169,7 @@ export function QuickStats({
               overflow: 'hidden',
             }}
           >
-            {rounds.slice(0, 10).map((r, i) => {
+            {displayed.map((r, i) => {
               const n = net(r);
               const c = r.outcome === 'win' ? colors.profit : r.outcome === 'tie' ? colors.textSecondary : colors.loss;
               return (
@@ -168,9 +204,30 @@ export function QuickStats({
               );
             })}
           </View>
+          )
         )}
       </View>
     </View>
+  );
+}
+
+function FilterPill({ label, active, onPress, color }: { label: string; active: boolean; onPress: () => void; color?: string }) {
+  const accent = color ?? colors.primary;
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={6}
+      style={{
+        paddingHorizontal: spacing.sm,
+        paddingVertical: 4,
+        borderRadius: radius.pill,
+        backgroundColor: active ? accent + '22' : 'transparent',
+        borderWidth: 1,
+        borderColor: active ? accent : colors.border,
+      }}
+    >
+      <Text style={{ ...typography.bodyBold, color: active ? accent : colors.textSecondary, fontSize: 11 }}>{label}</Text>
+    </Pressable>
   );
 }
 
