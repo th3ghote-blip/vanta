@@ -46,6 +46,13 @@ export function RoundResultModal({ round, onDismiss }: Props) {
   const isWin = round?.outcome === 'win';
   const isTie = round?.outcome === 'tie';
 
+  // Keep the latest onDismiss in a ref so the entrance effect doesn't depend on
+  // it. The parent (Quick screen) re-renders ~5x/s on live quote ticks and
+  // passes a fresh onDismiss arrow each time; without this the entrance effect
+  // re-ran every render and the modal flashed.
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
+
   // Payout displayed:
   //  - win: +payout amount
   //  - loss: -stake
@@ -101,11 +108,15 @@ export function RoundResultModal({ round, onDismiss }: Props) {
     ]).start();
   }, [shakeX]);
 
-  // Kick off effects whenever a new settled round appears.
+  // Run the entrance/shake/auto-dismiss ONCE per settled round. Keyed only on
+  // the round id + outcome so frequent parent re-renders (live quote ticks)
+  // don't restart the animation and flash the modal.
+  const settledKey = round && round.outcome !== 'pending' ? `${round.id}:${round.outcome}` : null;
   useEffect(() => {
-    if (!visible) return;
+    if (!settledKey) return;
+    const win = round?.outcome === 'win';
+    const tie = round?.outcome === 'tie';
 
-    // Clear any previous timer.
     if (dismissTimer.current) {
       clearTimeout(dismissTimer.current);
       dismissTimer.current = null;
@@ -113,26 +124,19 @@ export function RoundResultModal({ round, onDismiss }: Props) {
 
     runEntrance();
 
-    if (!isWin && !isTie) {
-      // Slight delay so the modal is visible before shaking.
-      const t = setTimeout(runShake, 200);
-      return () => clearTimeout(t);
+    if (win) {
+      const c = setTimeout(() => confettiRef.current?.start(), 80);
+      dismissTimer.current = setTimeout(() => onDismissRef.current(), 3000);
+      return () => clearTimeout(c);
     }
-
-    // Auto-dismiss after 3 s.
-    dismissTimer.current = setTimeout(onDismiss, 3000);
-  }, [round?.id, visible, isWin, isTie, runEntrance, runShake, onDismiss]);
-
-  // On wins, fire confetti once the modal is visible.
-  // We trigger it on the next frame after entrance begins.
-  useEffect(() => {
-    if (visible && isWin) {
-      const t = setTimeout(() => {
-        confettiRef.current?.start();
-      }, 80);
-      return () => clearTimeout(t);
+    if (tie) {
+      dismissTimer.current = setTimeout(() => onDismissRef.current(), 3000);
+      return;
     }
-  }, [round?.id, visible, isWin]);
+    // loss: shake, no auto-dismiss (tap to close)
+    const t = setTimeout(runShake, 200);
+    return () => clearTimeout(t);
+  }, [settledKey, runEntrance, runShake]);
 
   if (!round) return null;
 
