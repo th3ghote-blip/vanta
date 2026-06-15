@@ -100,6 +100,19 @@ export function QuickTradeScreen() {
   const quote = quotes[selectedSymbol];
   const livePrice = quote ? (quote.bid + quote.ask) / 2 : 0;
 
+  // When a round settles, show the result modal AND refetch the account so the
+  // balance reflects the payout (a win credits the balance server-side). The
+  // worker credits via apply_trade_pnl right after marking the round settled, so
+  // we refetch immediately and again shortly after to dodge that race.
+  const handleRoundSettled = useCallback(
+    (r: BinaryRound) => {
+      setSettledRound(r);
+      refetchAccount();
+      setTimeout(() => refetchAccount(), 1200);
+    },
+    [refetchAccount],
+  );
+
   const openRound = useCallback(
     async (direction: 'buy' | 'sell') => {
       if (busy) return;
@@ -420,7 +433,7 @@ export function QuickTradeScreen() {
       {account && (
         <ActiveRounds
           accountId={account.id}
-          onRoundSettled={setSettledRound}
+          onRoundSettled={handleRoundSettled}
           injectedRound={openedRound}
         />
       )}
