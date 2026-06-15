@@ -180,15 +180,20 @@ async function tick(app: FastifyInstance): Promise<void> {
       continue;
     }
 
-    // Credit payout on win.
-    if (outcome === 'win') {
+    // Credit on settle:
+    //  - win: the full payout (stake * multiplier)
+    //  - tie: refund the stake (a tie is a push — the UI shows ±$0.00, so the
+    //         deducted stake must come back or the user silently loses on a tie)
+    //  - loss: nothing (stake stays deducted)
+    const credit = outcome === 'win' ? payout : outcome === 'tie' ? round.stake : 0;
+    if (credit > 0) {
       try {
         await supabaseAdmin.rpc('apply_trade_pnl', {
           p_account_id: round.account_id,
-          p_amount: payout,
+          p_amount: credit,
         });
       } catch (err) {
-        app.log.error({ err, roundId: round.id }, 'rounds: apply_trade_pnl failed');
+        app.log.error({ err, roundId: round.id, outcome }, 'rounds: apply_trade_pnl failed');
       }
     }
 

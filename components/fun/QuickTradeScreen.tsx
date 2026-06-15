@@ -59,6 +59,9 @@ export function QuickTradeScreen() {
   const [busy, setBusy] = useState<'buy' | 'sell' | null>(null);
   const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
   const [settledRound, setSettledRound] = useState<BinaryRound | null>(null);
+  // Freshly-opened round, handed to ActiveRounds for an optimistic insert so
+  // short (5s) rounds show immediately instead of waiting on the realtime INSERT.
+  const [openedRound, setOpenedRound] = useState<BinaryRound | null>(null);
 
   const { account, fetch: refetchAccount } = useAccountStore();
   const quotes = usePriceStore((s) => s.quotes);
@@ -108,13 +111,18 @@ export function QuickTradeScreen() {
       setFeedback(null);
 
       try {
-        await api.openRound({
+        const { round } = await api.openRound({
           accountId: account.id,
           symbol: selectedSymbol,
           direction,
           stake,
           durationSeconds: duration.seconds,
         });
+
+        // Show it immediately (don't wait for the realtime INSERT — it loses the
+        // race on 5s rounds). New object identity each time so the effect re-runs
+        // even if the same id somehow recurs.
+        if (round) setOpenedRound({ ...round });
 
         refetchAccount();
 
@@ -412,6 +420,7 @@ export function QuickTradeScreen() {
         <ActiveRounds
           accountId={account.id}
           onRoundSettled={setSettledRound}
+          injectedRound={openedRound}
         />
       )}
 

@@ -196,13 +196,33 @@ interface Props {
   accountId: string;
   /**
    * Called when a pending round transitions to win/loss/tie.
-   * Wire this up to a result modal (Phase 2.5) when it exists.
+   * Fires exactly once per round (realtime UPDATE and the poll fallback are deduped).
    */
   onRoundSettled?: (round: BinaryRound) => void;
+  /**
+   * A freshly-opened round (from POST /api/rounds/open). Shown immediately so
+   * short rounds (e.g. 5s) don't depend on the realtime INSERT arriving in time.
+   */
+  injectedRound?: BinaryRound | null;
 }
 
-export function ActiveRounds({ accountId, onRoundSettled }: Props) {
+export function ActiveRounds({ accountId, onRoundSettled, injectedRound }: Props) {
   const [rounds, setRounds] = useState<BinaryRound[]>([]);
+  // Ids we've already reported as settled, so onRoundSettled fires exactly once
+  // whether the realtime UPDATE or the poll fallback wins the race.
+  const settledIdsRef = useRef<Set<string>>(new Set());
+
+  // Mark a round settled: update its row in the list and fire onRoundSettled once.
+  const reportSettled = useCallback(
+    (round: BinaryRound) => {
+      setRounds((prev) => prev.map((r) => (r.id === round.id ? round : r)));
+      if (round.outcome === 'pending') return;
+      if (settledIdsRef.current.has(round.id)) return;
+      settledIdsRef.current.add(round.id);
+      onRoundSettled?.(round);
+    },
+    [onRoundSettled],
+  );
 
   // Fetch all currently-pending rounds on mount (and when accountId changes).
   const loadPending = useCallback(async () => {
@@ -217,6 +237,43 @@ export function ActiveRounds({ accountId, onRoundSettled }: Props) {
       setRounds(data as BinaryRound[]);
     }
   }, [accountId]);
+
+  // Optimistic insert: show a freshly-opened round immediately (don't wait for
+  // the realtime INSERT, which can lose the race on short 5s rounds).
+  useEffect(() => {
+    if (!injectedRound) return;
+    setRounds((prev) =>
+      prev.some((r) => r.id === injectedRound.id)
+        ? prev
+        : [...prev, injectedRound].sort(
+            (a, b) => new Date(a.closes_at).getTime() - new Date(b.closes_at).getTime(),
+          ),
+    );
+  }, [injectedRound]);
+
+  // Settlement fallback: realtime UPDATE can be missed (slow channel, very short
+  // rounds). Every 1.5s, re-fetch any local round whose close time has passed and
+  // is still pending; settle it from the DB. Guarantees the result modal fires.
+  useEffect(() => {
+    const iv = setInterval(async () => {
+      const now = Date.now();
+      const due = rounds.filter(
+        (r) =>
+          r.outcome === 'pending' &&
+          !settledIdsRef.current.has(r.id) &&
+          new Date(r.closes_at).getTime() <= now,
+      );
+      if (due.length === 0) return;
+      const { data } = await supabase
+        .from('binary_rounds')
+        .select('*')
+        .in('id', due.map((r) => r.id));
+      for (const row of (data ?? []) as BinaryRound[]) {
+        if (row.outcome !== 'pending') reportSettled(row);
+      }
+    }, 1500);
+    return () => clearInterval(iv);
+  }, [rounds, reportSettled]);
 
   useEffect(() => {
     loadPending();
@@ -252,11 +309,10 @@ export function ActiveRounds({ accountId, onRoundSettled }: Props) {
         },
         (payload) => {
           const updated = payload.new as BinaryRound;
-          setRounds((prev) =>
-            prev.map((r) => (r.id === updated.id ? updated : r)),
-          );
           if (updated.outcome !== 'pending') {
-            onRoundSettled?.(updated);
+            reportSettled(updated);
+          } else {
+            setRounds((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
           }
         },
       )
@@ -265,7 +321,7 @@ export function ActiveRounds({ accountId, onRoundSettled }: Props) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [accountId, loadPending, onRoundSettled]);
+  }, [accountId, loadPending, reportSettled]);
 
   const removeRound = useCallback((id: string) => {
     setRounds((prev) => prev.filter((r) => r.id !== id));
