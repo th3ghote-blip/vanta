@@ -790,6 +790,21 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
   3. Make sure `RoundResultModal` fires for ties as well (a 5s round often has entry≈exit → `tie`); show a "push/refund" state instead of silently nothing.
 - **Acceptance:** Place a 5s round → it appears immediately with a countdown → ~5s later a win/loss/tie result modal shows and balance reflects it. Same for 10s/30s. Verify in browser preview (Quick mode, 5s).
 
+## 18.16 Quick mode — comprehensive view (balance, P&L, stats, history)
+- [ ] **Files:** `components/fun/QuickTradeScreen.tsx`, `components/shared/AccountHeader.tsx`, maybe new `components/fun/QuickStats.tsx`
+- **Reported 2026-06-15 (user, with screenshot):** on the Quick screen you can't see your balance or how you're doing. The account header strip is clipped off the very top of the viewport (only a sliver of "Bal $… Eq $… Free $…" is visible), and the entire lower half of the screen below the Up/Down buttons is empty — no balance, no P&L, no record of past rounds.
+- **Two problems:**
+  1. **Header clipped:** `AccountHeader` uses `paddingTop: spacing.md` with no safe-area / top inset, so on web (and notched devices) the balance row renders half off-screen at the top. Fix: add the top safe-area inset (`useSafeAreaInsets().top`) or a min top padding so the balance is always fully visible.
+  2. **No at-a-glance dashboard on Quick:** the big empty area below the buttons should show how the session is going.
+- **What to build (a `QuickStats` panel on the Quick screen):**
+  - **Balance / equity / free margin** prominently (or at least balance + today's P&L) — don't rely only on the clipped top strip.
+  - **Today's Quick P&L:** sum of payouts − stakes for today's settled rounds (win = +payout−stake, loss = −stake, tie = 0).
+  - **Record:** wins / losses / ties count + win-rate %, and the current 🔥 streak (already in `profiles.current_streak`).
+  - **Recent results list:** last ~10 settled rounds (symbol, direction, stake, outcome, ±amount, time) so the user can see history — currently rounds vanish after the result modal with no log.
+  - **Active rounds** stay visible (already there via `ActiveRounds`) but make sure they render in the now-empty space.
+- **Data:** today's/recent rounds = `binary_rounds` where `account_id = me` ordered by `closes_at desc`; aggregate client-side. No new backend needed (could add `GET /api/rounds/history` later if heavy).
+- **Acceptance:** On Quick mode the balance is always fully visible, today's P&L + W/L record + streak show at a glance, and a scrollable list of recent round results is visible. Verify in browser (the lower half is no longer empty).
+
 ## 18.13 Trade row density — text too small, too many lines
 - [x] **Files:** `components/pro/TradeBook.tsx`
 - **Problem:** Each open trade row shows 5 lines of small text (symbol + age, notional · leverage · margin, TP value, open→now price, P&L). Too much information crammed into too little space. Hard to scan quickly.
