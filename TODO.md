@@ -790,6 +790,9 @@ Today users can only place market orders (buy/sell at the live price) on Pro mod
   3. Make sure `RoundResultModal` fires for ties as well (a 5s round often has entry≈exit → `tie`); show a "push/refund" state instead of silently nothing.
 - **Acceptance:** Place a 5s round → it appears immediately with a countdown → ~5s later a win/loss/tie result modal shows and balance reflects it. Same for 10s/30s. Verify in browser preview (Quick mode, 5s).
 
+## 18.17 Portfolio — unified, filterable Activity history
+- [x] **Done 2026-06-16:** Portfolio activity never showed Quick rounds (and only ~12 capped rows, no filters), so a Quick-mode player saw "no trades". New `app/activity.tsx` — unified, scrollable (FlatList + load-more 50/page) history merging closed trades + Quick rounds + transactions, with Type filter (All/Trades/Rounds/Deposits/Withdrawals), Date range (Today/7d/30d/All), sort by Date/Amount, and CSV export. Portfolio "View all →" now points to `/activity`; the Portfolio inline preview also now includes rounds (and signs withdrawals negative). Verified live in preview: rounds render with outcome+net, Type filter changes the list, ranges/sort present. tsc clean.
+
 ## 18.16 Quick mode — comprehensive view (balance, P&L, stats, history)
 - [x] **Done 2026-06-15:** new `components/fun/QuickStats.tsx` panel on the Quick screen — Balance, Today's P&L (sum of net per settled round), Win rate + W/L/T record, current 🔥 streak, and a Recent Results list (last 10 settled rounds: symbol, direction, stake, outcome, ±net, time-ago) pulled from `binary_rounds`; refreshes when a round opens/settles. `AccountHeader` now applies `useSafeAreaInsets().top` so the balance strip is no longer clipped at the top. Verified live in preview: header login row at y=10 (fully visible), stats + real recent-results render. tsc clean.
 - [x] ~~original spec below~~

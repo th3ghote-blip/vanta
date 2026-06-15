@@ -199,6 +199,7 @@ function RootLayout() {
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen name="onboarding" options={{ headerShown: false }} />
               <Stack.Screen name="notifications" options={{ headerShown: false }} />
+              <Stack.Screen name="activity" options={{ headerShown: false }} />
               <Stack.Screen name="help" options={{ title: 'Help' }} />
               <Stack.Screen name="kyc" options={{ title: 'Identity Verification' }} />
             </Stack>

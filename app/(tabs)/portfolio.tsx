@@ -42,18 +42,21 @@ export default function Portfolio() {
 
   const [trades, setTrades] = useState<Trade[]>([]);
   const [txs, setTxs] = useState<Tx[]>([]);
+  const [rounds, setRounds] = useState<any[]>([]);
 
-  // Load trades + transactions for stats / activity
+  // Load trades + Quick rounds + transactions for stats / activity
   useEffect(() => {
     if (!account) return;
     let cancelled = false;
     Promise.all([
       supabase.from('trades').select('*').eq('account_id', account.id).order('open_time', { ascending: false }).limit(100),
       supabase.from('transactions').select('*').eq('account_id', account.id).order('created_at', { ascending: false }).limit(20),
-    ]).then(([t, x]) => {
+      supabase.from('binary_rounds').select('id, symbol, direction, stake, payout, outcome, closes_at').eq('account_id', account.id).neq('outcome', 'pending').order('closes_at', { ascending: false }).limit(20),
+    ]).then(([t, x, r]) => {
       if (cancelled) return;
       if (t.data) setTrades(t.data as Trade[]);
       if (x.data) setTxs(x.data as Tx[]);
+      if (r.data) setRounds(r.data);
     });
     return () => { cancelled = true; };
   }, [account]);
@@ -173,7 +176,7 @@ export default function Portfolio() {
           >
             RECENT ACTIVITY
           </Text>
-          <Pressable onPress={() => router.push('/transactions')}>
+          <Pressable onPress={() => router.push('/activity')}>
             <Text style={{ ...typography.body, color: colors.primary, fontSize: 12 }}>
               View all →
             </Text>
@@ -218,9 +221,17 @@ export default function Portfolio() {
                 key: `x${x.id}`,
                 title: x.type[0].toUpperCase() + x.type.slice(1) + (x.method ? ` · ${x.method}` : ''),
                 subtitle: `${x.status} · ${timeAgo(x.created_at)}`,
-                amount: x.amount,
+                amount: x.type === 'withdrawal' ? -Math.abs(x.amount) : x.amount,
                 show: true,
                 ts: new Date(x.created_at).getTime(),
+              })),
+              ...rounds.map((r) => ({
+                key: `r${r.id}`,
+                title: `${r.direction === 'buy' ? '▲ Up' : '▼ Down'} ${r.symbol}`,
+                subtitle: `Round · ${r.outcome} · ${timeAgo(r.closes_at)}`,
+                amount: r.outcome === 'win' ? (Number(r.payout) || 0) - Number(r.stake) : r.outcome === 'tie' ? 0 : -Number(r.stake),
+                show: true,
+                ts: new Date(r.closes_at).getTime(),
               })),
             ]
               .filter((r) => r.show)
