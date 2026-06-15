@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator } from 'react-native';
 import { TrendingUp, TrendingDown, Flame } from 'lucide-react-native';
 
 import { colors, radius, spacing, typography } from '@/lib/theme';
@@ -13,6 +13,7 @@ import { ActiveRounds } from './ActiveRounds';
 import type { BinaryRound } from './ActiveRounds';
 import { RoundResultModal } from './RoundResultModal';
 import { QuickStats } from './QuickStats';
+import { HScrollView } from '@/components/shared/HScrollView';
 
 const DURATIONS = [
   { label: '5s',    seconds: 5,     multiplier: 2.00 },
@@ -187,11 +188,7 @@ export function QuickTradeScreen() {
       )}
 
       {/* Category tabs */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: spacing.xs }}
-      >
+      <HScrollView contentContainerStyle={{ gap: spacing.xs }}>
         {TABS.map((tab) => {
           const active = tab === categoryTab;
           const count =
@@ -224,14 +221,10 @@ export function QuickTradeScreen() {
             </Pressable>
           );
         })}
-      </ScrollView>
+      </HScrollView>
 
       {/* Asset chips filtered by category */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: spacing.sm }}
-      >
+      <HScrollView contentContainerStyle={{ gap: spacing.sm }}>
         {visibleSymbols.map((s) => {
           const active = s.ticker === selectedSymbol;
           const q = quotes[s.ticker];
@@ -270,17 +263,13 @@ export function QuickTradeScreen() {
             </Pressable>
           );
         })}
-      </ScrollView>
+      </HScrollView>
 
       {/* Featured card with live price */}
       <BinaryCard asset={selectedAsset} duration={duration} />
 
       {/* Duration picker */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: spacing.sm }}
-      >
+      <HScrollView contentContainerStyle={{ gap: spacing.sm }}>
         {DURATIONS.map((d) => {
           const active = d.label === duration.label;
           return (
@@ -305,7 +294,7 @@ export function QuickTradeScreen() {
             </Pressable>
           );
         })}
-      </ScrollView>
+      </HScrollView>
 
       {/* Stake selector */}
       <View>
