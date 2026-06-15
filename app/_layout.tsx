@@ -48,6 +48,7 @@ import { useModeStore } from '@/stores/mode';
 import { useAccountStore } from '@/stores/account';
 import { useThemeStore } from '@/stores/theme';
 import { usePrefsStore } from '@/stores/prefs';
+import { useSymbolStore } from '@/stores/symbol';
 import { connectLiveQuotes, disconnectLiveQuotes } from '@/lib/liveQuotes';
 import {
   registerForPushNotificationsAsync,
@@ -101,6 +102,7 @@ function RootLayout() {
   const hydrateTheme = useThemeStore((s) => s.hydrate);
   const themePreference = useThemeStore((s) => s.theme);
   const hydratePrefs = usePrefsStore((s) => s.hydrate);
+  const hydrateSymbol = useSymbolStore((s) => s.hydrate);
   const systemScheme = useColorScheme();
 
   // Load custom fonts. On web the fonts stream in from the CDN; on native they
@@ -116,12 +118,13 @@ function RootLayout() {
     hydrateMode();
     hydrateTheme();
     hydratePrefs();
+    hydrateSymbol();
     connectLiveQuotes();
     return () => {
       unsubscribe();
       disconnectLiveQuotes();
     };
-  }, [initAuth, hydrateMode, hydrateTheme, hydratePrefs]);
+  }, [initAuth, hydrateMode, hydrateTheme, hydratePrefs, hydrateSymbol]);
 
   // Apply Appearance override whenever the theme preference changes.
   // Appearance.setColorScheme only exists on native (iOS/Android) — on web

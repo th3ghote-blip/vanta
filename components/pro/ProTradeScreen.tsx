@@ -9,12 +9,14 @@ import { SymbolPicker } from './SymbolPicker';
 import { TimeframeSelector, type Timeframe } from './TimeframeSelector';
 import { PriceAlertModal } from './PriceAlertModal';
 import { usePriceStore } from '@/stores/prices';
+import { useSymbolStore } from '@/stores/symbol';
 
-const DEFAULT_SYMBOL = 'BTCUSD';
 const DEFAULT_TIMEFRAME: Timeframe = '5m';
 
 export function ProTradeScreen({ onFirstTrade, onWinClose }: { onFirstTrade?: () => void; onWinClose?: (profit: number) => void } = {}) {
-  const [symbol, setSymbol] = useState(DEFAULT_SYMBOL);
+  // Shared with Quick mode so the asset persists across mode switches.
+  const symbol = useSymbolStore((s) => s.symbol);
+  const setSymbol = useSymbolStore((s) => s.setSymbol);
   const [timeframe, setTimeframe] = useState<Timeframe>(DEFAULT_TIMEFRAME);
   const [alertVisible, setAlertVisible] = useState(false);
 

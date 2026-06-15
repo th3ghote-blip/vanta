@@ -7,6 +7,7 @@ import { api, ApiError } from '@/lib/api';
 import { useAccountStore } from '@/stores/account';
 import { usePriceStore } from '@/stores/prices';
 import { useProfileStore } from '@/stores/profile';
+import { useSymbolStore } from '@/stores/symbol';
 import { allSymbols, CATEGORIES, type SymbolCategory } from '@/lib/symbolMeta';
 import { BinaryCard } from './BinaryCard';
 import { ActiveRounds } from './ActiveRounds';
@@ -55,7 +56,9 @@ function describeRoundError(err: unknown): string {
 
 export function QuickTradeScreen() {
   const [categoryTab, setCategoryTab] = useState<CategoryTab>('All');
-  const [selectedSymbol, setSelectedSymbol] = useState('BTCUSD');
+  // Selected symbol is shared with Pro mode (persists across mode switches).
+  const storeSymbol = useSymbolStore((s) => s.symbol);
+  const setSymbol = useSymbolStore((s) => s.setSymbol);
   const [duration, setDuration] = useState(DURATIONS[0]);
   const [stake, setStake] = useState(10);
   const [busy, setBusy] = useState<'buy' | 'sell' | null>(null);
@@ -89,13 +92,13 @@ export function QuickTradeScreen() {
     return liveSymbols.filter((s) => s.category === categoryTab);
   }, [liveSymbols, categoryTab]);
 
-  // Reset selected symbol when switching category if current isn't in new list
-  useEffect(() => {
-    const inView = visibleSymbols.some((s) => s.ticker === selectedSymbol);
-    if (!inView && visibleSymbols.length > 0) {
-      setSelectedSymbol(visibleSymbols[0].ticker);
-    }
-  }, [visibleSymbols, selectedSymbol]);
+  // The shared store may hold a Pro-only symbol (e.g. a forex pair) that Quick
+  // can't show; in that case display the first visible symbol WITHOUT clobbering
+  // the store, so the Pro selection survives. Picking a chip writes the store.
+  const selectedSymbol =
+    visibleSymbols.some((s) => s.ticker === storeSymbol)
+      ? storeSymbol
+      : (visibleSymbols[0]?.ticker ?? storeSymbol);
 
   const selectedMeta = liveSymbols.find((s) => s.ticker === selectedSymbol) ?? liveSymbols[0];
   const quote = quotes[selectedSymbol];
@@ -232,7 +235,7 @@ export function QuickTradeScreen() {
           return (
             <Pressable
               key={s.ticker}
-              onPress={() => { setSelectedSymbol(s.ticker); setFeedback(null); }}
+              onPress={() => { setSymbol(s.ticker); setFeedback(null); }}
               style={{
                 paddingHorizontal: spacing.md,
                 paddingVertical: spacing.sm,
