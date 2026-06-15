@@ -30,13 +30,19 @@ ENV_PATH = os.path.join(os.path.dirname(__file__), '..', 'server', '.env')
 
 
 def load_env():
+    # Prefer real environment variables (CI passes them as secrets); fall back to
+    # server/.env for local/interactive runs.
     env = {}
-    with open(ENV_PATH, encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            if '=' in line and not line.startswith('#'):
-                k, v = line.split('=', 1)
-                env[k] = v
+    if os.path.exists(ENV_PATH):
+        with open(ENV_PATH, encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if '=' in line and not line.startswith('#'):
+                    k, v = line.split('=', 1)
+                    env[k] = v
+    for k in ('SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'):
+        if os.environ.get(k):
+            env[k] = os.environ[k]
     return env
 
 

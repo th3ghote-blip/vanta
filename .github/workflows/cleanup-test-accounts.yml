@@ -1,0 +1,30 @@
+name: Cleanup Test Accounts
+
+# The E2E smoke test registers a throwaway account on every deploy. This purges
+# those (and any other synthetic/test-domain accounts) daily so they don't pile
+# up. ONLY deletes @vanta.account / @vanta.test / @example.com|org emails and
+# never the keep-list (80000035) — real users have real-domain emails and are
+# always kept. See scripts/cleanup-test-accounts.py.
+
+on:
+  schedule:
+    - cron: '30 6 * * *'   # daily 06:30 UTC (after the backup export at 06:15)
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  cleanup:
+    name: Purge test/E2E accounts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Delete test accounts
+        run: python scripts/cleanup-test-accounts.py --confirm
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

@@ -34,6 +34,47 @@ Editing `.tsx` via the Edit tool has produced files `tsc` rejected with bogus pa
 all repo code edits through bash/python heredoc or in-place `open(...,'w')`, then verify with
 `npx --no-install tsc --noEmit` before committing. (.md files are fine via Edit/Write.)
 
+## ⏭️ 2026-06-15 18:06 UTC (auto) — SKIPPED: dirty working tree (NO WORK DONE this run)
+skipped run at 2026-06-15 18:06 UTC: dirty working tree. 6th consecutive skip — same in-flight
+human CI test-account-cleanup feature, byte-for-byte unchanged (verified diff): modified
+`scripts/cleanup-test-accounts.py` (CI env-var fallback for SUPABASE_URL/SERVICE_ROLE_KEY; parses
+clean) + untracked `.github/workflows/cleanup-test-accounts.yml` (daily 06:30 UTC purge). Per the
+STOP rule: picked no TODO item, committed nothing, left every file as found.
+**Human action to unblock all future auto-runs:** add `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`
+as GitHub Actions secrets, then commit the .py + .yml together — or `git stash` / `git checkout --`
+them to abandon. Until the tree is clean, every auto-run keeps skipping.
+
+## ⏭️ 2026-06-15 14:06 UTC (auto) — SKIPPED: dirty working tree (NO WORK DONE this run)
+skipped run at 2026-06-15 14:06 UTC: dirty working tree. 5th consecutive skip — same in-flight
+human CI test-account-cleanup feature, byte-for-byte unchanged: modified
+`scripts/cleanup-test-accounts.py` (adds CI env-var fallback for SUPABASE_URL/SERVICE_ROLE_KEY;
+parses clean) + untracked `.github/workflows/cleanup-test-accounts.yml` (daily 06:30 UTC purge of
+@vanta.test/@example.* test accounts). Verified the diff matches prior runs' description exactly —
+coherent, human-authored. Per the STOP rule: picked no TODO item, committed nothing, left every
+file as found. **Human action to unblock all future auto-runs:** add `SUPABASE_URL` +
+`SUPABASE_SERVICE_ROLE_KEY` as GitHub Actions secrets, then commit the .py + .yml together (or
+`git stash`/`git checkout --` them to abandon). Until the tree is clean, every auto-run keeps
+skipping.
+
+## ⏭️ 2026-06-15 12:41 UTC (auto) — SKIPPED: dirty working tree (NO WORK DONE this run)
+4th run in a row blocked by the same in-flight CI test-account-cleanup feature, still uncommitted:
+modified `scripts/cleanup-test-accounts.py` (CI-env fallback; parses clean) + untracked
+`.github/workflows/cleanup-test-accounts.yml` (daily 06:30 UTC purge). Verified the diff is
+unchanged from prior runs — human-authored, coherent. Per the STOP rule I picked no TODO item and
+committed nothing; left all files exactly as found. **Human action needed to unblock auto-runs:**
+add `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` as GitHub Actions secrets, then commit the .py +
+.yml together (or `git stash`/`git checkout` them if abandoning). Until the tree is clean, every
+auto-run will keep skipping.
+
+## ⏭️ 2026-06-14 22:06 UTC (auto) — SKIPPED: dirty working tree (NO WORK DONE this run)
+Same in-flight CI test-account-cleanup feature as the prior two runs, still uncommitted:
+modified `scripts/cleanup-test-accounts.py` (CI-env fallback; parses clean) + untracked
+`.github/workflows/cleanup-test-accounts.yml` (daily 06:30 UTC purge). Coherent, human-authored,
+unchanged since 06-14. Per the STOP rule I picked no TODO item and committed nothing — left all
+files exactly as found. **Human action needed:** add `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`
+as GitHub Actions secrets, then commit the .py + .yml together. Once the tree is clean the next
+auto-run can resume normal picking.
+
 ## ✅ 2026-06-13 (auto) — 18.6 DONE (share_trades privacy: 403 gate + Profile toggle). Pushed to main.
 Picked the topmost completable item. Everything above it is blocked for offline auto-runs (R.7
 Better-Stack = external signup; 18.2 chart drawings + 18.3 light/dark = visual/screenshot; 18.7 AI
@@ -68,13 +109,4 @@ all need network / screenshots / a user decision / splitting — see each item's
 
 ## Earlier (pruned)
 - 2026-06-13 (auto): 18.10 — risk acceptance persisted server-side (`POST /api/account/risk-accept`,
-  `profiles.risk_accepted_at`; `app/_layout.tsx` syncs ack keys on start). 167→passing then.
-- 2026-06-13 00:48 (auto): no-op — old precheck gated on unreachable live URLs; superseded (push→CI).
-- 2026-06-11/12: 18.11, 20.4, 19.3, 19.4, 19.2, 21.2, 22.0 done. Auth switched to email+password.
-- 2026-06-09/10: 19.1 + 20.3 completed client-only & committed. `SUPABASE_PAT` is in `server/.env`.
-
-## Untracked cruft the mount cannot delete (ignore; never `git add`)
-`.sync_probe_18_1.txt`, `.write_probe_tmp`, `STATE.regen.md`, `TODO.regen.md`,
-`components/pro/OrderEntry.fresh.tsx`, `components/pro/SymbolPickerModal.regen.tsx`,
-`server/src/routes/_state_entry_18_12.md`, `server/src/routes/orders.regen.ts`,
-`server/src/routes/transactions.regen.ts`. The user can `rm` these from Windows.
+  `profiles.risk_accepted_at`; `app/_layout.tsx` syncs ack keys on start). 167→passing the
