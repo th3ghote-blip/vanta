@@ -18,6 +18,7 @@ import { ordersRoutes } from '../../src/routes/orders.js';
 import { roundsRoutes } from '../../src/routes/rounds.js';
 import { robotsRoutes } from '../../src/routes/robots.js';
 import { tradersRoutes } from '../../src/routes/traders.js';
+import { adminRoutes } from '../../src/routes/admin.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
@@ -27,6 +28,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(roundsRoutes, { prefix: '/api/rounds' });
   await app.register(robotsRoutes, { prefix: '/api/robots' });
   await app.register(tradersRoutes, { prefix: '/api/traders' });
+  await app.register(adminRoutes, { prefix: '/api/admin' });
   await app.ready();
   return app;
 }

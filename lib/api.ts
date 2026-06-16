@@ -374,7 +374,34 @@ export const api = {
         margin_level_pct: number;
       }[];
       generated_at: string;
-    }>('/api/admin/risk')
+    }>('/api/admin/risk'),
+
+  adminGetPositions: () =>
+    request<{
+      positions: {
+        id: number;
+        account_id: string;
+        user_id: string | null;
+        login: number | null;
+        symbol: string;
+        side: 'buy' | 'sell';
+        volume: number;
+        open_price: number;
+        current_price: number;
+        pnl: number;
+        notional: number;
+        margin: number;
+        open_time: string;
+      }[];
+      summary: {
+        total_open: number;
+        total_notional: number;
+        buy_notional: number;
+        sell_notional: number;
+        net_notional: number;
+      };
+      generated_at: string;
+    }>('/api/admin/positions')
 
 };
 

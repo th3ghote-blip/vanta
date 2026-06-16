@@ -34,46 +34,38 @@ Editing `.tsx` via the Edit tool has produced files `tsc` rejected with bogus pa
 all repo code edits through bash/python heredoc or in-place `open(...,'w')`, then verify with
 `npx --no-install tsc --noEmit` before committing. (.md files are fine via Edit/Write.)
 
-## ⏭️ 2026-06-15 18:06 UTC (auto) — SKIPPED: dirty working tree (NO WORK DONE this run)
-skipped run at 2026-06-15 18:06 UTC: dirty working tree. 6th consecutive skip — same in-flight
-human CI test-account-cleanup feature, byte-for-byte unchanged (verified diff): modified
-`scripts/cleanup-test-accounts.py` (CI env-var fallback for SUPABASE_URL/SERVICE_ROLE_KEY; parses
-clean) + untracked `.github/workflows/cleanup-test-accounts.yml` (daily 06:30 UTC purge). Per the
-STOP rule: picked no TODO item, committed nothing, left every file as found.
-**Human action to unblock all future auto-runs:** add `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`
-as GitHub Actions secrets, then commit the .py + .yml together — or `git stash` / `git checkout --`
-them to abandon. Until the tree is clean, every auto-run keeps skipping.
+## ✅ 2026-06-16 (auto) — 21.3 DONE (admin Live Positions blotter). Pushed to main.
+Dirty-tree blocker is CLEARED: the human Quick-rounds changeset that caused the 7 prior skips is
+gone; working tree was clean except the prior run's STATE.md note. Resumed normal picking.
 
-## ⏭️ 2026-06-15 14:06 UTC (auto) — SKIPPED: dirty working tree (NO WORK DONE this run)
-skipped run at 2026-06-15 14:06 UTC: dirty working tree. 5th consecutive skip — same in-flight
-human CI test-account-cleanup feature, byte-for-byte unchanged: modified
-`scripts/cleanup-test-accounts.py` (adds CI env-var fallback for SUPABASE_URL/SERVICE_ROLE_KEY;
-parses clean) + untracked `.github/workflows/cleanup-test-accounts.yml` (daily 06:30 UTC purge of
-@vanta.test/@example.* test accounts). Verified the diff matches prior runs' description exactly —
-coherent, human-authored. Per the STOP rule: picked no TODO item, committed nothing, left every
-file as found. **Human action to unblock all future auto-runs:** add `SUPABASE_URL` +
-`SUPABASE_SERVICE_ROLE_KEY` as GitHub Actions secrets, then commit the .py + .yml together (or
-`git stash`/`git checkout --` them to abandon). Until the tree is clean, every auto-run keeps
-skipping.
+Items above 21.3 are all blocked for offline auto-runs (R.7 Better-Stack = external signup; 18.2
+chart drawings + 18.3 light/dark = visual/screenshot; 18.7 AI assistant = needs Claude API key;
+18.8 manager panel = oversized→split into 21.x; 20.2 = PARKED; 21.1 admin audit = needs live HTTP
+to Railway, which the sandbox can't reach — left unchecked, see its note). So 21.3 was topmost
+offline-completable.
 
-## ⏭️ 2026-06-15 12:41 UTC (auto) — SKIPPED: dirty working tree (NO WORK DONE this run)
-4th run in a row blocked by the same in-flight CI test-account-cleanup feature, still uncommitted:
-modified `scripts/cleanup-test-accounts.py` (CI-env fallback; parses clean) + untracked
-`.github/workflows/cleanup-test-accounts.yml` (daily 06:30 UTC purge). Verified the diff is
-unchanged from prior runs — human-authored, coherent. Per the STOP rule I picked no TODO item and
-committed nothing; left all files exactly as found. **Human action needed to unblock auto-runs:**
-add `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` as GitHub Actions secrets, then commit the .py +
-.yml together (or `git stash`/`git checkout` them if abandoning). Until the tree is clean, every
-auto-run will keep skipping.
+**What shipped (commit on main, CI deploys both):**
+- `server/src/routes/admin.ts`: new admin-only `GET /api/admin/positions` — every open trade across
+  all accounts, stitched to its `login` via `accounts!inner`, with live mid (`getMid`), unrealized
+  P&L (`calculatePnL`), notional (`notionalUSD`), held margin (`requiredMargin` at open_price).
+  Summary: total_open / total_notional / buy_notional / sell_notional / net_notional. Sorted by |P&L|.
+- `lib/api.ts`: typed `api.adminGetPositions()`.
+- `app/admin/positions.tsx` (new): summary card + P&L/Symbol/Age sort tabs + per-row blotter.
+- `app/admin/index.tsx`: "Live Positions" nav tile (Activity icon, already imported).
+- Tests: `supabaseMock` gained `DbProfile.is_admin` + `seed.profile({is_admin})`; trades
+  `accounts!inner` embed now surfaces `login`/`balance`/`margin_used` (additive — orders tests still
+  green). `buildApp` helper now registers `adminRoutes`. New `server/test/adminPositions.test.ts`
+  (5 tests). No migration this run.
+- Verified offline: client tsc clean, server tsc clean, `npm test` **180 passing** (was 175).
 
-## ⏭️ 2026-06-14 22:06 UTC (auto) — SKIPPED: dirty working tree (NO WORK DONE this run)
-Same in-flight CI test-account-cleanup feature as the prior two runs, still uncommitted:
-modified `scripts/cleanup-test-accounts.py` (CI-env fallback; parses clean) + untracked
-`.github/workflows/cleanup-test-accounts.yml` (daily 06:30 UTC purge). Coherent, human-authored,
-unchanged since 06-14. Per the STOP rule I picked no TODO item and committed nothing — left all
-files exactly as found. **Human action needed:** add `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`
-as GitHub Actions secrets, then commit the .py + .yml together. Once the tree is clean the next
-auto-run can resume normal picking.
+**PENDING LIVE VERIFY (next interactive session):** open a trade on any account → it shows in
+`/admin/positions` with correct live P&L within a refresh; check the summary net-exposure number.
+
+### Next pick: 21.4 (force-close / modify any position) builds directly on this route — it needs
+`POST /api/admin/positions/:id/close` + `PATCH /api/admin/positions/:id` (close at live mid, settle
+P&L, release margin, log reason='admin_close'). Backend is unit-testable offline like 21.3; the
+per-row buttons are visual (defer live verify). 21.1 (admin audit) stays blocked until a
+network-enabled run can curl the live Railway API.
 
 ## ✅ 2026-06-13 (auto) — 18.6 DONE (share_trades privacy: 403 gate + Profile toggle). Pushed to main.
 Picked the topmost completable item. Everything above it is blocked for offline auto-runs (R.7

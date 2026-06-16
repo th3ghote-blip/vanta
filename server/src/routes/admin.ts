@@ -2,7 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authUser, supabaseAdmin } from '../lib/supabase.js';
 import { getMid } from '../lib/quoteCache.js';
-import { calculatePnL, contractSize } from '../lib/contracts.js';
+import { calculatePnL, contractSize, notionalUSD } from '../lib/contracts.js';
+import { requiredMargin } from '../lib/margin.js';
 
 /** Verify auth + admin role. Returns userId or null. */
 async function authAdmin(token: string | undefined): Promise<string | null> {
@@ -824,6 +825,103 @@ export async function adminRoutes(app: FastifyInstance) {
         symbols: feedHealth,
       },
       ws_connections: getWsConnectionCount(),
+    });
+  });
+
+
+  /**
+   * GET /api/admin/positions
+   * Live blotter of EVERY open trade across all users (the MT4 "Open Trades"
+   * window). Each row carries the owning account's login plus a live mid price,
+   * computed unrealized P&L, and the margin the position is holding. Summary
+   * bar totals open count, notional, and buy/sell/net exposure. Admin-only.
+   */
+  app.get('/positions', async (req, reply) => {
+    const adminId = await authAdmin(req.headers.authorization);
+    if (!adminId) return reply.code(403).send({ error: 'forbidden' });
+
+    interface RawOpenTrade {
+      id: number;
+      account_id: string;
+      symbol: string;
+      side: string;
+      volume: number | string;
+      open_price: number | string;
+      open_time: string;
+      accounts: {
+        user_id: string;
+        login: number | string | null;
+        leverage: number | string;
+      } | null;
+    }
+
+    const { data: rawUnsafe, error: tradesErr } = await supabaseAdmin
+      .from('trades')
+      .select(
+        'id, account_id, symbol, side, volume, open_price, open_time,' +
+        'accounts!inner(user_id, login, leverage)',
+      )
+      .eq('status', 'open')
+      .order('open_time', { ascending: false });
+
+    if (tradesErr) {
+      app.log.error({ err: tradesErr }, 'admin/positions: query failed');
+      return reply.code(500).send({ error: 'query_failed' });
+    }
+
+    const raw = (rawUnsafe ?? []) as unknown as RawOpenTrade[];
+
+    let totalNotional = 0;
+    let buyNotional = 0;
+    let sellNotional = 0;
+
+    const positions = raw.map((t) => {
+      const side = (t.side === 'sell' ? 'sell' : 'buy') as 'buy' | 'sell';
+      const volume = Number(t.volume);
+      const openPrice = Number(t.open_price);
+      const mid = getMid(t.symbol) ?? openPrice;
+      const acc = t.accounts;
+      const leverage = Number(acc?.leverage) || 1;
+
+      const pnl = +calculatePnL(side, volume, openPrice, mid, t.symbol).toFixed(2);
+      const notional = +notionalUSD(volume, mid, t.symbol).toFixed(2);
+      const margin = +requiredMargin(volume, openPrice, t.symbol, leverage).toFixed(2);
+
+      totalNotional += notional;
+      if (side === 'buy') buyNotional += notional;
+      else sellNotional += notional;
+
+      return {
+        id: t.id,
+        account_id: t.account_id,
+        user_id: acc?.user_id ?? null,
+        login: acc?.login != null ? Number(acc.login) : null,
+        symbol: t.symbol,
+        side,
+        volume,
+        open_price: openPrice,
+        current_price: mid,
+        pnl,
+        notional,
+        margin,
+        open_time: t.open_time,
+      };
+    });
+
+    // Default ordering: largest absolute P&L first so the most material
+    // positions (biggest winners/losers) sit at the top. Client can re-sort.
+    positions.sort((a, b) => Math.abs(b.pnl) - Math.abs(a.pnl));
+
+    return reply.send({
+      positions,
+      summary: {
+        total_open: positions.length,
+        total_notional: +totalNotional.toFixed(2),
+        buy_notional: +buyNotional.toFixed(2),
+        sell_notional: +sellNotional.toFixed(2),
+        net_notional: +(buyNotional - sellNotional).toFixed(2),
+      },
+      generated_at: new Date().toISOString(),
     });
   });
 

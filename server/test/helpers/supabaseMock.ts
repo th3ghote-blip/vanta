@@ -66,6 +66,7 @@ export interface DbProfile {
   login_streak?: number;
   copy_leader_enabled?: boolean;
   share_trades?: boolean;
+  is_admin?: boolean;
 }
 
 export interface DbCopyRelationship {
@@ -172,6 +173,7 @@ export const seed = {
       login_streak: overrides.login_streak ?? 0,
       copy_leader_enabled: overrides.copy_leader_enabled ?? false,
       share_trades: overrides.share_trades ?? true,
+      is_admin: overrides.is_admin ?? false,
     };
     tables.profiles.push(p);
     return p;
@@ -392,10 +394,24 @@ class Query {
 
     // attach embed if requested (used by orders.close → trades.accounts!inner)
     if (this.embedAccount && this.table === 'trades') {
-      matching = matching.map((t) => {
-        const a = tables.accounts.find((x) => x.id === t.account_id);
-        return { ...t, accounts: a ? { user_id: a.user_id, leverage: a.leverage } : null };
-      });
+      matching = matching
+        .map((t) => {
+          const a = tables.accounts.find((x) => x.id === t.account_id);
+          return a
+            ? {
+                ...t,
+                accounts: {
+                  user_id: a.user_id,
+                  login: a.login,
+                  balance: a.balance,
+                  margin_used: a.margin_used,
+                  leverage: a.leverage,
+                },
+              }
+            : { ...t, accounts: null };
+        })
+        // accounts!inner → drop trades whose account is missing
+        .filter((t) => (t as any).accounts !== null);
     }
     if (this.embedAccount && this.table === 'robots') {
       matching = matching
