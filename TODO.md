@@ -1166,6 +1166,7 @@ by `user_id`, see the `attachAccounts` helper added in the 0d4d991 fix).
 
 ## 21.1 Admin backend function audit
 - [ ] **Files:** `server/src/routes/admin.ts`, `docs/admin-audit.md` (new)
+> BLOCKED for offline auto-runs (re-confirmed 2026-06-17): the acceptance ("every admin route with a live 200 result; no `query_failed` anywhere") requires hitting the live Railway API with an admin token, but the auto-run sandbox egress is github-only — it cannot reach railway/supabase. Pure code review can't satisfy "live 200". Resume on a network-enabled interactive run that can curl `https://vanta-server-production.up.railway.app/api/admin/*`.
 - **What:** Hit every `/api/admin/*` route with an admin token against the live DB and confirm 200 + correct shape. For each failure, identify the bad column/embed and fix. Known-fixed 2026-06-11: `/admin/risk` (`opened_at`→`open_time`), `/admin/users` (profiles↔accounts embed → stitch). Re-audit ALL routes including `/admin/users/:userId` (detail), balance-adjust, transaction approve/reject, KYC approve/reject — verify the column names against the live schema dump (profiles, accounts, trades, transactions, kyc_submissions, kyc_documents).
 - **Acceptance:** `docs/admin-audit.md` lists every admin route with a live 200 result; no `query_failed` anywhere in the admin UI.
 
@@ -1191,7 +1192,8 @@ by `user_id`, see the `attachAccounts` helper added in the 0d4d991 fix).
 - **Acceptance:** Admin force-closes a client's open trade → trade goes `closed` with `reason='admin_close'`, client balance updates, margin released.
 
 ## 21.5 Analytics — metrics by asset (house & client)
-- [ ] **Files:** `server/src/routes/admin.ts` (`GET /api/admin/analytics/by-symbol`), `app/admin/analytics.tsx` (new)
+- [x] **Files:** `server/src/routes/admin.ts` (`GET /api/admin/analytics/by-symbol`), `app/admin/analytics.tsx` (new)
+- **Done 2026-06-17 (auto):** Backend `GET /api/admin/analytics/by-symbol?window=24h|7d|30d|all&threshold=N` (admin-only via `authAdmin`). The window filters trades by INCEPTION (`open_time` via `.gte`; `all` = no filter — documented choice). Per symbol it returns: `trade_count`/`open_count`/`closed_count`; `volume_lots`; `volume_notional` (`notionalUSD` at **open_price** — deterministic/reconcilable); open interest `open_buy_lots`/`open_sell_lots`/`net_open_lots` + `net_open_notional` valued at the live mid (B-book exposure); `realized_client_pnl` (sum of closed `profit`) and `realized_house_pnl` (= −client); `win_rate` over closed; `avg_hold_seconds` over closed (close_time−open_time); `top_accounts` (most-active by trade count, login+user_id); and an `over_exposure` flag when `|net_open_notional|` exceeds the threshold (default 100k). Symbols sorted by `volume_notional` desc; `totals` block + `generated_at`. Client: `api.adminAnalyticsBySymbol(window, threshold?)` in `lib/api.ts`; new screen `app/admin/analytics.tsx` (window selector 24h/7d/30d/All, totals card, sort tabs Volume/Exposure/House P&L/Win%, per-symbol cards with exposure ⚠ flag); "Asset Analytics" nav tile (PieChart icon) in `app/admin/index.tsx`. Test helper: added `open_time` to `DbTrade` + `seed.trade` defaults (`open_time`/`close_time`/`profit` now seedable — additive). New `server/test/adminAnalyticsBySymbol.test.ts` (6 tests: 403 unauth/non-admin, full metric reconciliation for BTCUSD [count=3, vol_notional=4280, net_oi=2190, client_pnl=30, win=0.5, hold=2700s], window filter 24h vs 30d, threshold→over_exposure, empty window). Verified offline: client tsc clean, server tsc clean, `npm test` **195 passing** (was 189). PENDING LIVE VERIFY (next interactive session): numbers reconcile against raw `trades` for one symbol on the live DB; switching the window changes them.
 - **What:** Per-symbol table over a selectable window (24h / 7d / 30d / all): trade count, total volume (lots + notional), open interest (net long/short), realized client P&L (house P&L = −client), win rate, avg hold time, most-active accounts. Sortable; highlight symbols where net exposure exceeds a threshold (B-book risk).
 - **Acceptance:** Numbers reconcile against raw `trades` for at least one symbol; switching the window changes them correctly.
 
@@ -1239,34 +1241,4 @@ real events to the assets they move.
 
 ## 22.2 Market news feed tagged to assets
 - [ ] **Files:** `server/src/workers/news.ts` (new), migration `news_items (id, headline, summary, url, source, symbols text[], sentiment, published_at)`, `GET /api/news?symbol=`, `components/NewsFeed.tsx`, surface on Trade screen + a News tab
-- **What:** A worker pulls market headlines on a schedule and tags each to the asset(s) it impacts (e.g. an ETF approval → BTCUSD; an earnings beat → AAPL), with a bull/bear/neutral sentiment tag. The chart/trade screen for a symbol shows a "News affecting BTCUSD" strip; a global feed shows latest items with their asset chips. **Free sources first** (per stack rules): RSS/JSON from CoinGecko/CryptoPanic free tier, Yahoo Finance RSS, or a free news API — quote cost before any paid feed. Symbol tagging: keyword match against the symbol catalogue, optionally a cheap Haiku classify (~$0.001/item) for sentiment + which symbols — quote the per-day cost before enabling.
-- **Decisions to lock at build time:**
-  ```
-  Source:    (a) free RSS/CryptoPanic ✅   (b) paid news API (quote first)
-  Tagging:   (a) keyword match ✅          (b) Haiku classify (~$X/day)
-  Schedule:  (a) Claude cron / worker every 30–60 min ✅   (b) on-demand
-  Storage:   (a) Supabase news_items ✅
-  ```
-- **Acceptance:** Open BTCUSD → see recent headlines tagged to BTC with sentiment; open a News tab → chronological feed with asset chips; tapping a chip filters to that symbol. Stale items age out.
-
-## 22.3 Push a "tip" when news strongly impacts a held/watched asset
-- [ ] **Files:** `server/src/workers/news.ts` (extend), reuse `lib/push.ts` + `profiles.notification_prefs`
-- **What:** When a high-sentiment news item lands for a symbol the user holds (open trade) or has on their watchlist, send a push: "📈 Bitcoin: [headline] — you hold BTCUSD". Respects the existing notification preferences (robot signals / price alerts toggles; add a "market news" toggle). Tip-only robots (Phase 3.4) already have the push plumbing — reuse it.
-- **Acceptance:** A flagged BTC news item with an open BTC position → push received; toggling "market news" off in settings stops them.
-
-## 22.4 Daily challenges / quests (optional, lower priority)
-- [ ] **What:** A rotating daily task ("place a trade with a stop-loss", "try Quick mode", "check the news feed") that grants a badge or a small demo-balance bonus on completion. Keeps daily-active users engaged beyond the login streak.
-- **Acceptance:** A daily quest shows on the Trade tab, completes when its condition is met, resets next day.
-
----
-
-# Phase 17 — Optional / future
-
-- [ ] Copy trading (follow another trader's positions)
-- [ ] Public social feed (trade cards as posts)
-- [ ] Live chat rooms by symbol
-- [ ] Voice trading ("hey Vanta, buy 0.1 BTC")
-- [ ] NFT-style trade card sharing
-- [ ] Educational content with progress tracking
-- [ ] Affiliate program / referral codes
-- [ ]
+- **What:** A worker pulls market headlines on a schedule and tags each to the asset(s) it impacts (e.g. an ETF approval → BTCUSD; an earnings beat → AAPL), with a bull/bear/neutral sentiment tag. The chart/trade screen for a symbol shows a "News affecting BTCUSD" strip; a global feed shows latest i

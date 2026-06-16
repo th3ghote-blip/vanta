@@ -1108,4 +1108,202 @@ export async function adminRoutes(app: FastifyInstance) {
     });
   });
 
+  /**
+   * 21.5 — GET /api/admin/analytics/by-symbol
+   * Per-asset analytics over a selectable window (24h / 7d / 30d / all).
+   * The window filters trades by INCEPTION (`open_time`). For each symbol:
+   *   - trade_count / open_count / closed_count
+   *   - volume_lots and volume_notional (notional at open_price — deterministic)
+   *   - open interest: open_buy_lots / open_sell_lots / net_open_lots,
+   *     plus net_open_notional valued at the live mid (B-book exposure)
+   *   - realized_client_pnl (sum of closed `profit`); house P&L = −client
+   *   - win_rate over closed trades; avg_hold_seconds over closed trades
+   *   - top_accounts (most-active by trade count)
+   *   - over_exposure flag when |net_open_notional| exceeds the threshold
+   * Admin-only. Sorted by volume_notional desc; the client may re-sort.
+   */
+  app.get('/analytics/by-symbol', async (req, reply) => {
+    const adminId = await authAdmin(req.headers.authorization);
+    if (!adminId) return reply.code(403).send({ error: 'forbidden' });
+
+    const q = (req.query ?? {}) as { window?: string; threshold?: string };
+    const windowKey = (['24h', '7d', '30d', 'all'].includes(q.window ?? '')
+      ? q.window
+      : '7d') as '24h' | '7d' | '30d' | 'all';
+    const thr = Number(q.threshold);
+    const exposureThreshold = Number.isFinite(thr) && thr > 0 ? thr : 100_000;
+
+    const windowMs: Record<'24h' | '7d' | '30d', number> = {
+      '24h': 24 * 60 * 60 * 1000,
+      '7d': 7 * 24 * 60 * 60 * 1000,
+      '30d': 30 * 24 * 60 * 60 * 1000,
+    };
+    const since =
+      windowKey === 'all' ? null : new Date(Date.now() - windowMs[windowKey]).toISOString();
+
+    interface RawTrade {
+      id: number;
+      account_id: string;
+      symbol: string;
+      side: string;
+      volume: number | string;
+      open_price: number | string;
+      status: string;
+      profit: number | string | null;
+      open_time: string | null;
+      close_time: string | null;
+      accounts: { user_id: string; login: number | string | null } | null;
+    }
+
+    let query = supabaseAdmin
+      .from('trades')
+      .select(
+        'id, account_id, symbol, side, volume, open_price, status, profit, open_time, close_time,' +
+          'accounts!inner(user_id, login)',
+      );
+    if (since) query = query.gte('open_time', since);
+
+    const { data: rawUnsafe, error: tradesErr } = await query;
+    if (tradesErr) {
+      app.log.error({ err: tradesErr }, 'admin/analytics/by-symbol: query failed');
+      return reply.code(500).send({ error: 'query_failed' });
+    }
+    const raw = (rawUnsafe ?? []) as unknown as RawTrade[];
+
+    interface Agg {
+      symbol: string;
+      trade_count: number;
+      open_count: number;
+      closed_count: number;
+      volume_lots: number;
+      volume_notional: number;
+      open_buy_lots: number;
+      open_sell_lots: number;
+      realized_client_pnl: number;
+      wins: number;
+      hold_seconds_sum: number;
+      hold_counted: number;
+      accounts: Map<string, { login: number | null; user_id: string | null; trade_count: number }>;
+    }
+
+    const map = new Map<string, Agg>();
+    const getAgg = (symbol: string): Agg => {
+      let a = map.get(symbol);
+      if (!a) {
+        a = {
+          symbol,
+          trade_count: 0,
+          open_count: 0,
+          closed_count: 0,
+          volume_lots: 0,
+          volume_notional: 0,
+          open_buy_lots: 0,
+          open_sell_lots: 0,
+          realized_client_pnl: 0,
+          wins: 0,
+          hold_seconds_sum: 0,
+          hold_counted: 0,
+          accounts: new Map(),
+        };
+        map.set(symbol, a);
+      }
+      return a;
+    };
+
+    for (const t of raw) {
+      const a = getAgg(t.symbol);
+      const side = t.side === 'sell' ? 'sell' : 'buy';
+      const volume = Number(t.volume);
+      const openPrice = Number(t.open_price);
+
+      a.trade_count += 1;
+      a.volume_lots += volume;
+      a.volume_notional += notionalUSD(volume, openPrice, t.symbol);
+
+      if (t.status === 'open') {
+        a.open_count += 1;
+        if (side === 'buy') a.open_buy_lots += volume;
+        else a.open_sell_lots += volume;
+      } else if (t.status === 'closed') {
+        a.closed_count += 1;
+        const profit = Number(t.profit ?? 0);
+        a.realized_client_pnl += profit;
+        if (profit > 0) a.wins += 1;
+        if (t.open_time && t.close_time) {
+          const held = (new Date(t.close_time).getTime() - new Date(t.open_time).getTime()) / 1000;
+          if (Number.isFinite(held) && held >= 0) {
+            a.hold_seconds_sum += held;
+            a.hold_counted += 1;
+          }
+        }
+      }
+
+      // Most-active accounts per symbol (count every trade, any status).
+      const acc = t.accounts;
+      const login = acc?.login != null ? Number(acc.login) : null;
+      const key = acc?.user_id ?? `acct:${t.account_id}`;
+      const ar = a.accounts.get(key) ?? { login, user_id: acc?.user_id ?? null, trade_count: 0 };
+      ar.trade_count += 1;
+      a.accounts.set(key, ar);
+    }
+
+    let totalTradeCount = 0;
+    let totalVolumeNotional = 0;
+    let totalRealizedClientPnl = 0;
+
+    const symbols = Array.from(map.values())
+      .map((a) => {
+        const mid = getMid(a.symbol) ?? 0;
+        const cs = contractSize(a.symbol);
+        const netOpenLots = a.open_buy_lots - a.open_sell_lots;
+        const netOpenNotional = netOpenLots * (mid || 0) * cs;
+        const winRate = a.closed_count > 0 ? a.wins / a.closed_count : 0;
+        const avgHoldSeconds =
+          a.hold_counted > 0 ? Math.round(a.hold_seconds_sum / a.hold_counted) : null;
+        const realizedClient = +a.realized_client_pnl.toFixed(2);
+
+        totalTradeCount += a.trade_count;
+        totalVolumeNotional += a.volume_notional;
+        totalRealizedClientPnl += realizedClient;
+
+        const topAccounts = Array.from(a.accounts.values())
+          .sort((x, y) => y.trade_count - x.trade_count)
+          .slice(0, 3);
+
+        return {
+          symbol: a.symbol,
+          trade_count: a.trade_count,
+          open_count: a.open_count,
+          closed_count: a.closed_count,
+          volume_lots: +a.volume_lots.toFixed(4),
+          volume_notional: +a.volume_notional.toFixed(2),
+          open_buy_lots: +a.open_buy_lots.toFixed(4),
+          open_sell_lots: +a.open_sell_lots.toFixed(4),
+          net_open_lots: +netOpenLots.toFixed(4),
+          net_open_notional: +netOpenNotional.toFixed(2),
+          realized_client_pnl: realizedClient,
+          realized_house_pnl: +(-realizedClient).toFixed(2),
+          win_rate: +winRate.toFixed(4),
+          avg_hold_seconds: avgHoldSeconds,
+          top_accounts: topAccounts,
+          over_exposure: Math.abs(netOpenNotional) > exposureThreshold,
+        };
+      })
+      .sort((x, y) => y.volume_notional - x.volume_notional);
+
+    return reply.send({
+      window: windowKey,
+      since,
+      exposure_threshold: exposureThreshold,
+      symbols,
+      totals: {
+        symbols: symbols.length,
+        trade_count: totalTradeCount,
+        volume_notional: +totalVolumeNotional.toFixed(2),
+        realized_client_pnl: +totalRealizedClientPnl.toFixed(2),
+        realized_house_pnl: +(-totalRealizedClientPnl).toFixed(2),
+      },
+      generated_at: new Date().toISOString(),
+    });
+  });
 }

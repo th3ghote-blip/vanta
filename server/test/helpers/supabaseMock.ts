@@ -36,6 +36,7 @@ export interface DbTrade {
   current_price: number;
   status: 'open' | 'closed' | 'pending' | 'cancelled';
   close_price?: number;
+  open_time?: string;
   close_time?: string;
   profit?: number;
   stop_loss?: number | null;
@@ -189,6 +190,9 @@ export const seed = {
       open_price: overrides.open_price ?? 1.1,
       current_price: overrides.current_price ?? 1.1,
       status: overrides.status ?? 'open',
+      open_time: overrides.open_time ?? new Date().toISOString(),
+      close_time: overrides.close_time,
+      profit: overrides.profit,
       client_request_id: overrides.client_request_id ?? null,
       reason: overrides.reason ?? 'mobile',
       stop_loss: overrides.stop_loss ?? null,

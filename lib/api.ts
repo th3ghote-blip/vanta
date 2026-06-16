@@ -426,6 +426,46 @@ export const api = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(fields),
       },
+    ),
+
+  // 21.5 — per-asset analytics over a window (24h / 7d / 30d / all).
+  adminAnalyticsBySymbol: (
+    window: '24h' | '7d' | '30d' | 'all' = '7d',
+    threshold?: number,
+  ) =>
+    request<{
+      window: '24h' | '7d' | '30d' | 'all';
+      since: string | null;
+      exposure_threshold: number;
+      symbols: {
+        symbol: string;
+        trade_count: number;
+        open_count: number;
+        closed_count: number;
+        volume_lots: number;
+        volume_notional: number;
+        open_buy_lots: number;
+        open_sell_lots: number;
+        net_open_lots: number;
+        net_open_notional: number;
+        realized_client_pnl: number;
+        realized_house_pnl: number;
+        win_rate: number;
+        avg_hold_seconds: number | null;
+        top_accounts: { login: number | null; user_id: string | null; trade_count: number }[];
+        over_exposure: boolean;
+      }[];
+      totals: {
+        symbols: number;
+        trade_count: number;
+        volume_notional: number;
+        realized_client_pnl: number;
+        realized_house_pnl: number;
+      };
+      generated_at: string;
+    }>(
+      `/api/admin/analytics/by-symbol?window=${window}` +
+        (threshold ? `&threshold=${threshold}` : ''),
     )
 
 };
