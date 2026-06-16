@@ -34,6 +34,34 @@ Editing `.tsx` via the Edit tool has produced files `tsc` rejected with bogus pa
 all repo code edits through bash/python heredoc or in-place `open(...,'w')`, then verify with
 `npx --no-install tsc --noEmit` before committing. (.md files are fine via Edit/Write.)
 
+## ✅ 2026-06-16 (auto) — 21.4 DONE (admin force-close / modify any position). Pushed to main.
+Built directly on 21.3's blotter. Working tree was clean (only prior STATE.md handoff). Topmost
+completable item — 21.1 (admin audit) is still blocked offline (needs live HTTP to Railway; sandbox
+egress is github-only). 21.2/21.3 done.
+
+**What shipped (commit on main, CI deploys both):**
+- `server/src/routes/admin.ts`: `POST /api/admin/positions/:id/close` (admin-only) — closes any open
+  trade at the live mid (`getMid`, falls back to open_price), realized P&L via `calculatePnL`,
+  open→closed with a CAS guard (`.eq('status','open').select('id')`; 409 `already_closed` on race),
+  settles via `apply_trade_pnl` RPC, releases margin via `releaseMargin`, stamps `reason='admin_close'`.
+  `PATCH /api/admin/positions/:id { stopLoss?, takeProfit? }` — null clears a level, ≥1 field required,
+  directional validation vs live mid (400 `invalid_sl`/`invalid_tp`), 404 if not open. GET `/positions`
+  now also returns `stop_loss`/`take_profit` (modal prefill).
+- `lib/api.ts`: `adminClosePosition()`, `adminModifyPosition()`; positions type gained `stop_loss`/`take_profit`.
+- `app/admin/positions.tsx`: per-row **Force close** (web `window.confirm` / native `Alert` destructive
+  confirm) + **SL/TP** button → Modify modal (two numeric inputs, blank = clear); per-row busy spinner,
+  reload on success.
+- Tests: new `server/test/adminPositionManage.test.ts` (9). Imports `getTable` from supabaseMock to
+  assert post-state. No migration this run.
+- Verified offline: client tsc clean, server tsc clean, `npm test` **189 passing** (was 180).
+
+**PENDING LIVE VERIFY (next interactive session):** admin force-closes a real open trade → row goes
+`closed`, client balance updates, margin released; modify SL/TP persists and reflects on the client device.
+
+### Next pick: 21.5 (analytics by-symbol, `GET /api/admin/analytics/by-symbol` + `app/admin/analytics.tsx`)
+is offline-unit-testable (aggregate over `trades`); or 21.8 (MT4-parity doc, pure markdown). 21.1 stays
+blocked until a network-enabled run can curl live Railway. 21.6/21.7 need charts/live KYC (visual/network).
+
 ## ✅ 2026-06-16 (auto) — 21.3 DONE (admin Live Positions blotter). Pushed to main.
 Dirty-tree blocker is CLEARED: the human Quick-rounds changeset that caused the 7 prior skips is
 gone; working tree was clean except the prior run's STATE.md note. Resumed normal picking.
@@ -70,35 +98,4 @@ network-enabled run can curl the live Railway API.
 ## ✅ 2026-06-13 (auto) — 18.6 DONE (share_trades privacy: 403 gate + Profile toggle). Pushed to main.
 Picked the topmost completable item. Everything above it is blocked for offline auto-runs (R.7
 Better-Stack = external signup; 18.2 chart drawings + 18.3 light/dark = visual/screenshot; 18.7 AI
-assistant = needs Claude API + live key; 18.8 manager panel = oversized, needs splitting).
-
-**What shipped (commit on main, CI deploys both):**
-- `server/src/routes/account.ts`: new `PATCH /api/account/privacy` — boolean-validates and persists
-  `profiles.share_trades` (401 unauth / 400 non-boolean / 200 returns stored flag).
-- `server/src/routes/traders.ts`: new `GET /api/traders/:leaderId/trades` returns a leader's recent
-  closed trades but **403 `trades_private`** when that leader's `share_trades=false` (or no profile);
-  `/leaderboard` leader query now also requires `.eq('share_trades', true)` so private users never
-  appear on the board.
-- `lib/api.ts`: `api.setShareTrades()`.
-- `app/(tabs)/profile.tsx`: Profile → **Privacy** card with a "Share my trades" Switch (default ON,
-  hydrated from `getProfile().share_trades`, optimistic with revert-on-failure).
-- Tests: `buildApp` helper now registers `tradersRoutes`; supabaseMock gained `.not()`,
-  `profiles.share_trades`, `trades.user_id`. New `server/test/shareTrades.test.ts` (8 tests).
-- Migration 027 (`share_trades`) already applied — no migration this run.
-- Verified offline: client tsc clean, server tsc clean, `npm test` **175 passing**.
-
-**PENDING LIVE VERIFY (next interactive session):** on device A toggle Privacy → Share my trades
-OFF → as a different logged-in user, that leader is absent from the leaderboard and
-`GET /api/traders/:id/trades` → 403; toggle back ON → reappears.
-
-⚠️ STILL-CARRIED DEPLOY DEBT (verify these are live now that CI auto-deploys on push):
-19.1 ($ amount sizing) + 20.3 (trade-risk gate) + 18.10 (risk accept) + 18.6 (this) — confirm
-Vercel/Railway shipped via the GitHub Actions run for each push; browser-check when next interactive.
-
-### Next pick: split 18.3 (light/dark) into 18.3a–g sub-items for a screenshot-capable run,
-or pick another offline-completable item. The remaining top-of-list items (R.7, 18.2, 18.7, 18.8)
-all need network / screenshots / a user decision / splitting — see each item's `>` note.
-
-## Earlier (pruned)
-- 2026-06-13 (auto): 18.10 — risk acceptance persisted server-side (`POST /api/account/risk-accept`,
-  `profiles.risk_accepted_at`; `app/_layout.tsx` syncs ack keys on start). 167→passing the
+assistant = needs Claude API + live key; 18.8 manager panel = oversized, needs s

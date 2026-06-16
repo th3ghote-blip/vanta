@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { authUser, supabaseAdmin } from '../lib/supabase.js';
 import { getMid } from '../lib/quoteCache.js';
 import { calculatePnL, contractSize, notionalUSD } from '../lib/contracts.js';
-import { requiredMargin } from '../lib/margin.js';
+import { requiredMargin, releaseMargin } from '../lib/margin.js';
 
 /** Verify auth + admin role. Returns userId or null. */
 async function authAdmin(token: string | undefined): Promise<string | null> {
@@ -19,6 +19,13 @@ async function authAdmin(token: string | undefined): Promise<string | null> {
 }
 
 const RejectSchema = z.object({ reason: z.string().optional() }).optional();
+
+// 21.4 — admin force-close / modify schemas
+const PositionIdSchema = z.object({ id: z.coerce.number().int().positive() });
+const ModifyPositionSchema = z.object({
+  stopLoss: z.number().nullable().optional(),
+  takeProfit: z.number().nullable().optional(),
+});
 
 export async function adminRoutes(app: FastifyInstance) {
   /**
@@ -848,6 +855,8 @@ export async function adminRoutes(app: FastifyInstance) {
       volume: number | string;
       open_price: number | string;
       open_time: string;
+      stop_loss: number | string | null;
+      take_profit: number | string | null;
       accounts: {
         user_id: string;
         login: number | string | null;
@@ -858,7 +867,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const { data: rawUnsafe, error: tradesErr } = await supabaseAdmin
       .from('trades')
       .select(
-        'id, account_id, symbol, side, volume, open_price, open_time,' +
+        'id, account_id, symbol, side, volume, open_price, open_time, stop_loss, take_profit,' +
         'accounts!inner(user_id, login, leverage)',
       )
       .eq('status', 'open')
@@ -905,6 +914,8 @@ export async function adminRoutes(app: FastifyInstance) {
         notional,
         margin,
         open_time: t.open_time,
+        stop_loss: t.stop_loss != null ? Number(t.stop_loss) : null,
+        take_profit: t.take_profit != null ? Number(t.take_profit) : null,
       };
     });
 
@@ -922,6 +933,178 @@ export async function adminRoutes(app: FastifyInstance) {
         net_notional: +(buyNotional - sellNotional).toFixed(2),
       },
       generated_at: new Date().toISOString(),
+    });
+  });
+
+
+  /**
+   * 21.4 — POST /api/admin/positions/:id/close
+   * Force-close any user's open position (MT4 Manager right-click -> Close).
+   * Closes at the live mid, settles realized P&L to the owning account,
+   * releases the held margin, and stamps reason='admin_close'. Admin-only.
+   */
+  app.post('/positions/:id/close', async (req, reply) => {
+    const adminId = await authAdmin(req.headers.authorization);
+    if (!adminId) return reply.code(403).send({ error: 'forbidden' });
+
+    const parsed = PositionIdSchema.safeParse(req.params);
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid_input' });
+    const { id } = parsed.data;
+
+    const { data: trade, error } = await supabaseAdmin
+      .from('trades')
+      .select('*, accounts!inner(user_id, login, leverage)')
+      .eq('id', id)
+      .eq('status', 'open')
+      .single();
+
+    if (error || !trade) return reply.code(404).send({ error: 'not_found' });
+
+    const acc = (trade as any).accounts;
+    const accLeverage = Number(acc?.leverage) || 1;
+    const side = ((trade as any).side === 'sell' ? 'sell' : 'buy') as 'buy' | 'sell';
+
+    // Close at the live mid; fall back to open_price if the feed is momentarily empty.
+    const closePrice = getMid((trade as any).symbol) ?? Number((trade as any).open_price);
+
+    const profit = +calculatePnL(
+      side,
+      Number((trade as any).volume),
+      Number((trade as any).open_price),
+      closePrice,
+      (trade as any).symbol,
+    ).toFixed(2);
+
+    // CAS guard against a concurrent close (e.g. the client closing the same trade):
+    // only the request that actually flips open -> closed settles the P&L/margin.
+    const { data: closedRows, error: closeErr } = await supabaseAdmin
+      .from('trades')
+      .update({
+        status: 'closed',
+        close_price: closePrice,
+        close_time: new Date().toISOString(),
+        profit,
+        reason: 'admin_close',
+      })
+      .eq('id', id)
+      .eq('status', 'open')
+      .select('id');
+
+    if (closeErr) {
+      app.log.error({ err: closeErr, tradeId: id }, 'admin force-close: update failed');
+      return reply.code(500).send({ error: 'close_failed' });
+    }
+    if (!closedRows || closedRows.length === 0) {
+      return reply.code(409).send({ error: 'already_closed', tradeId: id });
+    }
+
+    // Settle realized P&L to balance / equity / free_margin.
+    try {
+      await supabaseAdmin.rpc('apply_trade_pnl', { p_account_id: (trade as any).account_id, p_amount: profit });
+    } catch { /* fire-and-forget; RPC errors are non-fatal to the close */ }
+
+    // Release the margin reserved when the trade was opened.
+    const marginReleased = +requiredMargin(
+      Number((trade as any).volume),
+      Number((trade as any).open_price),
+      (trade as any).symbol,
+      accLeverage,
+    ).toFixed(2);
+    try {
+      await releaseMargin((trade as any).account_id, marginReleased, app.log);
+    } catch (e) {
+      app.log.error({ err: e, tradeId: id, marginReleased }, 'admin force-close: failed to release margin');
+    }
+
+    app.log.warn(
+      { adminId, tradeId: id, login: acc?.login, profit, closePrice },
+      'admin: force-closed client position',
+    );
+
+    return reply.send({
+      tradeId: id,
+      status: 'closed',
+      close_price: closePrice,
+      profit,
+      margin_released: marginReleased,
+      reason: 'admin_close',
+    });
+  });
+
+  /**
+   * 21.4 — PATCH /api/admin/positions/:id  { stopLoss?, takeProfit? }
+   * Admin override of a client's SL/TP (MT4 Manager right-click -> Modify).
+   * Either field optional; pass null to clear. At least one must be present.
+   * Direction is validated against the live mid when a quote is available.
+   * Admin-only.
+   */
+  app.patch('/positions/:id', async (req, reply) => {
+    const adminId = await authAdmin(req.headers.authorization);
+    if (!adminId) return reply.code(403).send({ error: 'forbidden' });
+
+    const parsedParams = PositionIdSchema.safeParse(req.params);
+    if (!parsedParams.success) return reply.code(400).send({ error: 'invalid_input' });
+    const { id } = parsedParams.data;
+
+    const parsedBody = ModifyPositionSchema.safeParse(req.body);
+    if (!parsedBody.success) return reply.code(400).send({ error: 'invalid_input', issues: parsedBody.error.issues });
+    const body = parsedBody.data;
+
+    if (body.stopLoss === undefined && body.takeProfit === undefined) {
+      return reply.code(400).send({ error: 'invalid_input', message: 'provide stopLoss or takeProfit' });
+    }
+
+    const { data: trade, error } = await supabaseAdmin
+      .from('trades')
+      .select('*, accounts!inner(login)')
+      .eq('id', id)
+      .eq('status', 'open')
+      .single();
+
+    if (error || !trade) return reply.code(404).send({ error: 'not_found' });
+
+    const side = (trade as any).side === 'sell' ? 'sell' : 'buy';
+    const mid = getMid((trade as any).symbol);
+    if (mid != null) {
+      if (body.stopLoss != null) {
+        if (side === 'buy' && body.stopLoss >= mid) {
+          return reply.code(400).send({ error: 'invalid_sl', message: 'stop loss for a buy must be below current price', stopLoss: body.stopLoss, price: mid });
+        }
+        if (side === 'sell' && body.stopLoss <= mid) {
+          return reply.code(400).send({ error: 'invalid_sl', message: 'stop loss for a sell must be above current price', stopLoss: body.stopLoss, price: mid });
+        }
+      }
+      if (body.takeProfit != null) {
+        if (side === 'buy' && body.takeProfit <= mid) {
+          return reply.code(400).send({ error: 'invalid_tp', message: 'take profit for a buy must be above current price', takeProfit: body.takeProfit, price: mid });
+        }
+        if (side === 'sell' && body.takeProfit >= mid) {
+          return reply.code(400).send({ error: 'invalid_tp', message: 'take profit for a sell must be below current price', takeProfit: body.takeProfit, price: mid });
+        }
+      }
+    }
+
+    const updateFields: Record<string, any> = {};
+    if (body.stopLoss !== undefined) updateFields.stop_loss = body.stopLoss;
+    if (body.takeProfit !== undefined) updateFields.take_profit = body.takeProfit;
+
+    const { error: updErr } = await supabaseAdmin
+      .from('trades')
+      .update(updateFields)
+      .eq('id', id)
+      .eq('status', 'open'); // CAS guard: skip if race-closed mid-request
+
+    if (updErr) {
+      app.log.error({ err: updErr, tradeId: id }, 'admin modify: update failed');
+      return reply.code(500).send({ error: 'update_failed' });
+    }
+
+    app.log.info({ adminId, tradeId: id }, 'admin: modified client position SL/TP');
+
+    return reply.send({
+      tradeId: id,
+      stopLoss: 'stop_loss' in updateFields ? updateFields.stop_loss : ((trade as any).stop_loss ?? null),
+      takeProfit: 'take_profit' in updateFields ? updateFields.take_profit : ((trade as any).take_profit ?? null),
     });
   });
 

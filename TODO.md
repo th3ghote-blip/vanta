@@ -1185,7 +1185,8 @@ by `user_id`, see the `attachAccounts` helper added in the 0d4d991 fix).
 - **Acceptance:** Open a trade on any account → it appears in `/admin/positions` with correct live P&L within a refresh.
 
 ## 21.4 Force-close / modify any position (MT4 manager intervention)
-- [ ] **Files:** `server/src/routes/admin.ts` (`POST /api/admin/positions/:id/close`, `PATCH /api/admin/positions/:id`), `app/admin/positions.tsx`
+- [x] **Files:** `server/src/routes/admin.ts` (`POST /api/admin/positions/:id/close`, `PATCH /api/admin/positions/:id`), `app/admin/positions.tsx`, `lib/api.ts`
+- **Done 2026-06-16 (auto):** Built on the 21.3 blotter. Backend `POST /api/admin/positions/:id/close` (admin-only) closes any open trade at the live mid (`getMid`, falls back to open_price), computes realized P&L via `calculatePnL`, transitions the row open→closed with a CAS guard (`.eq('status','open').select('id')`; 409 `already_closed` if another request won the race), settles P&L to the account via `apply_trade_pnl` RPC, releases the reserved margin via `releaseMargin`, and stamps `reason='admin_close'`. Returns `{status,close_price,profit,margin_released,reason}`. `PATCH /api/admin/positions/:id { stopLoss?, takeProfit? }` overrides SL/TP (null clears a level; ≥1 field required; directional validation against the live mid → 400 `invalid_sl`/`invalid_tp`; 404 if not an open trade). GET `/positions` now also returns `stop_loss`/`take_profit` so the modal can prefill. `lib/api.ts`: `adminClosePosition()` + `adminModifyPosition()`. `app/admin/positions.tsx`: per-row **Force close** (web `window.confirm` / native `Alert` destructive confirm) + **SL/TP** button opening a Modify modal (two numeric inputs, blank = clear), with per-row busy spinner and reload-on-success. New `server/test/adminPositionManage.test.ts` (9 tests: 403 unauth/non-admin both verbs, force-close settles P&L=10·margin_released=7.5·balance→10010·reason=admin_close, 404 on closed trade, set SL/TP, wrong-side SL→400, null clears, empty body→400). Verified offline: client tsc clean, server tsc clean, `npm test` **189 passing** (was 180). PENDING LIVE VERIFY (next interactive session): admin force-closes a real open trade → row goes closed, client balance updates, margin released; modify SL/TP persists and reflects on the client's device.
 - **What:** Per-row "Force close" (closes at live mid, settles P&L, releases margin, logs `reason='admin_close'`) and "Modify SL/TP". Mirrors MT4 Manager's right-click close/modify on a client position.
 - **Acceptance:** Admin force-closes a client's open trade → trade goes `closed` with `reason='admin_close'`, client balance updates, margin released.
 
@@ -1268,28 +1269,4 @@ real events to the assets they move.
 - [ ] NFT-style trade card sharing
 - [ ] Educational content with progress tracking
 - [ ] Affiliate program / referral codes
-- [ ] Multiple accounts per user (demo + multiple live)
-- [ ] Multi-currency accounts (EUR, GBP, USDT)
-- [ ] TradingView webhook → robot trigger
-- [ ] AI copilot chat ("Should I close my EURUSD?") — Claude API with read access to user's positions
-
----
-
-# Operational notes for the agent
-
-- **Never commit secrets.** All API keys live in `server/.env` (gitignored) and Vercel/Railway env vars.
-- **Database migrations are append-only.** Don't edit existing migration files; create new ones.
-- **Both deploys are atomic.** Vercel old version stays live until new build passes; same for Railway. Safe to deploy frequently.
-- **If a TypeScript error blocks deploy:** check Railway build logs (`railway logs --build`), fix, redeploy. Don't comment out the type — fix it.
-- **CORS must be updated when domain changes** in `server/src/index.ts` `ALLOWED_ORIGINS`.
-- **Supabase RLS protects everything.** Server uses service role key (bypasses RLS) for admin operations. Client uses publishable key + user JWT.
-- **Push to production immediately after each task** — frequent atomic deploys are cheaper than batched ones.
-- **When in doubt, leave a note in `STATE.md`** for the next agent.
-- **If a task changes data shapes:** write the migration first, deploy backend, then frontend.
-- **Workspace state may have hot-reload caches** — restart Expo if web behaves weirdly.
-- **Twelve Data free tier is 800 credits/day, 8/min** — keep `pollYahoo` removed and respect rate limits in any new endpoint that hits it.
-- **Coinbase, Resend, Anthropic, Twelve Data, Supabase keys are all in `server/.env` and Railway env vars.**
-
----
-
-*Maintain ordering within phases (dependencies flow downward). Strike `[x]` completed items in place — don't delete (history is useful).*
+- [ ]

@@ -392,6 +392,8 @@ export const api = {
         notional: number;
         margin: number;
         open_time: string;
+        stop_loss: number | null;
+        take_profit: number | null;
       }[];
       summary: {
         total_open: number;
@@ -401,7 +403,30 @@ export const api = {
         net_notional: number;
       };
       generated_at: string;
-    }>('/api/admin/positions')
+    }>('/api/admin/positions'),
+
+  // 21.4 — admin force-close a client's open position (closes at live mid,
+  // settles P&L, releases margin, reason='admin_close').
+  adminClosePosition: (tradeId: number) =>
+    request<{
+      tradeId: number;
+      status: 'closed';
+      close_price: number;
+      profit: number;
+      margin_released: number;
+      reason: 'admin_close';
+    }>(`/api/admin/positions/${tradeId}/close`, { method: 'POST' }),
+
+  // 21.4 — admin override of a client's SL/TP. Pass null to clear a level.
+  adminModifyPosition: (tradeId: number, fields: { stopLoss?: number | null; takeProfit?: number | null }) =>
+    request<{ tradeId: number; stopLoss: number | null; takeProfit: number | null }>(
+      `/api/admin/positions/${tradeId}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fields),
+      },
+    )
 
 };
 
