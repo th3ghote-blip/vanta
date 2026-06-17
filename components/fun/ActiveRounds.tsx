@@ -204,9 +204,15 @@ interface Props {
    * short rounds (e.g. 5s) don't depend on the realtime INSERT arriving in time.
    */
   injectedRound?: BinaryRound | null;
+  /**
+   * Fires whenever the set of still-pending rounds changes. Lets the parent
+   * (e.g. the hero card) show a live up/down position view for the selected asset.
+   * Must be stable (wrap in useCallback) to avoid an update loop.
+   */
+  onPendingChange?: (rounds: BinaryRound[]) => void;
 }
 
-export function ActiveRounds({ accountId, onRoundSettled, injectedRound }: Props) {
+export function ActiveRounds({ accountId, onRoundSettled, injectedRound, onPendingChange }: Props) {
   const [rounds, setRounds] = useState<BinaryRound[]>([]);
   // Ids we've already reported as settled, so onRoundSettled fires exactly once
   // whether the realtime UPDATE or the poll fallback wins the race.
@@ -328,6 +334,12 @@ export function ActiveRounds({ accountId, onRoundSettled, injectedRound }: Props
   const removeRound = useCallback((id: string) => {
     setRounds((prev) => prev.filter((r) => r.id !== id));
   }, []);
+
+  // Report the still-pending rounds upward so the hero card can show a live
+  // position view. Filtered to pending so settled-but-fading rows don't count.
+  useEffect(() => {
+    onPendingChange?.(rounds.filter((r) => r.outcome === 'pending'));
+  }, [rounds, onPendingChange]);
 
   if (rounds.length === 0) return null;
 

@@ -72,6 +72,10 @@ export function QuickTradeScreen() {
   // Freshly-opened round, handed to ActiveRounds for an optimistic insert so
   // short (5s) rounds show immediately instead of waiting on the realtime INSERT.
   const [openedRound, setOpenedRound] = useState<BinaryRound | null>(null);
+  // Pending rounds reported up from ActiveRounds, used to show a live position
+  // view on the hero card for the selected asset.
+  const [pendingRounds, setPendingRounds] = useState<BinaryRound[]>([]);
+  const handlePendingChange = useCallback((rs: BinaryRound[]) => setPendingRounds(rs), []);
 
   const { account, fetch: refetchAccount } = useAccountStore();
   const quotes = usePriceStore((s) => s.quotes);
@@ -108,6 +112,15 @@ export function QuickTradeScreen() {
   const selectedMeta = liveSymbols.find((s) => s.ticker === selectedSymbol) ?? liveSymbols[0];
   const quote = quotes[selectedSymbol];
   const livePrice = quote ? (quote.bid + quote.ask) / 2 : 0;
+
+  // The pending round on the selected asset (soonest-closing if several) — drives
+  // the live up/down position view on the hero card.
+  const activeRound = useMemo(() => {
+    const mine = pendingRounds
+      .filter((r) => r.symbol === selectedSymbol)
+      .sort((a, b) => new Date(a.closes_at).getTime() - new Date(b.closes_at).getTime());
+    return mine[0] ?? null;
+  }, [pendingRounds, selectedSymbol]);
 
   // Ultra-short rounds (5s / 30s) need a sub-second feed. Crypto + PAXG come
   // from Coinbase in real time; everything else (Yahoo forex/indices/stocks at
@@ -294,7 +307,7 @@ export function QuickTradeScreen() {
       </HScrollView>
 
       {/* Featured card with live price */}
-      <BinaryCard asset={selectedAsset} duration={duration} />
+      <BinaryCard asset={selectedAsset} duration={duration} activeRound={activeRound} livePrice={livePrice} />
 
       {/* Duration picker */}
       <HScrollView contentContainerStyle={{ gap: spacing.sm }}>
@@ -464,6 +477,7 @@ export function QuickTradeScreen() {
           accountId={account.id}
           onRoundSettled={handleRoundSettled}
           injectedRound={openedRound}
+          onPendingChange={handlePendingChange}
         />
       )}
 
