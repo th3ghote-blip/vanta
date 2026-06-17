@@ -98,4 +98,38 @@ blocked until a network-enabled run can curl live Railway. 21.6/21.7 need charts
 Dirty-tree blocker is CLEARED: the human Quick-rounds changeset that caused the 7 prior skips is
 gone; working tree was clean except the prior run's STATE.md note. Resumed normal picking.
 
-Items above 21.3 are al
+Items above 21.3 are all blocked for offline auto-runs (R.7 Better-Stack = external signup; 18.2
+chart drawings + 18.3 light/dark = visual/screenshot; 18.7 AI assistant = needs Claude API key;
+18.8 manager panel = oversized→split into 21.x; 20.2 = PARKED; 21.1 admin audit = needs live HTTP
+to Railway, which the sandbox can't reach — left unchecked, see its note). So 21.3 was topmost
+offline-completable.
+
+**What shipped (commit on main, CI deploys both):**
+- `server/src/routes/admin.ts`: new admin-only `GET /api/admin/positions` — every open trade across
+  all accounts, stitched to its `login` via `accounts!inner`, with live mid (`getMid`), unrealized
+  P&L (`calculatePnL`), notional (`notionalUSD`), held margin (`requiredMargin` at open_price).
+  Summary: total_open / total_notional / buy_notional / sell_notional / net_notional. Sorted by |P&L|.
+- `lib/api.ts`: typed `api.adminGetPositions()`.
+- `app/admin/positions.tsx` (new): summary card + P&L/Symbol/Age sort tabs + per-row blotter.
+- `app/admin/index.tsx`: "Live Positions" nav tile (Activity icon, already imported).
+- Tests: `supabaseMock` gained `DbProfile.is_admin` + `seed.profile({is_admin})`; trades
+  `accounts!inner` embed now surfaces `login`/`balance`/`margin_used` (additive — orders tests still
+  green). `buildApp` helper now registers `adminRoutes`. New `server/test/adminPositions.test.ts`
+  (5 tests). No migration this run.
+- Verified offline: client tsc clean, server tsc clean, `npm test` **180 passing** (was 175).
+
+**PENDING LIVE VERIFY (next interactive session):** open a trade on any account → it shows in
+`/admin/positions` with correct live P&L within a refresh; check the summary net-exposure number.
+
+### Next pick: 21.4 (force-close / modify any position) builds directly on this route — it needs
+`POST /api/admin/positions/:id/close` + `PATCH /api/admin/positions/:id` (close at live mid, settle
+P&L, release margin, log reason='admin_close'). Backend is unit-testable offline like 21.3; the
+per-row buttons are visual (defer live verify). 21.1 (admin audit) stays blocked until a
+network-enabled run can curl the live Railway API.
+
+## Earlier (pruned)
+- 2026-06-13 (auto): 18.6 — share_trades privacy: `PATCH /api/account/privacy` + `GET /api/traders/:id/trades`
+  403 `trades_private` gate + leaderboard `.eq('share_trades',true)` + Profile Privacy switch. 175 passing.
+  ⚠️ DEPLOY DEBT to confirm live: 19.1 ($ sizing) + 20.3 (trade-risk gate) + 18.10 (risk accept) + 18.6.
+- 2026-06-13 (auto): 18.10 — risk acceptance persisted server-side (`POST /api/account/risk-accept`,
+  `profiles.risk_accepted_at`; `app/_layout.tsx` syncs ack keys on start). 167→passing the

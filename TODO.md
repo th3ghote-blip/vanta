@@ -1241,4 +1241,58 @@ real events to the assets they move.
 
 ## 22.2 Market news feed tagged to assets
 - [ ] **Files:** `server/src/workers/news.ts` (new), migration `news_items (id, headline, summary, url, source, symbols text[], sentiment, published_at)`, `GET /api/news?symbol=`, `components/NewsFeed.tsx`, surface on Trade screen + a News tab
-- **What:** A worker pulls market headlines on a schedule and tags each to the asset(s) it impacts (e.g. an ETF approval → BTCUSD; an earnings beat → AAPL), with a bull/bear/neutral sentiment tag. The chart/trade screen for a symbol shows a "News affecting BTCUSD" strip; a global feed shows latest i
+- **What:** A worker pulls market headlines on a schedule and tags each to the asset(s) it impacts (e.g. an ETF approval → BTCUSD; an earnings beat → AAPL), with a bull/bear/neutral sentiment tag. The chart/trade screen for a symbol shows a "News affecting BTCUSD" strip; a global feed shows latest items with their asset chips. **Free sources first** (per stack rules): RSS/JSON from CoinGecko/CryptoPanic free tier, Yahoo Finance RSS, or a free news API — quote cost before any paid feed. Symbol tagging: keyword match against the symbol catalogue, optionally a cheap Haiku classify (~$0.001/item) for sentiment + which symbols — quote the per-day cost before enabling.
+- **Decisions to lock at build time:**
+  ```
+  Source:    (a) free RSS/CryptoPanic ✅   (b) paid news API (quote first)
+  Tagging:   (a) keyword match ✅          (b) Haiku classify (~$X/day)
+  Schedule:  (a) Claude cron / worker every 30–60 min ✅   (b) on-demand
+  Storage:   (a) Supabase news_items ✅
+  ```
+- **Acceptance:** Open BTCUSD → see recent headlines tagged to BTC with sentiment; open a News tab → chronological feed with asset chips; tapping a chip filters to that symbol. Stale items age out.
+
+## 22.3 Push a "tip" when news strongly impacts a held/watched asset
+- [ ] **Files:** `server/src/workers/news.ts` (extend), reuse `lib/push.ts` + `profiles.notification_prefs`
+- **What:** When a high-sentiment news item lands for a symbol the user holds (open trade) or has on their watchlist, send a push: "📈 Bitcoin: [headline] — you hold BTCUSD". Respects the existing notification preferences (robot signals / price alerts toggles; add a "market news" toggle). Tip-only robots (Phase 3.4) already have the push plumbing — reuse it.
+- **Acceptance:** A flagged BTC news item with an open BTC position → push received; toggling "market news" off in settings stops them.
+
+## 22.4 Daily challenges / quests (optional, lower priority)
+- [ ] **What:** A rotating daily task ("place a trade with a stop-loss", "try Quick mode", "check the news feed") that grants a badge or a small demo-balance bonus on completion. Keeps daily-active users engaged beyond the login streak.
+- **Acceptance:** A daily quest shows on the Trade tab, completes when its condition is met, resets next day.
+
+---
+
+# Phase 17 — Optional / future
+
+- [ ] Copy trading (follow another trader's positions)
+- [ ] Public social feed (trade cards as posts)
+- [ ] Live chat rooms by symbol
+- [ ] Voice trading ("hey Vanta, buy 0.1 BTC")
+- [ ] NFT-style trade card sharing
+- [ ] Educational content with progress tracking
+- [ ] Affiliate program / referral codes
+- [ ] Multiple accounts per user (demo + multiple live)
+- [ ] Multi-currency accounts (EUR, GBP, USDT)
+- [ ] TradingView webhook → robot trigger
+- [ ] AI copilot chat ("Should I close my EURUSD?") — Claude API with read access to user's positions
+
+---
+
+# Operational notes for the agent
+
+- **Never commit secrets.** All API keys live in `server/.env` (gitignored) and Vercel/Railway env vars.
+- **Database migrations are append-only.** Don't edit existing migration files; create new ones.
+- **Both deploys are atomic.** Vercel old version stays live until new build passes; same for Railway. Safe to deploy frequently.
+- **If a TypeScript error blocks deploy:** check Railway build logs (`railway logs --build`), fix, redeploy. Don't comment out the type — fix it.
+- **CORS must be updated when domain changes** in `server/src/index.ts` `ALLOWED_ORIGINS`.
+- **Supabase RLS protects everything.** Server uses service role key (bypasses RLS) for admin operations. Client uses publishable key + user JWT.
+- **Push to production immediately after each task** — frequent atomic deploys are cheaper than batched ones.
+- **When in doubt, leave a note in `STATE.md`** for the next agent.
+- **If a task changes data shapes:** write the migration first, deploy backend, then frontend.
+- **Workspace state may have hot-reload caches** — restart Expo if web behaves weirdly.
+- **Twelve Data free tier is 800 credits/day, 8/min** — keep `pollYahoo` removed and respect rate limits in any new endpoint that hits it.
+- **Coinbase, Resend, Anthropic, Twelve Data, Supabase keys are all in `server/.env` and Railway env vars.**
+
+---
+
+*Maintain ordering within phases (dependencies flow downward). Strike `[x]` completed items in place — don't delete (history is useful).*
