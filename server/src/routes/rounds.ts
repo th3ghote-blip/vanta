@@ -3,6 +3,10 @@ import { z } from 'zod';
 
 import { authUser, supabaseAdmin } from '../lib/supabase.js';
 import { getMid } from '../lib/quoteCache.js';
+import { isRealtimeSymbol } from '../feed/pricefeed.js';
+
+/** 5s/30s rounds require a real-time (Coinbase) feed; Yahoo assets are too slow. */
+const REALTIME_MIN_SECONDS = 60;
 
 const OpenRoundSchema = z.object({
   accountId: z.string().uuid(),
@@ -20,6 +24,11 @@ export async function roundsRoutes(app: FastifyInstance) {
     const parsed = OpenRoundSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid_input' });
     const body = parsed.data;
+
+    // Gate ultra-short rounds to real-time assets (see REALTIME_MIN_SECONDS).
+    if (body.durationSeconds < REALTIME_MIN_SECONDS && !isRealtimeSymbol(body.symbol)) {
+      return reply.code(400).send({ error: 'duration_requires_realtime', minSeconds: REALTIME_MIN_SECONDS });
+    }
 
     // 1. Fetch account and verify ownership
     const { data: account, error: accErr } = await supabaseAdmin

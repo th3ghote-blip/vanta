@@ -3,7 +3,13 @@
  * "Bitcoin (BTCUSD)" instead of just "BTCUSD".
  */
 
-export type SymbolCategory = 'Crypto' | 'Forex' | 'Metals' | 'Stocks';
+export type SymbolCategory =
+  | 'Crypto'
+  | 'Forex'
+  | 'Metals'
+  | 'Commodities'
+  | 'Indices'
+  | 'Stocks';
 
 export interface SymbolMeta {
   ticker: string;
@@ -97,10 +103,48 @@ const META: Record<string, Omit<SymbolMeta, 'ticker'>> = {
   CHZUSD:    { name: 'Chiliz',                category: 'Crypto' },
 
 
-  // ── Metals (Coinbase-backed only) ───────────────────────────────────
-  // PAXG (Paxos Gold) — 1 token = 1 troy oz London Good Delivery gold.
-  // Trades on Coinbase Advanced. No silver proxy on Coinbase.
-  PAXGUSD: { name: 'Gold (PAXG)', category: 'Metals' },
+  // ── Metals ──────────────────────────────────────────────────────────
+  // PAXG (Paxos Gold) — 1 token = 1 troy oz gold, real-time via Coinbase.
+  // The only metal usable on 5s/30s rounds (sub-second feed).
+  PAXGUSD:  { name: 'Gold (PAXG, real-time)', category: 'Metals' },
+  // Yahoo futures (~10s delayed → 60s+ rounds only)
+  XAUUSD:   { name: 'Gold',                   category: 'Metals' },
+  XAGUSD:   { name: 'Silver',                 category: 'Metals' },
+  PLATINUM: { name: 'Platinum',               category: 'Metals' },
+  COPPER:   { name: 'Copper',                 category: 'Metals' },
+
+  // ── Commodities (Yahoo futures, ~10s delayed → 60s+ rounds) ─────────
+  USOIL:    { name: 'Crude Oil (WTI)',        category: 'Commodities' },
+  UKOIL:    { name: 'Crude Oil (Brent)',      category: 'Commodities' },
+  NATGAS:   { name: 'Natural Gas',            category: 'Commodities' },
+
+  // ── Forex (Yahoo, real-time) ────────────────────────────────────────
+  EURUSD:   { name: 'Euro / US Dollar',       category: 'Forex' },
+  GBPUSD:   { name: 'Pound / US Dollar',      category: 'Forex' },
+  USDJPY:   { name: 'US Dollar / Yen',        category: 'Forex' },
+  AUDUSD:   { name: 'Aussie / US Dollar',     category: 'Forex' },
+  USDCAD:   { name: 'US Dollar / Loonie',     category: 'Forex' },
+  USDCHF:   { name: 'US Dollar / Franc',      category: 'Forex' },
+  NZDUSD:   { name: 'Kiwi / US Dollar',       category: 'Forex' },
+  EURGBP:   { name: 'Euro / Pound',           category: 'Forex' },
+  EURJPY:   { name: 'Euro / Yen',             category: 'Forex' },
+  GBPJPY:   { name: 'Pound / Yen',            category: 'Forex' },
+
+  // ── Indices (Yahoo, real-time) ──────────────────────────────────────
+  SPX500:   { name: 'S&P 500',                category: 'Indices' },
+  NAS100:   { name: 'Nasdaq Composite',       category: 'Indices' },
+  US30:     { name: 'Dow Jones 30',           category: 'Indices' },
+
+  // ── Stocks (Yahoo, real-time) ───────────────────────────────────────
+  AAPL:     { name: 'Apple',                  category: 'Stocks' },
+  MSFT:     { name: 'Microsoft',              category: 'Stocks' },
+  TSLA:     { name: 'Tesla',                  category: 'Stocks' },
+  AMZN:     { name: 'Amazon',                 category: 'Stocks' },
+  GOOGL:    { name: 'Alphabet',               category: 'Stocks' },
+  META:     { name: 'Meta Platforms',         category: 'Stocks' },
+  NVDA:     { name: 'Nvidia',                 category: 'Stocks' },
+  NFLX:     { name: 'Netflix',                category: 'Stocks' },
+  AMD:      { name: 'AMD',                     category: 'Stocks' },
 
 };
 
@@ -122,4 +166,16 @@ export function symbolsByCategory(category: SymbolCategory): SymbolMeta[] {
 }
 
 /** Ordered category list — Crypto first (most used in Quick mode). */
-export const CATEGORIES: SymbolCategory[] = ['Crypto', 'Forex', 'Metals', 'Stocks'];
+export const CATEGORIES: SymbolCategory[] = [
+  'Crypto', 'Forex', 'Metals', 'Commodities', 'Indices', 'Stocks',
+];
+
+/**
+ * Symbols backed by a sub-second real-time feed (Coinbase crypto + PAXG).
+ * Only these are eligible for ultra-short 5s / 30s rounds — Yahoo-backed
+ * assets (forex/indices/stocks at 5s poll, futures ~10s delayed) would make
+ * those durations a coin-flip on stale data.
+ */
+export function isRealtimeSymbol(ticker: string): boolean {
+  return symbolMeta(ticker).category === 'Crypto' || ticker === 'PAXGUSD';
+}

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { View, Text, Pressable, ActivityIndicator } from 'react-native';
-import { TrendingUp, TrendingDown, Flame } from 'lucide-react-native';
+import { TrendingUp, TrendingDown, Flame, Lock } from 'lucide-react-native';
 
 import { colors, radius, spacing, typography } from '@/lib/theme';
 import { api, ApiError } from '@/lib/api';
@@ -8,13 +8,16 @@ import { useAccountStore } from '@/stores/account';
 import { usePriceStore } from '@/stores/prices';
 import { useProfileStore } from '@/stores/profile';
 import { useSymbolStore } from '@/stores/symbol';
-import { allSymbols, CATEGORIES, type SymbolCategory } from '@/lib/symbolMeta';
+import { allSymbols, CATEGORIES, isRealtimeSymbol, type SymbolCategory } from '@/lib/symbolMeta';
 import { BinaryCard } from './BinaryCard';
 import { ActiveRounds } from './ActiveRounds';
 import type { BinaryRound } from './ActiveRounds';
 import { RoundResultModal } from './RoundResultModal';
 import { QuickStats } from './QuickStats';
 import { HScrollView } from '@/components/shared/HScrollView';
+
+// Durations shorter than this require a real-time (crypto/PAXG) feed.
+const REALTIME_MIN_SECONDS = 60;
 
 const DURATIONS = [
   { label: '5s',    seconds: 5,     multiplier: 2.00 },
@@ -37,6 +40,8 @@ function describeRoundError(err: unknown): string {
         return `Not enough balance (need $${(err.details.required as number)?.toFixed(2) ?? '-'}, have $${(err.details.available as number)?.toFixed(2) ?? '-'})`;
       case 'no_quote':
         return 'No live price available for this asset - try again.';
+      case 'duration_requires_realtime':
+        return '5s & 30s rounds need a real-time asset (crypto or Gold PAXG). Pick a longer duration for this one.';
       case 'account_not_found':
         return 'Account not found. Please reload.';
       case 'forbidden':
@@ -103,6 +108,26 @@ export function QuickTradeScreen() {
   const selectedMeta = liveSymbols.find((s) => s.ticker === selectedSymbol) ?? liveSymbols[0];
   const quote = quotes[selectedSymbol];
   const livePrice = quote ? (quote.bid + quote.ask) / 2 : 0;
+
+  // Ultra-short rounds (5s / 30s) need a sub-second feed. Crypto + PAXG come
+  // from Coinbase in real time; everything else (Yahoo forex/indices/stocks at
+  // a 5s poll, futures ~10s delayed) is too coarse — settling a 5s round on a
+  // price that only refreshes every 5–10s is a coin-flip, so we lock those
+  // durations for non-realtime assets.
+  const realtime = isRealtimeSymbol(selectedSymbol);
+  const isLocked = useCallback(
+    (seconds: number) => !realtime && seconds < REALTIME_MIN_SECONDS,
+    [realtime],
+  );
+
+  // If the active symbol can't support the selected duration, bump up to the
+  // shortest allowed one (60s) so the trade button never opens a locked round.
+  useEffect(() => {
+    if (isLocked(duration.seconds)) {
+      const fallback = DURATIONS.find((d) => !isLocked(d.seconds)) ?? DURATIONS[0];
+      setDuration(fallback);
+    }
+  }, [isLocked, duration.seconds]);
 
   // When a round settles, show the result modal AND refetch the account so the
   // balance reflects the payout (a win credits the balance server-side). The
@@ -275,10 +300,12 @@ export function QuickTradeScreen() {
       <HScrollView contentContainerStyle={{ gap: spacing.sm }}>
         {DURATIONS.map((d) => {
           const active = d.label === duration.label;
+          const locked = isLocked(d.seconds);
           return (
             <Pressable
               key={d.label}
               testID={`duration-${d.label}`}
+              disabled={locked}
               onPress={() => setDuration(d)}
               style={{
                 width: 68,
@@ -288,16 +315,26 @@ export function QuickTradeScreen() {
                 backgroundColor: active ? colors.bgElevated : colors.bgSurface,
                 borderWidth: 1,
                 borderColor: active ? colors.primary : colors.border,
+                opacity: locked ? 0.4 : 1,
               }}
             >
-              <Text style={{ ...typography.bodyBold, color: colors.textPrimary, fontSize: 13 }}>{d.label}</Text>
-              <Text style={{ ...typography.mono, color: colors.profit, fontSize: 11, marginTop: 2 }}>
-                x{d.multiplier}
+              {locked ? (
+                <Lock color={colors.textMuted} size={13} />
+              ) : (
+                <Text style={{ ...typography.bodyBold, color: colors.textPrimary, fontSize: 13 }}>{d.label}</Text>
+              )}
+              <Text style={{ ...typography.mono, color: locked ? colors.textMuted : colors.profit, fontSize: 11, marginTop: 2 }}>
+                {locked ? d.label : `x${d.multiplier}`}
               </Text>
             </Pressable>
           );
         })}
       </HScrollView>
+      {!realtime && (
+        <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 11, marginTop: -spacing.xs }}>
+          5s & 30s rounds need a real-time asset (crypto or Gold PAXG). {selectedMeta?.name} updates too slowly for them.
+        </Text>
+      )}
 
       {/* Stake selector */}
       <View>

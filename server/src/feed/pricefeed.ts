@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import WebSocket from 'ws';
+import YahooFinance from 'yahoo-finance2';
 import { setQuote, getAllQuotes, getQuote, type Quote } from '../lib/quoteCache.js';
 import { recordTick } from '../lib/workerHealth.js';
 
@@ -36,6 +37,16 @@ const CRYPTO_SYMBOLS = [
 /** Vanta crypto symbol → Coinbase product_id */
 const COINBASE_PRODUCT = (vSym: string) => vSym.slice(0, -3) + '-USD';
 
+/**
+ * True for symbols on a sub-second real-time feed (Coinbase crypto + PAXG).
+ * These are the only assets eligible for ultra-short 5s/30s rounds — Yahoo
+ * symbols refresh every 5–10s, which would make those durations a coin-flip.
+ * Mirrors the client's isRealtimeSymbol() in lib/symbolMeta.ts.
+ */
+export function isRealtimeSymbol(symbol: string): boolean {
+  return CRYPTO_SYMBOLS.includes(symbol);
+}
+
 // =================================================================
 // FOREX / STOCKS / GOLD — Yahoo Finance (no key, ~10s polling)
 // =================================================================
@@ -45,6 +56,45 @@ const COINBASE_PRODUCT = (vSym: string) => vSym.slice(0, -3) + '-USD';
 // surfaces Coinbase-backed symbols (80 cryptos + PAXG as gold proxy).
 // Re-enable by adding entries below + upgrading TD or switching providers.
 const NON_CRYPTO_SYMBOLS: string[] = [];
+
+// =================================================================
+// COMMODITIES / FOREX / INDICES / STOCKS — Yahoo Finance (no key)
+// yahoo-finance2 v3 class API. One batched .quote([...]) per poll.
+// Forex / indices / US stocks are real-time (delay=0); futures
+// (oil, metals, gas) are exchange-delayed ~10s — fine for 60s+ rounds
+// but NOT for 5s/30s, which the client gates to crypto only.
+// We use regularMarketPrice as the mid and synthesize a spread —
+// Yahoo's bid/ask are unreliable for FX (often inverted/stale).
+// Polled every YAHOO_POLL_MS; random-walk smooths between polls.
+// =================================================================
+const yahoo = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
+const YAHOO_POLL_MS = 5_000;
+
+/** Vanta symbol → Yahoo ticker */
+const YAHOO_TICKER: Record<string, string> = {
+  // ── Commodities (futures, ~10s delayed) ──
+  USOIL: 'CL=F',     // WTI crude oil
+  UKOIL: 'BZ=F',     // Brent crude oil
+  XAUUSD: 'GC=F',    // Gold
+  XAGUSD: 'SI=F',    // Silver
+  COPPER: 'HG=F',    // Copper
+  PLATINUM: 'PL=F',  // Platinum
+  NATGAS: 'NG=F',    // Natural gas
+  // ── Forex (real-time) ──
+  EURUSD: 'EURUSD=X', GBPUSD: 'GBPUSD=X', USDJPY: 'USDJPY=X', AUDUSD: 'AUDUSD=X',
+  USDCAD: 'USDCAD=X', USDCHF: 'USDCHF=X', NZDUSD: 'NZDUSD=X', EURGBP: 'EURGBP=X',
+  EURJPY: 'EURJPY=X', GBPJPY: 'GBPJPY=X',
+  // ── Indices (real-time) ──
+  SPX500: '^GSPC', NAS100: '^IXIC', US30: '^DJI',
+  // ── Stocks (real-time) ──
+  AAPL: 'AAPL', MSFT: 'MSFT', TSLA: 'TSLA', AMZN: 'AMZN', GOOGL: 'GOOGL',
+  META: 'META', NVDA: 'NVDA', NFLX: 'NFLX', AMD: 'AMD',
+};
+const YAHOO_SYMBOLS = Object.keys(YAHOO_TICKER);
+/** Yahoo ticker → Vanta symbol (for response mapping) */
+const YAHOO_INVERT: Record<string, string> = Object.fromEntries(
+  Object.entries(YAHOO_TICKER).map(([our, t]) => [t, our]),
+);
 
 /** Vanta symbol → Twelve Data ticker */
 const TD_SYMBOL: Record<string, string> = {
@@ -108,9 +158,20 @@ const SEED_FALLBACK: Record<string, number> = {
   RPLUSD: 28, ENSUSD: 28, DYDXUSD: 2.2, CVXUSD: 3.5, BLURUSD: 0.45,
   KAVAUSD: 0.65, ARUSD: 32, NMRUSD: 22, JASMYUSD: 0.006, SUPERUSD: 0.28,
   QNTUSD: 100, CTSIUSD: 0.18, ASTRUSD: 0.08, CHZUSD: 0.11,
+  // ── Yahoo: commodities ──
+  USOIL: 75.8, UKOIL: 79.5, XAUUSD: 4350, XAGUSD: 70, COPPER: 6.49,
+  PLATINUM: 1810, NATGAS: 3.26,
+  // ── Yahoo: forex ──
+  EURUSD: 1.162, GBPUSD: 1.343, USDJPY: 160.4, AUDUSD: 0.707, USDCAD: 1.40,
+  USDCHF: 0.793, NZDUSD: 0.583, EURGBP: 0.865, EURJPY: 186.3, GBPJPY: 215.4,
+  // ── Yahoo: indices ──
+  SPX500: 7511, NAS100: 26376, US30: 52000,
+  // ── Yahoo: stocks ──
+  AAPL: 299, MSFT: 394, TSLA: 405, AMZN: 246, GOOGL: 373,
+  META: 600, NVDA: 207, NFLX: 79, AMD: 507,
 };
 
-const ALL_SYMBOLS = [...NON_CRYPTO_SYMBOLS, ...CRYPTO_SYMBOLS];
+const ALL_SYMBOLS = [...NON_CRYPTO_SYMBOLS, ...YAHOO_SYMBOLS, ...CRYPTO_SYMBOLS];
 
 export function startPriceFeed(app: FastifyInstance) {
   // Seed quotes immediately so /api/quotes always has data.
@@ -126,10 +187,15 @@ export function startPriceFeed(app: FastifyInstance) {
     pollTwelveData(app).catch((err) => app.log.warn({ err }, 'twelvedata: poll failed'));
   }, TD_POLL_MS);
 
-  // Smooth random-walk on non-crypto so charts feel continuous between Yahoo polls.
+  pollYahoo(app).catch((err) => app.log.warn({ err }, 'yahoo: initial fetch failed'));
+  setInterval(() => {
+    pollYahoo(app).catch((err) => app.log.warn({ err }, 'yahoo: poll failed'));
+  }, YAHOO_POLL_MS);
+
+  // Smooth random-walk on Yahoo symbols so charts feel continuous between polls.
   setInterval(() => {
     const now = Date.now();
-    for (const s of NON_CRYPTO_SYMBOLS) {
+    for (const s of YAHOO_SYMBOLS) {
       const cur = getQuote(s);
       if (!cur) continue;
       const mid = (cur.bid + cur.ask) / 2;
@@ -160,7 +226,44 @@ export function startPriceFeed(app: FastifyInstance) {
     });
   });
 
-  app.log.info(`Price feed: Coinbase live for ${CRYPTO_SYMBOLS.length} crypto + Twelve Data every ${TD_POLL_MS / 60_000}min for ${NON_CRYPTO_SYMBOLS.length} non-crypto.`);
+  app.log.info(`Price feed: Coinbase live for ${CRYPTO_SYMBOLS.length} crypto + Yahoo every ${YAHOO_POLL_MS / 1000}s for ${YAHOO_SYMBOLS.length} commodities/forex/indices/stocks + Twelve Data (${NON_CRYPTO_SYMBOLS.length} legacy).`);
+}
+
+// ─── Yahoo Finance ──────────────────────────────────────────────────────
+// One batched .quote([...]) for every Yahoo symbol per poll. regularMarketPrice
+// is the mid; we synthesize a tight spread. Futures are ~10s delayed (gated to
+// 60s+ rounds client-side); FX/indices/stocks are real-time.
+async function pollYahoo(app: FastifyInstance): Promise<void> {
+  const tickers = YAHOO_SYMBOLS.map((s) => YAHOO_TICKER[s]);
+  let quotes: Array<{ symbol?: string; regularMarketPrice?: number }>;
+  try {
+    quotes = (await yahoo.quote(tickers)) as typeof quotes;
+  } catch (err) {
+    app.log.warn({ err: (err as Error).message }, 'yahoo: quote() failed');
+    return;
+  }
+  let updated = 0;
+  const now = Date.now();
+  for (const q of quotes ?? []) {
+    const ourSym = q.symbol ? YAHOO_INVERT[q.symbol] : undefined;
+    const px = q.regularMarketPrice;
+    if (!ourSym || typeof px !== 'number' || !Number.isFinite(px) || px <= 0) continue;
+    const dec = decimalsFor(ourSym);
+    const spread = px * 0.0001;
+    setQuote({
+      symbol: ourSym,
+      bid: +(px - spread / 2).toFixed(dec),
+      ask: +(px + spread / 2).toFixed(dec),
+      ts: now,
+    });
+    updated++;
+  }
+  if (updated > 0) {
+    recordTick('yahoo');
+    app.log.debug(`yahoo: refreshed ${updated}/${YAHOO_SYMBOLS.length} symbols.`);
+  } else {
+    app.log.warn('yahoo: poll returned 0 usable quotes.');
+  }
 }
 
 // ─── Coinbase Advanced Trade ────────────────────────────────────────────
@@ -330,9 +433,15 @@ function invertTd(tdSym: string): string | undefined {
 
 // ─── Helpers ────────────────────────────────────────────────────────────
 function decimalsFor(symbol: string): number {
-  if (symbol === 'XAUUSD') return 2;
-  if (symbol === 'USDJPY') return 3;
-  if (['AAPL', 'TSLA', 'AMZN'].includes(symbol)) return 2;
+  // JPY forex pairs quote to 3dp
+  if (symbol === 'USDJPY' || symbol === 'EURJPY' || symbol === 'GBPJPY') return 3;
+  // Metals / oil / indices / stocks: 2dp
+  if (['XAUUSD', 'XAGUSD', 'USOIL', 'UKOIL', 'PLATINUM',
+       'SPX500', 'NAS100', 'US30',
+       'AAPL', 'MSFT', 'TSLA', 'AMZN', 'GOOGL', 'META', 'NVDA', 'NFLX', 'AMD'].includes(symbol)) return 2;
+  // Copper / natural gas: 3dp (low absolute price)
+  if (symbol === 'COPPER' || symbol === 'NATGAS') return 3;
+  // Forex majors: 5dp
   return 5;
 }
 

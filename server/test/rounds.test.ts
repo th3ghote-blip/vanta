@@ -133,6 +133,54 @@ describe('POST /api/rounds/open', () => {
     await app.close();
   });
 
+  it('rejects a 5s round on a non-realtime (Yahoo) symbol with 400 duration_requires_realtime', async () => {
+    const u = seed.user({ id: 'user-1' });
+    seed.account({ id: ACCT, user_id: u.id, balance: 500 });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/rounds/open',
+      headers: authHeaders(u.id),
+      payload: {
+        accountId: ACCT,
+        symbol: 'EURUSD', // Yahoo-backed, ~5s poll → not eligible for 5s rounds
+        direction: 'buy',
+        stake: 10,
+        durationSeconds: 5,
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe('duration_requires_realtime');
+    // gate runs before any stake deduction
+    expect(getTable('accounts')[0].balance).toBe(500);
+    expect(getTable('binary_rounds').length).toBe(0);
+    await app.close();
+  });
+
+  it('allows a 5s round on a real-time crypto symbol', async () => {
+    const u = seed.user({ id: 'user-1' });
+    seed.account({ id: ACCT, user_id: u.id, balance: 500 });
+    setQuote({ symbol: 'BTCUSD', bid: 71239, ask: 71241, ts: Date.now() });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/rounds/open',
+      headers: authHeaders(u.id),
+      payload: {
+        accountId: ACCT,
+        symbol: 'BTCUSD',
+        direction: 'buy',
+        stake: 10,
+        durationSeconds: 5,
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const { round } = res.json();
+    expect(round.payout_multiplier).toBe(2.0);
+    expect(getTable('accounts')[0].balance).toBe(490);
+    await app.close();
+  });
+
   it('refunds stake and returns 400 no_quote when symbol has no price', async () => {
     const u = seed.user({ id: 'user-1' });
     seed.account({ id: ACCT, user_id: u.id, balance: 500 });
