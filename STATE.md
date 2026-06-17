@@ -1,5 +1,11 @@
 # STATE -- handoff notes for the next agent
 
+## ⏭️ skipped run at 2026-06-17T12:54Z: dirty working tree
+Uncommitted changes I did not make were present (likely a human mid-edit, "Quick-rounds"
+changeset): `components/fun/QuickTradeScreen.tsx`, `lib/symbolMeta.ts`,
+`server/src/feed/pricefeed.ts`, `server/src/routes/rounds.ts`. Per the STOP rule, exited without
+doing work. Next run: if the tree is clean again, resume normal picking (queued: 21.6 or 21.8).
+
 ## ⚠️ READ THIS FIRST — Vercel git-author block
 Set this BEFORE the first commit every session:
 ```bash
