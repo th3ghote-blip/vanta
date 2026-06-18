@@ -1306,4 +1306,341 @@ export async function adminRoutes(app: FastifyInstance) {
       generated_at: new Date().toISOString(),
     });
   });
+
+  /**
+   * GET /api/admin/analytics/overview?days=30
+   * Platform-wide daily time-series for the last N days (default 30, max 90) plus
+   * lifetime totals that reconcile with GET /api/admin/dashboard.
+   *
+   * Daily buckets (UTC date YYYY-MM-DD):
+   *   - new_users:     profiles created that day (profiles.created_at)
+   *   - trade_count:   trades OPENED that day (trades.open_time)
+   *   - trade_volume:  notional (at open_price) of trades opened that day
+   *   - deposits:      Sum of completed deposit transactions created that day
+   *   - withdrawals:   Sum of completed withdrawal transactions created that day
+   *   - house_pnl:     -Sum of profit of trades CLOSED that day (trades.close_time)
+   *
+   * `totals` mirrors the dashboard aggregates (total_users / total_deposits /
+   * open_trades / total_exposure — computed identically) so the two screens agree.
+   */
+  app.get('/analytics/overview', async (req, reply) => {
+    const adminId = await authAdmin(req.headers.authorization);
+    if (!adminId) return reply.code(403).send({ error: 'forbidden' });
+
+    const q = (req.query ?? {}) as { days?: string };
+    const reqDays = Number(q.days);
+    const days = Number.isFinite(reqDays) ? Math.min(Math.max(Math.trunc(reqDays), 1), 90) : 30;
+
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const now = new Date();
+    const todayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    const startUTC = todayUTC - (days - 1) * DAY_MS;
+    const sinceIso = new Date(startUTC).toISOString();
+
+    const dayKey = (iso: string | null | undefined): string | null => {
+      if (!iso) return null;
+      const t = Date.parse(iso);
+      if (!Number.isFinite(t)) return null;
+      return new Date(t).toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
+    };
+
+    const [profilesRes, tradesRes, txRes] = await Promise.all([
+      supabaseAdmin.from('profiles').select('id, created_at'),
+      supabaseAdmin
+        .from('trades')
+        .select('symbol, volume, open_price, status, profit, open_time, close_time'),
+      supabaseAdmin.from('transactions').select('type, amount, status, created_at'),
+    ]);
+
+    if (profilesRes.error || tradesRes.error || txRes.error) {
+      app.log.error(
+        { profErr: profilesRes.error, tradeErr: tradesRes.error, txErr: txRes.error },
+        'admin/analytics/overview: query failed',
+      );
+      return reply.code(500).send({ error: 'query_failed' });
+    }
+
+    interface Bucket {
+      date: string;
+      new_users: number;
+      trade_count: number;
+      trade_volume: number;
+      deposits: number;
+      withdrawals: number;
+      house_pnl: number;
+    }
+    const buckets = new Map<string, Bucket>();
+    for (let i = 0; i < days; i++) {
+      const date = new Date(startUTC + i * DAY_MS).toISOString().slice(0, 10);
+      buckets.set(date, {
+        date, new_users: 0, trade_count: 0, trade_volume: 0, deposits: 0, withdrawals: 0, house_pnl: 0,
+      });
+    }
+    const bump = (date: string | null, fn: (b: Bucket) => void) => {
+      if (!date) return;
+      const b = buckets.get(date);
+      if (b) fn(b);
+    };
+
+    // New users (also the lifetime user count → matches dashboard total_users).
+    let totalUsers = 0;
+    for (const p of (profilesRes.data ?? []) as any[]) {
+      totalUsers += 1;
+      bump(dayKey(p.created_at), (b) => { b.new_users += 1; });
+    }
+
+    // Trades: volume by open day, house P&L by close day; lifetime open exposure.
+    let openTradeCount = 0;
+    let totalExposure = 0; // dashboard formula: volume * open_price (no contractSize)
+    for (const t of (tradesRes.data ?? []) as any[]) {
+      const volume = Number(t.volume) || 0;
+      const openPrice = Number(t.open_price) || 0;
+      bump(dayKey(t.open_time), (b) => {
+        b.trade_count += 1;
+        b.trade_volume += notionalUSD(volume, openPrice, t.symbol);
+      });
+      if (t.status === 'closed') {
+        const profit = Number(t.profit ?? 0);
+        bump(dayKey(t.close_time), (b) => { b.house_pnl += -profit; });
+      } else if (t.status === 'open') {
+        openTradeCount += 1;
+        totalExposure += volume * openPrice;
+      }
+    }
+
+    // Completed deposits / withdrawals by created day (+ lifetime totals).
+    let totalDeposits = 0;
+    let totalWithdrawals = 0;
+    for (const tx of (txRes.data ?? []) as any[]) {
+      if (tx.status !== 'completed') continue;
+      const amount = Math.abs(Number(tx.amount) || 0);
+      if (tx.type === 'deposit') {
+        totalDeposits += amount;
+        bump(dayKey(tx.created_at), (b) => { b.deposits += amount; });
+      } else if (tx.type === 'withdrawal') {
+        totalWithdrawals += amount;
+        bump(dayKey(tx.created_at), (b) => { b.withdrawals += amount; });
+      }
+    }
+
+    const series = Array.from(buckets.values())
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+      .map((b) => ({
+        date: b.date,
+        new_users: b.new_users,
+        trade_count: b.trade_count,
+        trade_volume: +b.trade_volume.toFixed(2),
+        deposits: +b.deposits.toFixed(2),
+        withdrawals: +b.withdrawals.toFixed(2),
+        house_pnl: +b.house_pnl.toFixed(2),
+      }));
+
+    const windowTotals = series.reduce(
+      (acc, b) => {
+        acc.new_users += b.new_users;
+        acc.trade_count += b.trade_count;
+        acc.trade_volume += b.trade_volume;
+        acc.deposits += b.deposits;
+        acc.withdrawals += b.withdrawals;
+        acc.house_pnl += b.house_pnl;
+        return acc;
+      },
+      { new_users: 0, trade_count: 0, trade_volume: 0, deposits: 0, withdrawals: 0, house_pnl: 0 },
+    );
+
+    return reply.send({
+      days,
+      since: sinceIso,
+      series,
+      window_totals: {
+        new_users: windowTotals.new_users,
+        trade_count: windowTotals.trade_count,
+        trade_volume: +windowTotals.trade_volume.toFixed(2),
+        deposits: +windowTotals.deposits.toFixed(2),
+        withdrawals: +windowTotals.withdrawals.toFixed(2),
+        house_pnl: +windowTotals.house_pnl.toFixed(2),
+      },
+      // Lifetime aggregates — computed exactly like GET /api/admin/dashboard.
+      totals: {
+        total_users: totalUsers,
+        total_deposits: +totalDeposits.toFixed(2),
+        total_withdrawals: +totalWithdrawals.toFixed(2),
+        net_deposits: +(totalDeposits - totalWithdrawals).toFixed(2),
+        open_trades: openTradeCount,
+        total_exposure: +totalExposure.toFixed(2),
+      },
+      generated_at: new Date().toISOString(),
+    });
+  });
+
+  /**
+   * GET /api/admin/analytics/accounts?sort=pnl|net|equity|volume|trades|deposits&limit=200
+   * Per-account leaderboard. For every account:
+   *   - login / user_id / balance / equity (stored) / margin_used / leverage
+   *   - lifetime deposits / withdrawals / net_deposits  (completed transactions)
+   *   - realized_pnl   (Sum of closed-trade profit — reconciles with that account's history)
+   *   - trade_count / closed_count / win_rate
+   *   - unrealized_pnl + current_equity (= balance + unrealized; live mid, falls back to open_price)
+   */
+  app.get('/analytics/accounts', async (req, reply) => {
+    const adminId = await authAdmin(req.headers.authorization);
+    if (!adminId) return reply.code(403).send({ error: 'forbidden' });
+
+    const q = (req.query ?? {}) as { sort?: string; limit?: string };
+    const sortKey = (['pnl', 'net', 'equity', 'volume', 'trades', 'deposits'].includes(q.sort ?? '')
+      ? q.sort
+      : 'pnl') as 'pnl' | 'net' | 'equity' | 'volume' | 'trades' | 'deposits';
+    const reqLimit = Number(q.limit);
+    const limitN = Number.isFinite(reqLimit) ? Math.min(Math.max(Math.trunc(reqLimit), 1), 1000) : 200;
+
+    const [accountsRes, tradesRes, txRes] = await Promise.all([
+      supabaseAdmin
+        .from('accounts')
+        .select('id, user_id, login, balance, equity, margin_used, leverage'),
+      supabaseAdmin
+        .from('trades')
+        .select('account_id, symbol, side, volume, open_price, status, profit'),
+      supabaseAdmin.from('transactions').select('account_id, type, amount, status'),
+    ]);
+
+    if (accountsRes.error || tradesRes.error || txRes.error) {
+      app.log.error(
+        { acctErr: accountsRes.error, tradeErr: tradesRes.error, txErr: txRes.error },
+        'admin/analytics/accounts: query failed',
+      );
+      return reply.code(500).send({ error: 'query_failed' });
+    }
+
+    interface Row {
+      account_id: string;
+      user_id: string | null;
+      login: number | null;
+      balance: number;
+      stored_equity: number;
+      margin_used: number;
+      leverage: number;
+      deposits: number;
+      withdrawals: number;
+      realized_pnl: number;
+      unrealized_pnl: number;
+      trade_count: number;
+      closed_count: number;
+      wins: number;
+    }
+
+    const map = new Map<string, Row>();
+    for (const a of (accountsRes.data ?? []) as any[]) {
+      map.set(a.id, {
+        account_id: a.id,
+        user_id: a.user_id ?? null,
+        login: a.login != null ? Number(a.login) : null,
+        balance: Number(a.balance) || 0,
+        stored_equity: a.equity != null ? Number(a.equity) : Number(a.balance) || 0,
+        margin_used: Number(a.margin_used) || 0,
+        leverage: Number(a.leverage) || 0,
+        deposits: 0,
+        withdrawals: 0,
+        realized_pnl: 0,
+        unrealized_pnl: 0,
+        trade_count: 0,
+        closed_count: 0,
+        wins: 0,
+      });
+    }
+
+    for (const t of (tradesRes.data ?? []) as any[]) {
+      const r = map.get(t.account_id);
+      if (!r) continue;
+      const side = t.side === 'sell' ? 'sell' : 'buy';
+      const volume = Number(t.volume) || 0;
+      const openPrice = Number(t.open_price) || 0;
+      r.trade_count += 1;
+      if (t.status === 'closed') {
+        const profit = Number(t.profit ?? 0);
+        r.closed_count += 1;
+        r.realized_pnl += profit;
+        if (profit > 0) r.wins += 1;
+      } else if (t.status === 'open') {
+        const mid = getMid(t.symbol) ?? openPrice;
+        r.unrealized_pnl += calculatePnL(side, volume, openPrice, mid, t.symbol);
+      }
+    }
+
+    for (const tx of (txRes.data ?? []) as any[]) {
+      if (tx.status !== 'completed') continue;
+      const r = map.get(tx.account_id);
+      if (!r) continue;
+      const amount = Math.abs(Number(tx.amount) || 0);
+      if (tx.type === 'deposit') r.deposits += amount;
+      else if (tx.type === 'withdrawal') r.withdrawals += amount;
+    }
+
+    const accounts = Array.from(map.values()).map((r) => {
+      const netDeposits = r.deposits - r.withdrawals;
+      const winRate = r.closed_count > 0 ? r.wins / r.closed_count : 0;
+      const currentEquity = r.balance + r.unrealized_pnl;
+      return {
+        account_id: r.account_id,
+        user_id: r.user_id,
+        login: r.login,
+        balance: +r.balance.toFixed(2),
+        equity: +r.stored_equity.toFixed(2),
+        current_equity: +currentEquity.toFixed(2),
+        margin_used: +r.margin_used.toFixed(2),
+        leverage: r.leverage,
+        deposits: +r.deposits.toFixed(2),
+        withdrawals: +r.withdrawals.toFixed(2),
+        net_deposits: +netDeposits.toFixed(2),
+        realized_pnl: +r.realized_pnl.toFixed(2),
+        unrealized_pnl: +r.unrealized_pnl.toFixed(2),
+        trade_count: r.trade_count,
+        closed_count: r.closed_count,
+        win_rate: +winRate.toFixed(4),
+      };
+    });
+
+    const sortFns: Record<typeof sortKey, (a: any, b: any) => number> = {
+      pnl: (a, b) => b.realized_pnl - a.realized_pnl,
+      net: (a, b) => b.net_deposits - a.net_deposits,
+      equity: (a, b) => b.current_equity - a.current_equity,
+      volume: (a, b) => b.trade_count - a.trade_count,
+      trades: (a, b) => b.trade_count - a.trade_count,
+      deposits: (a, b) => b.deposits - a.deposits,
+    };
+    accounts.sort(sortFns[sortKey]);
+    const limited = accounts.slice(0, limitN);
+
+    const totals = accounts.reduce(
+      (acc, a) => {
+        acc.deposits += a.deposits;
+        acc.withdrawals += a.withdrawals;
+        acc.realized_pnl += a.realized_pnl;
+        acc.unrealized_pnl += a.unrealized_pnl;
+        acc.balance += a.balance;
+        acc.current_equity += a.current_equity;
+        acc.trade_count += a.trade_count;
+        return acc;
+      },
+      { deposits: 0, withdrawals: 0, realized_pnl: 0, unrealized_pnl: 0, balance: 0, current_equity: 0, trade_count: 0 },
+    );
+
+    return reply.send({
+      sort: sortKey,
+      count: accounts.length,
+      accounts: limited,
+      totals: {
+        accounts: accounts.length,
+        deposits: +totals.deposits.toFixed(2),
+        withdrawals: +totals.withdrawals.toFixed(2),
+        net_deposits: +(totals.deposits - totals.withdrawals).toFixed(2),
+        realized_client_pnl: +totals.realized_pnl.toFixed(2),
+        realized_house_pnl: +(-totals.realized_pnl).toFixed(2),
+        unrealized_pnl: +totals.unrealized_pnl.toFixed(2),
+        balance: +totals.balance.toFixed(2),
+        current_equity: +totals.current_equity.toFixed(2),
+        trade_count: totals.trade_count,
+      },
+      generated_at: new Date().toISOString(),
+    });
+  });
 }

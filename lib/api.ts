@@ -466,7 +466,85 @@ export const api = {
     }>(
       `/api/admin/analytics/by-symbol?window=${window}` +
         (threshold ? `&threshold=${threshold}` : ''),
-    )
+    ),
+
+  // 21.6 — platform daily time-series (new users / volume / deposits / house P&L)
+  // plus lifetime totals that reconcile with the admin dashboard.
+  adminAnalyticsOverview: (days: number = 30) =>
+    request<{
+      days: number;
+      since: string;
+      series: {
+        date: string;
+        new_users: number;
+        trade_count: number;
+        trade_volume: number;
+        deposits: number;
+        withdrawals: number;
+        house_pnl: number;
+      }[];
+      window_totals: {
+        new_users: number;
+        trade_count: number;
+        trade_volume: number;
+        deposits: number;
+        withdrawals: number;
+        house_pnl: number;
+      };
+      totals: {
+        total_users: number;
+        total_deposits: number;
+        total_withdrawals: number;
+        net_deposits: number;
+        open_trades: number;
+        total_exposure: number;
+      };
+      generated_at: string;
+    }>(`/api/admin/analytics/overview?days=${days}`),
+
+  // 21.6 — per-account leaderboard (deposits / withdrawals / realized P&L / equity).
+  adminAnalyticsAccounts: (
+    sort: 'pnl' | 'net' | 'equity' | 'volume' | 'trades' | 'deposits' = 'pnl',
+    limit?: number,
+  ) =>
+    request<{
+      sort: string;
+      count: number;
+      accounts: {
+        account_id: string;
+        user_id: string | null;
+        login: number | null;
+        balance: number;
+        equity: number;
+        current_equity: number;
+        margin_used: number;
+        leverage: number;
+        deposits: number;
+        withdrawals: number;
+        net_deposits: number;
+        realized_pnl: number;
+        unrealized_pnl: number;
+        trade_count: number;
+        closed_count: number;
+        win_rate: number;
+      }[];
+      totals: {
+        accounts: number;
+        deposits: number;
+        withdrawals: number;
+        net_deposits: number;
+        realized_client_pnl: number;
+        realized_house_pnl: number;
+        unrealized_pnl: number;
+        balance: number;
+        current_equity: number;
+        trade_count: number;
+      };
+      generated_at: string;
+    }>(
+      `/api/admin/analytics/accounts?sort=${sort}` +
+        (limit ? `&limit=${limit}` : ''),
+    ),
 
 };
 

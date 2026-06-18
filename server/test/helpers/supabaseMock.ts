@@ -63,6 +63,7 @@ export interface DbRound {
 }
 export interface DbProfile {
   id: string;
+  created_at?: string;
   last_login_date?: string;
   login_streak?: number;
   copy_leader_enabled?: boolean;
@@ -89,6 +90,7 @@ interface Tables {
   robots: any[];
   robot_runs: any[];
   notifications: any[];
+  transactions: any[];
 }
 
 let users: DbUser[] = [];
@@ -103,6 +105,7 @@ let tables: Tables = {
   robots: [],
   robot_runs: [],
   notifications: [],
+  transactions: [],
 };
 let tradeIdCounter = 1;
 let roundIdCounter = 1;
@@ -121,6 +124,7 @@ export function resetDb() {
     robots: [],
     robot_runs: [],
   notifications: [],
+    transactions: [],
   };
   tradeIdCounter = 1;
   roundIdCounter = 1;
@@ -170,6 +174,7 @@ export const seed = {
   profile(overrides: Partial<DbProfile> = {}): DbProfile {
     const p: DbProfile = {
       id: overrides.id ?? 'user-1',
+      created_at: overrides.created_at,
       last_login_date: overrides.last_login_date,
       login_streak: overrides.login_streak ?? 0,
       copy_leader_enabled: overrides.copy_leader_enabled ?? false,
@@ -207,6 +212,18 @@ export const seed = {
     };
     tables.trades.push(t);
     return t;
+  },
+  transaction(overrides: { id?: string; account_id?: string; type?: string; amount?: number; status?: string; created_at?: string } = {}): any {
+    const tx = {
+      id: overrides.id ?? `tx-${tables.transactions.length + 1}`,
+      account_id: overrides.account_id ?? 'acct-1',
+      type: overrides.type ?? 'deposit',
+      amount: overrides.amount ?? 0,
+      status: overrides.status ?? 'completed',
+      created_at: overrides.created_at ?? new Date().toISOString(),
+    };
+    tables.transactions.push(tx);
+    return tx;
   },
   copyRelationship(overrides: Partial<DbCopyRelationship> & { follower_id: string; leader_id: string; follower_account_id: string; allocation_pct: number }): DbCopyRelationship {
     const r: DbCopyRelationship = {

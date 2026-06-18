@@ -1,10 +1,38 @@
 # STATE -- handoff notes for the next agent
 
-## ⏭️ skipped run at 2026-06-17T12:54Z: dirty working tree
-Uncommitted changes I did not make were present (likely a human mid-edit, "Quick-rounds"
-changeset): `components/fun/QuickTradeScreen.tsx`, `lib/symbolMeta.ts`,
-`server/src/feed/pricefeed.ts`, `server/src/routes/rounds.ts`. Per the STOP rule, exited without
-doing work. Next run: if the tree is clean again, resume normal picking (queued: 21.6 or 21.8).
+## ✅ 2026-06-18 (auto) — 21.6 DONE (platform & per-account analytics dashboards). Pushed to main.
+Working tree was clean at start (only the prior STATE.md handoff; the human Quick-rounds changeset
+that caused the 06-17 skips is GONE). Resumed normal picking. 21.1 (admin audit) stays BLOCKED for
+offline runs (needs live HTTP to Railway — sandbox egress is github-only; left a `>` note). 21.2–21.5
+done. Picked 21.6 (overview + accounts aggregates are offline-unit-testable like 21.5).
+
+**What shipped (commit on main, CI deploys both):**
+- `server/src/routes/admin.ts`: `GET /api/admin/analytics/overview?days=30` (clamp 1–90) — daily UTC
+  time-series (new_users by `profiles.created_at`, trade_count+trade_volume by `open_time`,
+  deposits/withdrawals from completed `transactions` by `created_at`, house_pnl=−Σ closed `profit` by
+  `close_time`) + `window_totals` + lifetime `totals` computed **identically to `/admin/dashboard`**
+  (total_users, total_deposits, open_trades, total_exposure=Σ volume·open_price — note: NO contractSize,
+  matching the dashboard). And `GET /api/admin/analytics/accounts?sort=pnl|net|equity|trades|deposits&limit=200`
+  — per-account leaderboard: lifetime deposits/withdrawals/net, realized P&L (Σ closed profit), unrealized
+  + current_equity (balance + live-mid unrealized, fallback open_price), trade/closed counts, win rate, + reconciling totals.
+- `lib/api.ts`: `adminAnalyticsOverview()` + `adminAnalyticsAccounts()` typed helpers.
+- `app/admin/analytics.tsx`: rewritten with a top mode switcher (By Asset / Platform / Accounts). The
+  21.5 by-symbol view is preserved verbatim as `SymbolView`. New `PlatformView` (lifetime totals card +
+  per-metric daily mini-bar panels) and `AccountsView` (sortable leaderboard; rows deep-link to
+  `/admin/user/:id`). No change to `app/admin/index.tsx` (the existing "Asset Analytics" tile opens it).
+- Tests: `supabaseMock` gained a `transactions` table + `seed.transaction()` + `created_at` on
+  `DbProfile`/`seed.profile` (additive — all prior tests still green). New
+  `server/test/adminAnalyticsDashboards.test.ts` (6 tests). No migration this run.
+- Verified offline: client tsc clean, server tsc clean, `npm test` **203 passing** (was 195).
+
+**PENDING LIVE VERIFY (next interactive session):** overview `totals` match the dashboard tiles on the
+live DB; a known account's `realized_pnl` equals its closed-trade sum; the daily mini-bar charts render
+and the Accounts rows deep-link correctly.
+
+### Next pick: 21.8 (MT4-Manager parity checklist — pure markdown `docs/mt4-manager-parity.md`, fully
+offline) is the topmost remaining offline-completable item. 21.1 (admin audit) and 21.7 (KYC e2e) both
+need a network-enabled run (live Railway / live KYC images). Phase 22 items mostly need migrations
+(network) or external news feeds.
 
 ## ⚠️ READ THIS FIRST — Vercel git-author block
 Set this BEFORE the first commit every session:
@@ -113,29 +141,4 @@ offline-completable.
 **What shipped (commit on main, CI deploys both):**
 - `server/src/routes/admin.ts`: new admin-only `GET /api/admin/positions` — every open trade across
   all accounts, stitched to its `login` via `accounts!inner`, with live mid (`getMid`), unrealized
-  P&L (`calculatePnL`), notional (`notionalUSD`), held margin (`requiredMargin` at open_price).
-  Summary: total_open / total_notional / buy_notional / sell_notional / net_notional. Sorted by |P&L|.
-- `lib/api.ts`: typed `api.adminGetPositions()`.
-- `app/admin/positions.tsx` (new): summary card + P&L/Symbol/Age sort tabs + per-row blotter.
-- `app/admin/index.tsx`: "Live Positions" nav tile (Activity icon, already imported).
-- Tests: `supabaseMock` gained `DbProfile.is_admin` + `seed.profile({is_admin})`; trades
-  `accounts!inner` embed now surfaces `login`/`balance`/`margin_used` (additive — orders tests still
-  green). `buildApp` helper now registers `adminRoutes`. New `server/test/adminPositions.test.ts`
-  (5 tests). No migration this run.
-- Verified offline: client tsc clean, server tsc clean, `npm test` **180 passing** (was 175).
-
-**PENDING LIVE VERIFY (next interactive session):** open a trade on any account → it shows in
-`/admin/positions` with correct live P&L within a refresh; check the summary net-exposure number.
-
-### Next pick: 21.4 (force-close / modify any position) builds directly on this route — it needs
-`POST /api/admin/positions/:id/close` + `PATCH /api/admin/positions/:id` (close at live mid, settle
-P&L, release margin, log reason='admin_close'). Backend is unit-testable offline like 21.3; the
-per-row buttons are visual (defer live verify). 21.1 (admin audit) stays blocked until a
-network-enabled run can curl the live Railway API.
-
-## Earlier (pruned)
-- 2026-06-13 (auto): 18.6 — share_trades privacy: `PATCH /api/account/privacy` + `GET /api/traders/:id/trades`
-  403 `trades_private` gate + leaderboard `.eq('share_trades',true)` + Profile Privacy switch. 175 passing.
-  ⚠️ DEPLOY DEBT to confirm live: 19.1 ($ sizing) + 20.3 (trade-risk gate) + 18.10 (risk accept) + 18.6.
-- 2026-06-13 (auto): 18.10 — risk acceptance persisted server-side (`POST /api/account/risk-accept`,
-  `profiles.risk_accepted_at`; `app/_layout.tsx` syncs ack keys on start). 167→passing the
+  P&L (`calculatePnL`), notional (`notio

@@ -1198,7 +1198,8 @@ by `user_id`, see the `attachAccounts` helper added in the 0d4d991 fix).
 - **Acceptance:** Numbers reconcile against raw `trades` for at least one symbol; switching the window changes them correctly.
 
 ## 21.6 Analytics — platform & per-account dashboards
-- [ ] **Files:** `server/src/routes/admin.ts` (`GET /api/admin/analytics/overview`, `/api/admin/analytics/accounts`), `app/admin/analytics.tsx`
+- [x] **Files:** `server/src/routes/admin.ts` (`GET /api/admin/analytics/overview`, `/api/admin/analytics/accounts`), `app/admin/analytics.tsx`, `lib/api.ts`
+- **Done 2026-06-18 (auto):** Two new admin-only routes. `GET /api/admin/analytics/overview?days=30` (clamped 1–90) returns a daily UTC time-series (`new_users` by `profiles.created_at`, `trade_count`+`trade_volume` by `open_time`, `deposits`/`withdrawals` from completed transactions by `created_at`, `house_pnl` = −Σ closed-trade `profit` by `close_time`), plus `window_totals` and lifetime `totals` computed **identically to `/admin/dashboard`** (`total_users`, `total_deposits`, `open_trades`, `total_exposure`=Σ volume·open_price) so the screens never disagree. `GET /api/admin/analytics/accounts?sort=pnl|net|equity|trades|deposits&limit=200` returns a per-account leaderboard: lifetime deposits/withdrawals/net, realized P&L (Σ closed-trade profit — reconciles with that account's history), unrealized P&L + `current_equity` (balance + live-mid unrealized; falls back to open_price), trade/closed counts, win rate; plus reconciling `totals`. Client: `api.adminAnalyticsOverview()` + `api.adminAnalyticsAccounts()` in `lib/api.ts`; `app/admin/analytics.tsx` rewritten with a top mode switcher (By Asset / Platform / Accounts) — the 21.5 by-symbol view preserved as `SymbolView`; new `PlatformView` (lifetime totals card + per-metric daily mini-bar panels) and `AccountsView` (sortable leaderboard, rows deep-link to `/admin/user/:id`). Test helper: `supabaseMock` gained a `transactions` table + `seed.transaction()` + `created_at` on `DbProfile`/`seed.profile`. New `server/test/adminAnalyticsDashboards.test.ts` (6 tests: 403 gating, overview totals+today-bucket reconciliation, days clamp, per-account P&L/deposits/equity reconciliation + unrealized via live mid + sort flip). Verified offline: client tsc clean, server tsc clean, `npm test` **203 passing** (was 195). No migration this run (reuses existing profiles/accounts/trades/transactions columns). PENDING LIVE VERIFY (next interactive session): overview `totals` match the dashboard tiles on the live DB; a known account's `realized_pnl` equals its closed-trade sum; the daily charts render.
 - **What:**
   - **Platform time-series:** daily new users, daily trade volume, daily deposits/withdrawals, daily house P&L (last 30d) — simple line/bar charts.
   - **Per-account leaderboard:** lifetime deposits, withdrawals, net, realized P&L, trade count, win rate, current equity — sortable, links to the user detail page.
@@ -1262,37 +1263,4 @@ real events to the assets they move.
 
 ---
 
-# Phase 17 — Optional / future
-
-- [ ] Copy trading (follow another trader's positions)
-- [ ] Public social feed (trade cards as posts)
-- [ ] Live chat rooms by symbol
-- [ ] Voice trading ("hey Vanta, buy 0.1 BTC")
-- [ ] NFT-style trade card sharing
-- [ ] Educational content with progress tracking
-- [ ] Affiliate program / referral codes
-- [ ] Multiple accounts per user (demo + multiple live)
-- [ ] Multi-currency accounts (EUR, GBP, USDT)
-- [ ] TradingView webhook → robot trigger
-- [ ] AI copilot chat ("Should I close my EURUSD?") — Claude API with read access to user's positions
-
----
-
-# Operational notes for the agent
-
-- **Never commit secrets.** All API keys live in `server/.env` (gitignored) and Vercel/Railway env vars.
-- **Database migrations are append-only.** Don't edit existing migration files; create new ones.
-- **Both deploys are atomic.** Vercel old version stays live until new build passes; same for Railway. Safe to deploy frequently.
-- **If a TypeScript error blocks deploy:** check Railway build logs (`railway logs --build`), fix, redeploy. Don't comment out the type — fix it.
-- **CORS must be updated when domain changes** in `server/src/index.ts` `ALLOWED_ORIGINS`.
-- **Supabase RLS protects everything.** Server uses service role key (bypasses RLS) for admin operations. Client uses publishable key + user JWT.
-- **Push to production immediately after each task** — frequent atomic deploys are cheaper than batched ones.
-- **When in doubt, leave a note in `STATE.md`** for the next agent.
-- **If a task changes data shapes:** write the migration first, deploy backend, then frontend.
-- **Workspace state may have hot-reload caches** — restart Expo if web behaves weirdly.
-- **Twelve Data free tier is 800 credits/day, 8/min** — keep `pollYahoo` removed and respect rate limits in any new endpoint that hits it.
-- **Coinbase, Resend, Anthropic, Twelve Data, Supabase keys are all in `server/.env` and Railway env vars.**
-
----
-
-*Maintain ordering within phases (dependencies flow downward). Strike `[x]` completed items in place — don't delete (history is useful).*
+# Phase 17 — Optional /
