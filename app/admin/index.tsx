@@ -21,6 +21,7 @@ import {
   DollarSign,
   Zap,
   PieChart,
+  History,
 } from 'lucide-react-native';
 
 import { api } from '@/lib/api';
@@ -296,6 +297,11 @@ export default function AdminDashboard() {
             icon={<Activity size={18} color={colors.primary} />}
             label="Live Positions"
             onPress={() => router.push('/admin/positions' as any)}
+          />
+          <NavRow
+            icon={<History size={18} color={colors.primary} />}
+            label="Trade History"
+            onPress={() => router.push('/admin/trades' as any)}
           />
           <NavRow
             icon={<BarChart2 size={18} color={colors.warning} />}

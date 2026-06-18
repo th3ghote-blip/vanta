@@ -1689,4 +1689,208 @@ export async function adminRoutes(app: FastifyInstance) {
       generated_at: new Date().toISOString(),
     });
   });
+
+  /**
+   * 21.10 — GET /api/admin/trades
+   * Global filtered closed-trades blotter (MT4 Manager "Trade History").
+   * Query params (all optional):
+   *   from, to   ISO datetime bounds on close_time (gte / lte)
+   *   symbol     exact symbol match (e.g. BTCUSD)
+   *   account    login NUMBER (resolved to account_id) or a raw account_id
+   *   reason     exact close reason (mobile|web|admin_close|stopout|partial_close|...)
+   *   sort       close_time|open_time|profit|volume|symbol  (default close_time)
+   *   dir        asc|desc                                    (default desc)
+   *   limit      page size 1..500                            (default 100)
+   *   offset     page offset >= 0                            (default 0)
+   * `totals` is computed over the FULL filtered set (not just the page) so it
+   * reconciles against raw closed `trades`; `trades` is the sorted page slice.
+   * Admin-only.
+   */
+  app.get('/trades', async (req, reply) => {
+    const adminId = await authAdmin(req.headers.authorization);
+    if (!adminId) return reply.code(403).send({ error: 'forbidden' });
+
+    const q = (req.query ?? {}) as {
+      from?: string; to?: string; symbol?: string; account?: string;
+      reason?: string; sort?: string; dir?: string; limit?: string; offset?: string;
+    };
+
+    const from = q.from && q.from.trim() ? q.from.trim() : null;
+    const to = q.to && q.to.trim() ? q.to.trim() : null;
+    const symbol = q.symbol && q.symbol.trim() ? q.symbol.trim() : null;
+    const reason = q.reason && q.reason.trim() ? q.reason.trim() : null;
+    const accountParam = q.account && q.account.trim() ? q.account.trim() : null;
+
+    const sortKey = (['close_time', 'open_time', 'profit', 'volume', 'symbol'].includes(q.sort ?? '')
+      ? q.sort
+      : 'close_time') as 'close_time' | 'open_time' | 'profit' | 'volume' | 'symbol';
+    const dir = q.dir === 'asc' ? 'asc' : 'desc';
+
+    const reqLimit = Number(q.limit);
+    const limitN = Number.isFinite(reqLimit) ? Math.min(Math.max(Math.trunc(reqLimit), 1), 500) : 100;
+    const reqOffset = Number(q.offset);
+    const offsetN = Number.isFinite(reqOffset) && reqOffset > 0 ? Math.trunc(reqOffset) : 0;
+
+    // Resolve an account filter. A numeric value is treated as a login and
+    // resolved to its account_id; a non-numeric value is treated as a raw id.
+    let accountIdFilter: string | null = null;
+    if (accountParam) {
+      const loginNum = Number(accountParam);
+      if (Number.isFinite(loginNum) && /^[0-9]+$/.test(accountParam)) {
+        const { data: accRow } = await supabaseAdmin
+          .from('accounts')
+          .select('id')
+          .eq('login', loginNum)
+          .maybeSingle();
+        if (!accRow) {
+          // Unknown login -> empty result set (not an error).
+          return reply.send({
+            trades: [],
+            count: 0,
+            limit: limitN,
+            offset: offsetN,
+            filters: { from, to, symbol, account: accountParam, reason },
+            sort: sortKey,
+            dir,
+            totals: {
+              count: 0, volume_lots: 0, gross_profit: 0, gross_loss: 0,
+              net_profit: 0, realized_client_pnl: 0, realized_house_pnl: 0,
+              wins: 0, win_rate: 0,
+            },
+            generated_at: new Date().toISOString(),
+          });
+        }
+        accountIdFilter = (accRow as any).id;
+      } else {
+        accountIdFilter = accountParam;
+      }
+    }
+
+    interface RawClosedTrade {
+      id: number;
+      account_id: string;
+      symbol: string;
+      side: string;
+      volume: number | string;
+      open_price: number | string;
+      close_price: number | string | null;
+      profit: number | string | null;
+      open_time: string | null;
+      close_time: string | null;
+      reason: string | null;
+      accounts: { user_id: string; login: number | string | null } | null;
+    }
+
+    let query = supabaseAdmin
+      .from('trades')
+      .select(
+        'id, account_id, symbol, side, volume, open_price, close_price, profit, open_time, close_time, reason,' +
+          'accounts!inner(user_id, login)',
+      )
+      .eq('status', 'closed');
+    if (from) query = query.gte('close_time', from);
+    if (to) query = query.lte('close_time', to);
+    if (symbol) query = query.eq('symbol', symbol);
+    if (reason) query = query.eq('reason', reason);
+    if (accountIdFilter) query = query.eq('account_id', accountIdFilter);
+
+    const { data: rawUnsafe, error: tradesErr } = await query;
+    if (tradesErr) {
+      app.log.error({ err: tradesErr }, 'admin/trades: query failed');
+      return reply.code(500).send({ error: 'query_failed' });
+    }
+    const raw = (rawUnsafe ?? []) as unknown as RawClosedTrade[];
+
+    const rows = raw.map((t) => {
+      const side = (t.side === 'sell' ? 'sell' : 'buy') as 'buy' | 'sell';
+      const volume = Number(t.volume);
+      const openPrice = Number(t.open_price);
+      const closePrice = t.close_price != null ? Number(t.close_price) : null;
+      const profit = +Number(t.profit ?? 0).toFixed(2);
+      const acc = t.accounts;
+      let durationSeconds: number | null = null;
+      if (t.open_time && t.close_time) {
+        const d = (new Date(t.close_time).getTime() - new Date(t.open_time).getTime()) / 1000;
+        if (Number.isFinite(d) && d >= 0) durationSeconds = Math.round(d);
+      }
+      return {
+        id: t.id,
+        account_id: t.account_id,
+        user_id: acc?.user_id ?? null,
+        login: acc?.login != null ? Number(acc.login) : null,
+        symbol: t.symbol,
+        side,
+        volume,
+        open_price: openPrice,
+        close_price: closePrice,
+        profit,
+        reason: t.reason ?? null,
+        open_time: t.open_time ?? null,
+        close_time: t.close_time ?? null,
+        duration_seconds: durationSeconds,
+      };
+    });
+
+    // Totals over the FULL filtered set (so they reconcile against raw trades).
+    let grossProfit = 0;
+    let grossLoss = 0;
+    let volumeLots = 0;
+    let wins = 0;
+    for (const r of rows) {
+      volumeLots += r.volume;
+      if (r.profit > 0) {
+        grossProfit += r.profit;
+        wins += 1;
+      } else {
+        grossLoss += r.profit;
+      }
+    }
+    const netProfit = grossProfit + grossLoss;
+    const winRate = rows.length > 0 ? wins / rows.length : 0;
+
+    const cmpStr = (a: string | null, b: string | null): number => {
+      const av = a ?? '';
+      const bv = b ?? '';
+      return av < bv ? -1 : av > bv ? 1 : 0;
+    };
+    const sorters: Record<typeof sortKey, (a: typeof rows[number], b: typeof rows[number]) => number> = {
+      close_time: (a, b) => cmpStr(a.close_time, b.close_time),
+      open_time: (a, b) => cmpStr(a.open_time, b.open_time),
+      profit: (a, b) => a.profit - b.profit,
+      volume: (a, b) => a.volume - b.volume,
+      symbol: (a, b) => cmpStr(a.symbol, b.symbol),
+    };
+    const mult = dir === 'asc' ? 1 : -1;
+    rows.sort((a, b) => {
+      const primary = sorters[sortKey](a, b) * mult;
+      if (primary !== 0) return primary;
+      // Stable tiebreaker by id (desc) so paging is deterministic.
+      return b.id - a.id;
+    });
+
+    const page = rows.slice(offsetN, offsetN + limitN);
+
+    return reply.send({
+      trades: page,
+      count: rows.length,
+      limit: limitN,
+      offset: offsetN,
+      filters: { from, to, symbol, account: accountParam, reason },
+      sort: sortKey,
+      dir,
+      totals: {
+        count: rows.length,
+        volume_lots: +volumeLots.toFixed(4),
+        gross_profit: +grossProfit.toFixed(2),
+        gross_loss: +grossLoss.toFixed(2),
+        net_profit: +netProfit.toFixed(2),
+        realized_client_pnl: +netProfit.toFixed(2),
+        realized_house_pnl: +(-netProfit).toFixed(2),
+        wins,
+        win_rate: +winRate.toFixed(4),
+      },
+      generated_at: new Date().toISOString(),
+    });
+  });
+
 }

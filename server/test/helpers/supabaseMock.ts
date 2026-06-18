@@ -195,6 +195,7 @@ export const seed = {
       open_price: overrides.open_price ?? 1.1,
       current_price: overrides.current_price ?? 1.1,
       status: overrides.status ?? 'open',
+      close_price: overrides.close_price,
       open_time: overrides.open_time ?? new Date().toISOString(),
       close_time: overrides.close_time,
       profit: overrides.profit,
@@ -246,7 +247,7 @@ export function getTable<K extends keyof Tables>(name: K): Tables[K] {
 
 interface Filter {
   col: string;
-  op: 'eq' | 'gte' | 'in' | 'not_null';
+  op: 'eq' | 'gte' | 'lte' | 'in' | 'not_null';
   val: any;
 }
 
@@ -304,6 +305,10 @@ class Query {
     this.filters.push({ col, op: 'gte', val });
     return this;
   }
+  lte(col: string, val: any) {
+    this.filters.push({ col, op: 'lte', val });
+    return this;
+  }
   in(col: string, vals: any[]) {
     this.filters.push({ col, op: 'in', val: vals });
     return this;
@@ -345,6 +350,7 @@ class Query {
     return this.filters.every((f) => {
       if (f.op === 'eq') return row[f.col] === f.val;
       if (f.op === 'gte') return row[f.col] >= f.val;
+      if (f.op === 'lte') return row[f.col] <= f.val;
       if (f.op === 'in') return Array.isArray(f.val) && (f.val as any[]).includes(row[f.col]);
       if (f.op === 'not_null') return row[f.col] !== null && row[f.col] !== undefined;
       return false;

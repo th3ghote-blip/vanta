@@ -1224,20 +1224,5 @@ by `user_id`, see the `attachAccounts` helper added in the 0d4d991 fix).
 - **Acceptance:** Account list shows equity and margin-level %; values match the analytics leaderboard for the same account.
 
 ## 21.10 Global closed-trades blotter
-- [ ] **Files:** `server/src/routes/admin.ts` (`GET /api/admin/trades`), `app/admin/trades.tsx` (new), `lib/api.ts`
-- **Spawned by 21.8** (Partial #3). **What:** Filtered global history of `status='closed'` trades — params `from`, `to`, `symbol`, `account`, `reason`. Returns login, symbol, side, volume, open/close price, profit, reason, durations; totals row. Sortable, paginated. *(Offline unit-testable — aggregate over `trades`.)*
-- **Acceptance:** Filtering by symbol/account/date narrows the set correctly; totals reconcile against raw closed `trades`.
-
-## 21.11 Non-withdrawable credit bucket (optional)
-- [ ] **Files:** migration `0XX_account_credit.sql`, `server/src/routes/admin.ts` (`/accounts/:id/adjust`), margin/P&L logic, `app/admin/user/`
-- **Spawned by 21.8** (Partial #6). **What:** Add an `accounts.credit` column separate from balance (bonus/credit that affects margin but isn't withdrawable), MT4-style. Adjust UI gains a credit/debit-credit option; free-margin and withdrawal logic account for it. *(Migration — Supabase API reachable offline. Only build if a credit/bonus concept is wanted.)*
-- **Acceptance:** Admin can grant credit; it raises equity/free-margin but is excluded from withdrawable balance.
-
-## 21.12 Per-account configurable stop-out level
-- [ ] **Files:** `server/src/workers/risk.ts`, schema (`accounts.stopout_level` or group-level), admin UI
-- **Spawned by 21.8** (Missing/Partial #8). **What:** Replace the single global stop-out threshold with a per-account (or per-group) configurable level. Likely folds into 21.14 (groups) — revisit after that. *(Depends on 21.14.)*
-- **Acceptance:** Setting an account's stop-out level changes when the risk worker force-closes it.
-
-## 21.13 Online-users monitor
-- [ ] **Files:** migration `0XX_account_last_seen.sql`, auth middleware in `server/src/`, `server/src/routes/admin.ts`, `app/admin/` panel
-- **Spawned by 21.8** (Missing #10). **What:** Stamp `accounts.last_
+- [x] **Files:** `server/src/routes/admin.ts` (`GET /api/admin/trades`), `app/admin/trades.tsx` (new), `lib/api.ts`
+- **Done 2026-06-19 (auto):** Backend `GET /api/admin/trades` (admin-only via `authAdmin`) — filtered global history of `status='closed'` trades. Query params (all optional): `from`/`to` (ISO bounds on `close_time`, gte/lte), `symbol` (exact), `account` (login NUMBER resolved to `account_id` via the accounts table; a non-numeric value is treated as a raw id; unknown login → empty set, not an error), `reason` (exact), `sort` (close_time|open_time|profit|volume|symbol, default close_time), `dir` (asc|desc, default desc), `limit` (1–500, default 100), `offset` (≥0, default 0). Each row: id, account_id, user_id, login (via `accounts!inner` embed), symbol, side, volume, open_price, close_price, profit, reason, open_time, close_time, duration_seconds. `totals` (count, volume_lots, gross_profit, gross_loss, net_profit=realized_client_pnl, realized_house_pnl=−net, wins, win_rate) are computed over the **full filtered set** (not the page) so they reconcile against raw closed `trades`; `trades` is the sorted page slice; `count` is the full filtered count for paging. `lib/api.ts`: `api.adminGetTrades(params)` typed helper (builds the query string). New screen `app/admin/trades.tsx` — filter bar (symbol/account/reason + from/to + Apply), totals card (client/house P&L, volume, win rate, gross), sort tabs (Closed/P&L/Volume/Symbol with asc/desc toggle), per-row blotter (symbol·side, login, lots, open→close price, duration, colour-coded profit, reason badge, close time), and Prev/Next pagination (50/page). "Trade History" nav tile (History icon) added to `app/admin/index.tsx`. Test helper (additive): `supabaseMock` Query gained `.lte()`; `seed.trade` now carries `close_price`. New `server/test/adminTradesBlotter.test.ts` (10 tests: 403 unauth/non-admin; closed-only + totals reconciliation [3 closed, open excluded, v

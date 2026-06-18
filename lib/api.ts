@@ -546,6 +546,74 @@ export const api = {
         (limit ? `&limit=${limit}` : ''),
     ),
 
+
+  // 21.10 — global filtered closed-trades blotter. All params optional.
+  adminGetTrades: (params: {
+    from?: string;
+    to?: string;
+    symbol?: string;
+    account?: string | number;
+    reason?: string;
+    sort?: 'close_time' | 'open_time' | 'profit' | 'volume' | 'symbol';
+    dir?: 'asc' | 'desc';
+    limit?: number;
+    offset?: number;
+  } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.from) qs.set('from', params.from);
+    if (params.to) qs.set('to', params.to);
+    if (params.symbol) qs.set('symbol', params.symbol);
+    if (params.account != null && `${params.account}` !== '') qs.set('account', `${params.account}`);
+    if (params.reason) qs.set('reason', params.reason);
+    if (params.sort) qs.set('sort', params.sort);
+    if (params.dir) qs.set('dir', params.dir);
+    if (params.limit != null) qs.set('limit', String(params.limit));
+    if (params.offset != null) qs.set('offset', String(params.offset));
+    const query = qs.toString();
+    return request<{
+      trades: {
+        id: number;
+        account_id: string;
+        user_id: string | null;
+        login: number | null;
+        symbol: string;
+        side: 'buy' | 'sell';
+        volume: number;
+        open_price: number;
+        close_price: number | null;
+        profit: number;
+        reason: string | null;
+        open_time: string | null;
+        close_time: string | null;
+        duration_seconds: number | null;
+      }[];
+      count: number;
+      limit: number;
+      offset: number;
+      filters: {
+        from: string | null;
+        to: string | null;
+        symbol: string | null;
+        account: string | null;
+        reason: string | null;
+      };
+      sort: 'close_time' | 'open_time' | 'profit' | 'volume' | 'symbol';
+      dir: 'asc' | 'desc';
+      totals: {
+        count: number;
+        volume_lots: number;
+        gross_profit: number;
+        gross_loss: number;
+        net_profit: number;
+        realized_client_pnl: number;
+        realized_house_pnl: number;
+        wins: number;
+        win_rate: number;
+      };
+      generated_at: string;
+    }>(`/api/admin/trades${query ? `?${query}` : ''}`);
+  },
+
 };
 
 // ─── Shared interfaces ────────────────────────────────────────────────────────
