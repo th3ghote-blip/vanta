@@ -1218,6 +1218,7 @@ by `user_id`, see the `attachAccounts` helper added in the 0d4d991 fix).
 - **Acceptance:** `docs/mt4-manager-parity.md` exists with a complete Have/Partial/Missing matrix and linked follow-up items.
 
 ## 21.9 Admin account list — equity + margin-level columns
+- [x] **Done 2026-06-18 (auto):** `GET /api/admin/users` now enriches every returned account with live `equity` (= balance + unrealized P&L at the live mid via `getMid`/`calculatePnL`, falling back to `open_price`) and `margin_level_pct` (= `equity / margin_used * 100`, rounded 1dp; `null` when `margin_used` is 0) — definitions identical to `/analytics/accounts`. New `equityByAccount()` helper in `server/src/routes/admin.ts` (one batched open-trades query, ANDs `status='open'` over `.in('account_id', …)`); both the no-search path (`attachAccounts`) and the login-number search path use it. `lib/api.ts` `AdminUser.accounts[]` gained `equity?`/`margin_level_pct?`. `app/admin/users.tsx` `UserCard` shows a second line "Equity $X · ML NN%" with colour coding (red <100%, amber <200%, green ≥200%, em-dash when null). Tests: new `server/test/adminUsersEquity.test.ts` (5 tests: 403 unauth/non-admin; equity+ML cross-check against `/analytics/accounts` for the same account; null-margin → null ML; login-search path enriched). Verified offline: client tsc clean, server tsc clean, `npm test` **208 passing** (was 203). PENDING LIVE VERIFY (next interactive session): on the live DB, an account's `equity`/`margin_level_pct` on the user-search list match its row in the Accounts analytics leaderboard.
 - [ ] **Files:** `app/admin/users.tsx`, possibly `server/src/routes/admin.ts` (`/users`)
 - **Spawned by 21.8** (Partial #2). **What:** Show per-account `equity` and `margin_level_pct` as columns on the admin account list. The inputs (balance, margin_used, unrealized) are already computed in `/api/admin/analytics/accounts`; either reuse that or add the two fields to `/api/admin/users`. *(Offline-completable.)*
 - **Acceptance:** Account list shows equity and margin-level %; values match the analytics leaderboard for the same account.
@@ -1239,17 +1240,4 @@ by `user_id`, see the `attachAccounts` helper added in the 0d4d991 fix).
 
 ## 21.13 Online-users monitor
 - [ ] **Files:** migration `0XX_account_last_seen.sql`, auth middleware in `server/src/`, `server/src/routes/admin.ts`, `app/admin/` panel
-- **Spawned by 21.8** (Missing #10). **What:** Stamp `accounts.last_seen` on authenticated requests (throttled), then an admin "Online now" panel listing accounts seen within the last N minutes. *(Migration + backend; offline-completable.)*
-- **Acceptance:** An account that just made an authed request shows as online; goes offline after the window.
-
-## 21.14 Account groups — per-group spread / markup / leverage / stop-out
-- [ ] **Files:** migration(s), pricing layer, `server/src/routes/admin.ts`, admin UI
-- **Spawned by 21.8** (Missing #11). **What:** Introduce account `groups` and per-group spread/markup, default leverage, and stop-out level (MT4's core grouping model). **Large — design and scope as its own mini-phase before estimating.** *(Design first; partly network/visual.)*
-- **Acceptance:** Accounts can be assigned to a group; group-level spread/markup/leverage/stop-out apply to its members.
-
-## 21.15 Report export (CSV / PDF)
-- [ ] **Files:** `server/src/routes/admin.ts` (export endpoints), `app/admin/analytics.tsx`
-- **Spawned by 21.8** (Partial #12). **What:** Export the analytics screens (by-symbol, accounts, overview) to CSV (and optionally PDF). *(Offline-completable — backend serialization.)*
-- **Acceptance:** Each analytics view offers a download whose rows match the on-screen data.
-
-## 21.16 Operator broadcast / direct client notificati
+- **Spawned by 21.8** (Missing #10). **What:** Stamp `accounts.last_

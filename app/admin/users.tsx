@@ -26,6 +26,20 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' });
 }
 
+// 21.9 — margin level %: null (no open margin) → em dash.
+function fmtMarginLevel(pct: number | null | undefined) {
+  if (pct == null) return '—';
+  return pct.toFixed(0) + '%';
+}
+
+// Colour the margin level: red below 100% (margin call), amber below 200%.
+function marginLevelColor(pct: number | null | undefined) {
+  if (pct == null) return colors.textSecondary;
+  if (pct < 100) return colors.loss;
+  if (pct < 200) return colors.warning ?? colors.textPrimary;
+  return colors.profit ?? colors.textPrimary;
+}
+
 interface UserCardProps {
   user: AdminUser;
   onPress: () => void;
@@ -78,9 +92,19 @@ function UserCard({ user, onPress }: UserCardProps) {
           {user.email ?? 'No email'} · Joined {fmtDate(user.created_at)}
         </Text>
         {primaryAccount && (
-          <Text style={{ ...typography.body, color: colors.textSecondary, fontSize: 12 }}>
-            #{primaryAccount.login} · {primaryAccount.type.toUpperCase()} · {fmt$(primaryAccount.balance)}
-          </Text>
+          <>
+            <Text style={{ ...typography.body, color: colors.textSecondary, fontSize: 12 }}>
+              #{primaryAccount.login} · {primaryAccount.type.toUpperCase()} · {fmt$(primaryAccount.balance)}
+            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Text style={{ ...typography.body, color: colors.textSecondary, fontSize: 12 }}>
+                Equity {primaryAccount.equity != null ? fmt$(primaryAccount.equity) : fmt$(primaryAccount.balance)} · ML{' '}
+              </Text>
+              <Text style={{ ...typography.body, color: marginLevelColor(primaryAccount.margin_level_pct), fontSize: 12 }}>
+                {fmtMarginLevel(primaryAccount.margin_level_pct)}
+              </Text>
+            </View>
+          </>
         )}
       </View>
 

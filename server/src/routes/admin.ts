@@ -387,17 +387,58 @@ export async function adminRoutes(app: FastifyInstance) {
     // PostgREST can't embed accounts from profiles (and vice-versa): both
     // reference auth.users, so there is no direct FK between them. Fetch the
     // accounts separately and stitch them on by user_id.
+    // 21.9: live equity + margin-level % per account. Matches the
+    // /analytics/accounts leaderboard definition exactly:
+    //   equity           = balance + unrealized P&L (live mid; falls back to open_price)
+    //   margin_level_pct = margin_used > 0 ? (equity / margin_used) * 100 : null
+    async function equityByAccount(
+      rawAccts: any[],
+    ): Promise<Record<string, { equity: number; margin_level_pct: number | null }>> {
+      const out: Record<string, { equity: number; margin_level_pct: number | null }> = {};
+      if (!rawAccts.length) return out;
+      const acctIds = rawAccts.map((a) => a.id);
+      const { data: openTrades } = await supabaseAdmin
+        .from('trades')
+        .select('account_id, symbol, side, volume, open_price')
+        .in('account_id', acctIds)
+        .eq('status', 'open');
+      const unrealized: Record<string, number> = {};
+      for (const t of (openTrades ?? []) as any[]) {
+        const side = t.side === 'sell' ? 'sell' : 'buy';
+        const volume = Number(t.volume) || 0;
+        const openPrice = Number(t.open_price) || 0;
+        const mid = getMid(t.symbol) ?? openPrice;
+        unrealized[t.account_id] =
+          (unrealized[t.account_id] ?? 0) + calculatePnL(side, volume, openPrice, mid, t.symbol);
+      }
+      for (const a of rawAccts) {
+        const balance = Number(a.balance) || 0;
+        const marginUsed = Number(a.margin_used) || 0;
+        const equity = balance + (unrealized[a.id] ?? 0);
+        const marginLevel = marginUsed > 0 ? (equity / marginUsed) * 100 : null;
+        out[a.id] = {
+          equity: +equity.toFixed(2),
+          margin_level_pct: marginLevel != null ? +marginLevel.toFixed(1) : null,
+        };
+      }
+      return out;
+    }
+
     async function attachAccounts(profs: any[]): Promise<any[]> {
       if (!profs.length) return [];
       const ids = profs.map((p) => p.id);
       const { data: accts } = await supabaseAdmin
         .from('accounts')
-        .select('id, login, type, status, balance, currency, user_id')
+        .select('id, login, type, status, balance, currency, margin_used, user_id')
         .in('user_id', ids);
+      const rawAccts = accts ?? [];
+      const eq = await equityByAccount(rawAccts);
       const byUser: Record<string, any[]> = {};
-      for (const a of accts ?? []) {
+      for (const a of rawAccts) {
         (byUser[a.user_id] ??= []).push({
           id: a.id, login: a.login, type: a.type, status: a.status, balance: a.balance, currency: a.currency,
+          equity: eq[a.id]?.equity ?? (Number(a.balance) || 0),
+          margin_level_pct: eq[a.id]?.margin_level_pct ?? null,
         });
       }
       return profs.map((p) => ({ ...p, accounts: byUser[p.id] ?? [] }));
@@ -419,11 +460,12 @@ export async function adminRoutes(app: FastifyInstance) {
     if (!isNaN(loginNum) && String(loginNum) === search) {
       const { data, error } = await supabaseAdmin
         .from('accounts')
-        .select('id, login, type, status, balance, currency, user_id')
+        .select('id, login, type, status, balance, currency, margin_used, user_id')
         .eq('login', loginNum)
         .limit(10);
       if (error) return reply.code(500).send({ error: 'query_failed' });
       const accts = data ?? [];
+      const eq = await equityByAccount(accts);
       const uids = accts.map((a: any) => a.user_id);
       const { data: profs } = uids.length
         ? await supabaseAdmin
@@ -436,7 +478,11 @@ export async function adminRoutes(app: FastifyInstance) {
       // Reshape to profiles-first form
       const users = accts.map((a: any) => ({
         ...(profMap[a.user_id] ?? { id: a.user_id }),
-        accounts: [{ id: a.id, login: a.login, type: a.type, status: a.status, balance: a.balance, currency: a.currency }],
+        accounts: [{
+          id: a.id, login: a.login, type: a.type, status: a.status, balance: a.balance, currency: a.currency,
+          equity: eq[a.id]?.equity ?? (Number(a.balance) || 0),
+          margin_level_pct: eq[a.id]?.margin_level_pct ?? null,
+        }],
       }));
       return reply.send({ users });
     }

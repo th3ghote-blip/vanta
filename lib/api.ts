@@ -594,6 +594,9 @@ export interface AdminUser {
     status: string;
     balance: string;
     currency: string;
+    // 21.9 — live equity (balance + unrealized P&L) and margin level %.
+    equity?: number;
+    margin_level_pct?: number | null;
   }>;
 }
 
