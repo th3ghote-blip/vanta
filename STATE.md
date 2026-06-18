@@ -1,5 +1,40 @@
 # STATE -- handoff notes for the next agent
 
+## ✅ 2026-06-18 (auto) — 21.8 DONE (MT4-Manager feature-parity checklist). Pushed to main.
+Working tree was clean at start (only the prior STATE.md handoff). Topmost unchecked items 21.1
+(admin audit) and 21.7 (KYC e2e) both need a network-enabled / visual run — 21.1 already carries its
+`>` block; added a matching `>` skip note under 21.7 this run. 21.8 was the topmost
+offline-completable item (pure markdown), as the prior run queued.
+
+**What shipped (commit `a7e19c8` on main, CI runs but this is docs-only — no deploy impact):**
+- `docs/mt4-manager-parity.md` (new): 15-row Have/Partial/Missing matrix mapping each MT4-Manager
+  capability to Vanta's actual `server/src/routes/admin.ts` routes, `app/admin/*` screens, and
+  `server/src/workers/*`. Result: **9 Have** (live positions, force-close, modify SL/TP, txn queue,
+  margin-call+stop-out monitor, exposure-by-symbol, reporting account/symbol/day, impersonate, perf),
+  **4 Partial** (account list lacks equity/margin-level column; no global filtered closed-trades
+  blotter; balance ops have no separate non-withdrawable credit bucket; no operator broadcast
+  notification), **2 Missing** (online-users monitor; per-group spread/markup).
+- `TODO.md`: marked 21.8 `[x]`; added the `>` skip note under 21.7; **spawned 8 follow-up items
+  21.9–21.16** (one per Partial/Missing) with files + acceptance + offline/network tags, so the
+  acceptance "turn every Missing into a 21.x sub-item" is satisfied.
+- No code/tests touched — client & server tsc unaffected; nothing to run.
+
+**Commit recipe note:** the STATE.md `git clone --local` recipe FAILED this run — the hardlinked
+clone produced read-only working-tree files that `git reset --hard`/`cp` couldn't overwrite. Worked
+around it by cloning **fresh from GitHub** (`git clone --depth 2 <remote-with-token> /tmp/gh`; egress
+is github-only but the token remote is reachable), copying the two touched files in, commit + push.
+Then synced the mount the usual way (pack NEW¬OLD → `.git/objects/pack/`, `index-pack`, overwrite
+loose `.git/refs/heads/main` AND `.git/refs/remotes/origin/main`, rebuild index via
+`GIT_INDEX_FILE=/tmp/idx2 read-tree NEW` → `cat > .git/index`). NB: the first `read-tree` to
+`/tmp/idx` died on a stale lock — just use a fresh GIT_INDEX_FILE path. Mount tree verified clean
+(`## main...origin/main`, no ahead). **Prefer the fresh-GitHub-clone recipe over clone --local.**
+
+### Next pick: Phase 21 offline backend items spawned this run — **21.9** (equity+margin-level columns
+on the admin account list) or **21.10** (global filtered closed-trades blotter `GET /api/admin/trades`
++ `app/admin/trades.tsx`) are the most offline-completable (unit-testable aggregates / client-only).
+21.1 (admin audit) and 21.7 (KYC e2e) stay blocked until a network-enabled interactive run. Migrations
+ARE reachable (Supabase Mgmt API allowlisted) so 21.11/21.13 are also doable if preferred.
+
 ## ✅ 2026-06-18 (auto) — 21.6 DONE (platform & per-account analytics dashboards). Pushed to main.
 Working tree was clean at start (only the prior STATE.md handoff; the human Quick-rounds changeset
 that caused the 06-17 skips is GONE). Resumed normal picking. 21.1 (admin audit) stays BLOCKED for
@@ -102,43 +137,4 @@ can curl live Railway. 21.7 needs live KYC images (network/visual).
 
 ## ✅ 2026-06-16 (auto) — 21.4 DONE (admin force-close / modify any position). Pushed to main.
 Built directly on 21.3's blotter. Working tree was clean (only prior STATE.md handoff). Topmost
-completable item — 21.1 (admin audit) is still blocked offline (needs live HTTP to Railway; sandbox
-egress is github-only). 21.2/21.3 done.
-
-**What shipped (commit on main, CI deploys both):**
-- `server/src/routes/admin.ts`: `POST /api/admin/positions/:id/close` (admin-only) — closes any open
-  trade at the live mid (`getMid`, falls back to open_price), realized P&L via `calculatePnL`,
-  open→closed with a CAS guard (`.eq('status','open').select('id')`; 409 `already_closed` on race),
-  settles via `apply_trade_pnl` RPC, releases margin via `releaseMargin`, stamps `reason='admin_close'`.
-  `PATCH /api/admin/positions/:id { stopLoss?, takeProfit? }` — null clears a level, ≥1 field required,
-  directional validation vs live mid (400 `invalid_sl`/`invalid_tp`), 404 if not open. GET `/positions`
-  now also returns `stop_loss`/`take_profit` (modal prefill).
-- `lib/api.ts`: `adminClosePosition()`, `adminModifyPosition()`; positions type gained `stop_loss`/`take_profit`.
-- `app/admin/positions.tsx`: per-row **Force close** (web `window.confirm` / native `Alert` destructive
-  confirm) + **SL/TP** button → Modify modal (two numeric inputs, blank = clear); per-row busy spinner,
-  reload on success.
-- Tests: new `server/test/adminPositionManage.test.ts` (9). Imports `getTable` from supabaseMock to
-  assert post-state. No migration this run.
-- Verified offline: client tsc clean, server tsc clean, `npm test` **189 passing** (was 180).
-
-**PENDING LIVE VERIFY (next interactive session):** admin force-closes a real open trade → row goes
-`closed`, client balance updates, margin released; modify SL/TP persists and reflects on the client device.
-
-### Next pick: 21.5 (analytics by-symbol, `GET /api/admin/analytics/by-symbol` + `app/admin/analytics.tsx`)
-is offline-unit-testable (aggregate over `trades`); or 21.8 (MT4-parity doc, pure markdown). 21.1 stays
-blocked until a network-enabled run can curl live Railway. 21.6/21.7 need charts/live KYC (visual/network).
-
-## ✅ 2026-06-16 (auto) — 21.3 DONE (admin Live Positions blotter). Pushed to main.
-Dirty-tree blocker is CLEARED: the human Quick-rounds changeset that caused the 7 prior skips is
-gone; working tree was clean except the prior run's STATE.md note. Resumed normal picking.
-
-Items above 21.3 are all blocked for offline auto-runs (R.7 Better-Stack = external signup; 18.2
-chart drawings + 18.3 light/dark = visual/screenshot; 18.7 AI assistant = needs Claude API key;
-18.8 manager panel = oversized→split into 21.x; 20.2 = PARKED; 21.1 admin audit = needs live HTTP
-to Railway, which the sandbox can't reach — left unchecked, see its note). So 21.3 was topmost
-offline-completable.
-
-**What shipped (commit on main, CI deploys both):**
-- `server/src/routes/admin.ts`: new admin-only `GET /api/admin/positions` — every open trade across
-  all accounts, stitched to its `login` via `accounts!inner`, with live mid (`getMid`), unrealized
-  P&L (`calculatePnL`), notional (`notio
+completable item — 21.1 (admin audit
