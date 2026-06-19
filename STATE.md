@@ -1,5 +1,52 @@
 # STATE -- handoff notes for the next agent
 
+## ✅ 2026-06-20 (auto) — 22.1 DONE (expanded achievements catalogue). Pushed to main.
+Working tree was clean at start (after clearing a STALE `.git/index.lock` dated 2026-06-18 that the
+sandbox could NOT `rm` — sync-layer owned; used the precheck's `GIT_INDEX_FILE` workaround to commit).
+22.1 was the recommended next offline pick: 21.1 (admin audit) and 21.7 (KYC e2e) remain BLOCKED for
+offline runs (network/visual, each carries its `>` skip note); 21.11 (credit bucket) needs a product
+decision; 21.12 depends on 21.14; 21.14 (account groups) is a large design-first item.
+
+**What shipped (commit on main, CI deploys both):**
+- `server/src/lib/achievements.ts`: +15 badge codes (total 22). New `checkX` helpers (each fetches rows and
+  reduces in JS so the in-memory test mock exercises the same path — no `.gt()` needed):
+  `checkVolumeMilestones` (volume_1/10/100, Σ lots over open+closed), `checkTradeCountMilestones`
+  (trades_10/50/100), `checkProfitMilestones` (first_green + profit_100/1000 over CLOSED profit; open trades
+  excluded), `checkGain10pct` (balance ≥ $11k), `checkTakeProfitPlanner` (≥10 closed w/ take_profit),
+  `checkDiversified` (≥5 distinct symbols), `checkRobotMaster` (≥10 robots). All idempotent via `awardAchievement`.
+- Wiring (fire-and-forget, mirrors existing): `orders.ts` open block → volume/trade-count/diversified;
+  close block (Promise.all) → profit/tp-planner/gain_10pct. `robots.ts` create → robot_master.
+  `auth.ts` login streak → three_day_streak (≥3) + thirty_day_streak (≥30) alongside the existing 7-day.
+- NO migration (codes are free-text in the `achievements` table). NO client change: `app/(tabs)/profile.tsx`
+  renders one tile per `ACHIEVEMENT_META` entry from `GET /api/achievements`, so new badges show automatically.
+- Tests: new `server/test/achievements.test.ts` (13). IMPORTANT FIX: the routes now call the new helpers, so the
+  achievements `vi.mock` in `orders/robots/auth/auth-boundaries/copyTrading/rounds` tests had to gain the 7 new fns
+  — otherwise `void checkVolumeMilestones(...)` is `undefined(...)` → synchronous TypeError → the open/close route
+  500s (this is what broke 10 orders hedging tests until the mocks were extended). Verified offline: client tsc clean,
+  server tsc clean, `npm test` **255 passing** (was 242).
+
+**⚠️ ENVIRONMENT GOTCHAS for the next run:**
+1. The `Edit` file-tool TRUNCATED several files when writing through the Windows→bash sync layer this run (e.g.
+   achievements.ts came out 110 lines on the bash disk vs the full content the tool reported). The `Write` tool and
+   direct bash/python writes were fine. **Recommendation: apply code edits via bash (python/sed) or the Write tool and
+   verify line counts with `wc -l` from bash before trusting them.** Restored the corrupted files with
+   `git show HEAD:<path> > <path>` then re-applied edits via python — all good now.
+2. `.git/index.lock` (0 bytes, dated 2026-06-18) is STUCK — `rm` fails (permission/sync-layer). Normal `git add`/
+   `commit`/`checkout` error with "index.lock File exists". Workaround used: `GIT_INDEX_FILE=/tmp/<idx> git read-tree HEAD
+   && GIT_INDEX_FILE=/tmp/<idx> git add <paths> && GIT_INDEX_FILE=/tmp/<idx> git commit ...`. If a future run can remove
+   the lock, prefer that.
+
+**PENDING LIVE VERIFY (next interactive session):** unlock a few new badges (place trades to cross volume/trade-count,
+grow to $11k, build robots, 3-day login streak) and confirm they render on the profile Achievements grid.
+(Carried over: **migration 031 still NOT applied** — apply on the next network-enabled run:
+`SUPABASE_PAT=... python scripts/apply-migration.py supabase/migrations/031_account_last_seen.sql`.)
+
+### Next pick: offline-completable Phase 21/22 work is now thin. **22.2/22.3** (market-news feed) need a news-source
+decision + likely network. **21.11** (credit bucket) needs a product decision; **21.12** depends on 21.14; **21.14**
+(account groups) is a large design-first mini-phase. **21.1** (admin audit) and **21.7** (KYC e2e) stay BLOCKED until a
+network-enabled/visual interactive run. Recommend the next run flag to the user that the clean offline queue is
+essentially drained and the remaining items need a decision, design, or live/network access.
+
 ## ✅ 2026-06-19 (auto) — 21.16 DONE (operator broadcast / notify). Pushed to main.
 Working tree was clean at start (only the STATE.md/TODO.md handoff). 21.16 was the topmost
 offline unit-testable item, as the prior run queued. 21.11 (credit bucket) needs a product decision;

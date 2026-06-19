@@ -164,9 +164,15 @@ export async function authRoutes(app: FastifyInstance) {
           // best-effort; never block login on streak failure
         }
       }
-      // Phase 11.3 — award 7-day streak achievement (fire-and-forget)
+      // Phase 11.3 / 22.1 — award login-streak achievements (fire-and-forget)
+      if (login_streak >= 3) {
+        void awardAchievement(userId, 'three_day_streak').catch(() => {});
+      }
       if (login_streak >= 7) {
         void awardAchievement(userId, 'seven_day_streak').catch(() => {});
+      }
+      if (login_streak >= 30) {
+        void awardAchievement(userId, 'thirty_day_streak').catch(() => {});
       }
 
       return { session: loginSession, login_streak };

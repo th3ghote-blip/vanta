@@ -34,6 +34,14 @@ vi.mock('../src/lib/achievements.js', () => ({
   checkRiskMaster: vi.fn(async () => {}),
   checkBalance1000: vi.fn(async () => {}),
   checkRobotEngineer: vi.fn(async () => {}),
+  // Phase 22.1
+  checkVolumeMilestones: vi.fn(async () => {}),
+  checkTradeCountMilestones: vi.fn(async () => {}),
+  checkDiversified: vi.fn(async () => {}),
+  checkProfitMilestones: vi.fn(async () => {}),
+  checkGain10pct: vi.fn(async () => {}),
+  checkTakeProfitPlanner: vi.fn(async () => {}),
+  checkRobotMaster: vi.fn(async () => {}),
 }));
 vi.mock('../src/lib/push.js', () => ({
   sendPush: vi.fn(async () => ({ ok: true })),

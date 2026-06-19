@@ -6,7 +6,11 @@ import { getQuote } from '../lib/quoteCache.js';
 import { calculatePnL } from '../lib/contracts.js';
 import { requiredMargin, reserveMargin, releaseMargin } from '../lib/margin.js';
 import { sendPushChecked } from '../lib/push.js';
-import { checkFirstTrade, checkFiveWins, checkRiskMaster, checkBalance1000 } from '../lib/achievements.js';
+import {
+  checkFirstTrade, checkFiveWins, checkRiskMaster, checkBalance1000,
+  checkVolumeMilestones, checkTradeCountMilestones, checkDiversified,
+  checkProfitMilestones, checkGain10pct, checkTakeProfitPlanner,
+} from '../lib/achievements.js';
 
 const OpenOrderSchema = z.object({
   accountId: z.string().uuid(),
@@ -476,6 +480,10 @@ export async function ordersRoutes(app: FastifyInstance) {
     // immediate-fill market orders; pending orders count once they fill.
     if (!isPending) {
       void checkFirstTrade(userId).catch(() => {});
+      // Phase 22.1 — volume / trade-count / diversification badges (fire-and-forget)
+      void checkVolumeMilestones(userId).catch(() => {});
+      void checkTradeCountMilestones(userId).catch(() => {});
+      void checkDiversified(userId).catch(() => {});
       // T.18 — mirror trade to copy followers (fire-and-forget, never blocks the leader).
       void mirrorTradeForFollowers(userId, trade as Record<string, any>, app.log).catch(() => {});
     }
@@ -647,6 +655,10 @@ export async function ordersRoutes(app: FastifyInstance) {
       profit > 0 ? checkFiveWins(userId) : Promise.resolve(),
       checkRiskMaster(userId),
       checkBalance1000(userId),
+      // Phase 22.1 — realized-profit, take-profit discipline, and 10% growth badges
+      checkProfitMilestones(userId),
+      checkTakeProfitPlanner(userId),
+      checkGain10pct(userId),
     ]).catch(() => {});
 
     return { tradeId, profit, closePrice };
