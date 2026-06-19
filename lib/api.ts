@@ -674,6 +674,25 @@ export const api = {
     }>(`/api/admin/online${qs}`);
   },
 
+  /**
+   * 21.16 — operator broadcast / direct client notification.
+   * audience='account' targets one client (by login OR userId); audience='all'
+   * messages every client. Persists to the in-app feed + best-effort push.
+   */
+  adminNotify: (params: {
+    title: string;
+    body: string;
+    audience?: 'all' | 'account';
+    login?: number;
+    userId?: string;
+    symbol?: string;
+    data?: Record<string, unknown>;
+  }) =>
+    request<{ ok: true; audience: 'all' | 'account'; recipients: number }>(
+      '/api/admin/notify',
+      { method: 'POST', body: JSON.stringify(params) },
+    ),
+
 };
 
 // ─── Shared interfaces ────────────────────────────────────────────────────────

@@ -4,6 +4,7 @@ import { authUser, supabaseAdmin } from '../lib/supabase.js';
 import { getMid } from '../lib/quoteCache.js';
 import { calculatePnL, contractSize, notionalUSD } from '../lib/contracts.js';
 import { requiredMargin, releaseMargin } from '../lib/margin.js';
+import { sendPushBatch } from '../lib/push.js';
 import { toCsv, csvFilename, type CsvColumn } from '../lib/csv.js';
 
 /** Verify auth + admin role. Returns userId or null. */
@@ -26,6 +27,17 @@ const PositionIdSchema = z.object({ id: z.coerce.number().int().positive() });
 const ModifyPositionSchema = z.object({
   stopLoss: z.number().nullable().optional(),
   takeProfit: z.number().nullable().optional(),
+});
+
+// 21.16 — operator broadcast / direct client notification.
+const NotifySchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  body: z.string().trim().min(1).max(4000),
+  audience: z.enum(['all', 'account']).default('account'),
+  login: z.coerce.number().int().positive().optional(),
+  userId: z.string().uuid().optional(),
+  symbol: z.string().trim().max(32).optional(),
+  data: z.record(z.unknown()).optional(),
 });
 
 
@@ -2038,6 +2050,95 @@ export async function adminRoutes(app: FastifyInstance) {
       window_minutes: windowMin,
       generated_at: new Date(now).toISOString(),
     });
+  });
+
+  /**
+   * POST /api/admin/notify
+   * 21.16 — operator broadcast / direct client notification.
+   * Compose a message to ONE client (by account `login` or `userId`) or to ALL
+   * clients (`audience: 'all'`). Each recipient gets a row in the `notifications`
+   * table (kind='system') — the in-app feed is the source of truth — and a
+   * best-effort Expo push on top. Push failures never fail the request.
+   */
+  app.post('/notify', async (req, reply) => {
+    const adminId = await authAdmin(req.headers.authorization);
+    if (!adminId) return reply.code(403).send({ error: 'forbidden' });
+
+    const parsed = NotifySchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'invalid_input', details: parsed.error.flatten() });
+    }
+    const { title, body, audience, login, userId, symbol, data } = parsed.data;
+
+    // Resolve the set of recipient user_ids.
+    let userIds: string[] = [];
+    if (audience === 'all') {
+      const { data: profs, error } = await supabaseAdmin
+        .from('profiles')
+        .select('id');
+      if (error) {
+        app.log.error({ err: error }, 'admin/notify: profiles query failed');
+        return reply.code(500).send({ error: 'query_failed' });
+      }
+      userIds = Array.from(
+        new Set((profs ?? []).map((p: any) => p.id).filter(Boolean) as string[]),
+      );
+    } else {
+      // Single client — resolve by explicit userId, else by account login.
+      let targetUserId: string | null = null;
+      if (userId) {
+        targetUserId = userId;
+      } else if (login != null) {
+        const { data: acc, error } = await supabaseAdmin
+          .from('accounts')
+          .select('user_id')
+          .eq('login', login)
+          .maybeSingle();
+        if (error) {
+          app.log.error({ err: error }, 'admin/notify: account lookup failed');
+          return reply.code(500).send({ error: 'query_failed' });
+        }
+        targetUserId = (acc?.user_id as string | undefined) ?? null;
+        if (!targetUserId) return reply.code(404).send({ error: 'account_not_found' });
+      } else {
+        return reply.code(400).send({
+          error: 'missing_target',
+          message: 'Provide login or userId, or set audience=all.',
+        });
+      }
+      userIds = [targetUserId];
+    }
+
+    if (userIds.length === 0) {
+      return reply.send({ ok: true, audience, recipients: 0 });
+    }
+
+    // Persist one in-app notification per recipient (source of truth).
+    const meta = { ...(data ?? {}), broadcast: audience === 'all', from_admin: adminId };
+    const rows = userIds.map((uid) => ({
+      user_id: uid,
+      kind: 'system',
+      title,
+      body,
+      symbol: symbol ?? null,
+      data: meta,
+    }));
+    const { error: insErr } = await supabaseAdmin.from('notifications').insert(rows);
+    if (insErr) {
+      app.log.error({ err: insErr }, 'admin/notify: insert failed');
+      return reply.code(500).send({ error: 'insert_failed' });
+    }
+
+    // Best-effort push (mobile bonus). sendPushBatch never throws and silently
+    // skips users without a registered token.
+    await sendPushBatch(
+      userIds.map((uid) => ({
+        userId: uid,
+        payload: { title, body, data: { ...meta, kind: 'system' } },
+      })),
+    );
+
+    return reply.send({ ok: true, audience, recipients: userIds.length });
   });
 
 }

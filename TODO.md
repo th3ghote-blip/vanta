@@ -1257,7 +1257,8 @@ by `user_id`, see the `attachAccounts` helper added in the 0d4d991 fix).
 - **Acceptance:** Each analytics view offers a download whose rows match the on-screen data.
 
 ## 21.16 Operator broadcast / direct client notification
-- [ ] **Files:** `server/src/routes/admin.ts` (`POST /api/admin/notify`), `app/admin/` compose UI, reuse `notifications` table + `lib/push.ts`
+- [x] **Files:** `server/src/routes/admin.ts` (`POST /api/admin/notify`), `app/admin/notify.tsx` (new compose UI), `app/admin/index.tsx` (nav tile), `lib/api.ts`, `server/test/adminNotify.test.ts`
+- **Done 2026-06-19 (auto):** Backend `POST /api/admin/notify` (admin-only via `authAdmin`). Body (zod-validated): `title` (1–200), `body` (1–4000), `audience` `'all'|'account'` (default `account`), plus `login` (account login NUMBER) OR `userId` (uuid) for single-client targeting, optional `symbol`/`data`. `audience='account'` resolves a single recipient by explicit `userId` else by account login → owner `user_id` (unknown login → **404 `account_not_found`**; neither given → **400 `missing_target`**). `audience='all'` fans out to every distinct `profiles.id`. Each recipient gets a `notifications` row (`kind='system'`, the in-app feed is the source of truth) carrying `data={...,broadcast,from_admin}`, then a **best-effort** `sendPushBatch` (never fails the request; silently skips users without a push token). Returns `{ok,audience,recipients}`. `lib/api.ts`: `api.adminNotify({title,body,audience?,login?,userId?,symbol?,data?})`. New screen `app/admin/notify.tsx` — audience toggle (Single account / All clients), login input, title + multiline message, all-clients warning banner, success/error state, Send button. "Broadcast / Notify" nav tile (Send icon) in `app/admin/index.tsx`. Tests: `server/test/adminNotify.test.ts` (8: 403 unauth/non-admin; 400 invalid_input blank title/body; single-by-login persists one system row w/ broadcast=false+from_admin; 404 unknown login; 400 missing_target; single-by-userId; audience=all → one row per distinct user incl. dedupe of a 2-account user, broadcast=true). Verified offline: client tsc clean, server tsc clean, `npm test` **242 passing** (was 234). No migration (reuses `notifications` table from migration 029). PENDING LIVE VERIFY (next interactive session): a composed message appears in the target client's in-app notifications; "all clients" reaches every account; push arrives on devices with a registered token.
 - **Spawned by 21.8** (Partial #13). **What:** Let an operator compose a notification to one client or all clients, persisted to the `notifications` table (22.0) and pushed best-effort. *(Offline unit-testable backend.)*
 - **Acceptance:** A composed message appears in the target client's in-app notifications; "all clients" reaches every account.
 
@@ -1275,17 +1276,4 @@ real events to the assets they move.
 - **What:** Add a broad set of unlockable badges beyond the current 7. Each = a code + check fired after the relevant event (mirror existing `checkX` helpers, fire-and-forget). Candidate list (pick a sensible ~15):
   - **Volume:** First 1 lot total, 10 lots, 100 lots traded
   - **Profit:** First green trade, +$100 realized, +$1,000 realized, +10% on the demo
-  - **Discipline:** 10 trades with SL set (exists as Risk Master — extend), 5 wins in a row, close in profit 3 days running
-  - **Variety:** Trade 5 different symbols, trade crypto + forex + stock, use a limit order, use a robot
-  - **Streaks:** 3/7/30-day login streak, 7-day trading streak
-  - **Quick mode:** First binary round, 5-win round streak
-  - **Social:** Make a robot public, get copied by another trader, share a trade to X
-- **Acceptance:** Each badge unlocks on its trigger, shows in Profile → Achievements (unlocked vs locked silhouette + criteria), and fires at most once.
-
-## 22.0 Robot conditions + in-app tip delivery — FOUNDATION
-- [x] **Done 2026-06-12:** fixed the core reason tip robots "didn't work". Engine now implements the `price_move_pct` condition (fires only when the first symbol moves ≥ pct% from a rolling baseline, re-arms after firing) and conditions gate BOTH tip and trade robots. Tips persist to a new `notifications` table (migration 029, RLS own-row) so they show in-app on web + mobile via `app/notifications.tsx` (Profile → Alerts & Tips); mobile push is now best-effort, not required. Compiler prompt emits `price_move_pct` for "moves/drops N%". New `/api/notifications` routes + `lib/api` methods. Engine no longer spams `robot_runs` on routine no-op ticks. This is the delivery + condition substrate 22.3 (news tips) will reuse.
-- **Still only `price_move_pct` is implemented** — `rsi`, `ma_cross`, `price_drop`-by-window etc. still pass through as `always`. Add real impls per-type as needed (each: a `checkX` in robotEngine + a line in `evaluateConditions`).
-
-## 22.2 Market news feed tagged to assets
-- [ ] **Files:** `server/src/workers/news.ts` (new), migration `news_items (id, headline, summary, url, source, symbols text[], sentiment, published_at)`, `GET /api/news?symbol=`, `components/NewsFeed.tsx`, surface on Trade screen + a News tab
-- **What:** A worker pulls market headlines on a schedule and tags each to the asset(s) it impacts (e.g. an ETF approval 
+  - **Discipline:** 10 trades with SL set (exists as Risk Master — extend), 5

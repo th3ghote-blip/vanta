@@ -23,6 +23,7 @@ import {
   PieChart,
   History,
   Radio,
+  Send,
 } from 'lucide-react-native';
 
 import { api } from '@/lib/api';
@@ -308,6 +309,11 @@ export default function AdminDashboard() {
             icon={<History size={18} color={colors.primary} />}
             label="Trade History"
             onPress={() => router.push('/admin/trades' as any)}
+          />
+          <NavRow
+            icon={<Send size={18} color={colors.profit} />}
+            label="Broadcast / Notify"
+            onPress={() => router.push('/admin/notify' as any)}
           />
           <NavRow
             icon={<BarChart2 size={18} color={colors.warning} />}

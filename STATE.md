@@ -1,5 +1,39 @@
 # STATE -- handoff notes for the next agent
 
+## ✅ 2026-06-19 (auto) — 21.16 DONE (operator broadcast / notify). Pushed to main.
+Working tree was clean at start (only the STATE.md/TODO.md handoff). 21.16 was the topmost
+offline unit-testable item, as the prior run queued. 21.11 (credit bucket) needs a product decision;
+21.12 depends on 21.14; 21.14 (account groups) is a large design-first item; 21.1 (admin audit) and
+21.7 (KYC e2e) stay BLOCKED for offline runs (network/visual).
+
+**What shipped (commit on main, CI deploys both):**
+- `server/src/routes/admin.ts`: `POST /api/admin/notify` (admin-only). zod body: `title`(1–200),
+  `body`(1–4000), `audience` `'all'|'account'` (default account), `login`(account login NUMBER) OR
+  `userId`(uuid), optional `symbol`/`data`. account-mode resolves ONE recipient by userId else by
+  login→owner user_id (unknown login → **404 account_not_found**; neither → **400 missing_target**).
+  all-mode fans out to every distinct `profiles.id`. Inserts one `notifications` row per recipient
+  (`kind='system'`, `data={...,broadcast,from_admin}`) — in-app feed is source of truth — then a
+  best-effort `sendPushBatch` (never fails the request). Returns `{ok,audience,recipients}`.
+  Added `import { sendPushBatch } from '../lib/push.js'` + `NotifySchema`.
+- `lib/api.ts`: `api.adminNotify({title,body,audience?,login?,userId?,symbol?,data?})`.
+- `app/admin/notify.tsx` (NEW): audience toggle, login input, title + multiline body, all-clients
+  warning banner, success/error states, Send button.
+- `app/admin/index.tsx`: "Broadcast / Notify" nav tile (Send icon).
+- Tests: `server/test/adminNotify.test.ts` (8). Verified offline: client tsc clean, server tsc clean,
+  `npm test` **242 passing** (was 234). No migration (reuses `notifications` table from migration 029).
+
+**PENDING LIVE VERIFY (next interactive session):** a composed message appears in the target client's
+in-app notifications; "all clients" reaches every account; push arrives on devices with a token.
+(Carried over: **migration 031 still NOT applied** — apply on the next network-enabled run, see the
+21.13 entry below.)
+
+### Next pick: **21.11** (credit bucket) needs a product decision; **21.12** depends on 21.14; **21.14**
+(account groups) is a large design-first item — none are clean offline auto-picks. The remaining
+offline-completable Phase 21 work is **exhausted** except items needing a product decision or design.
+**21.1** (admin audit) and **21.7** (KYC e2e) stay blocked until a network-enabled/visual interactive
+run. Consider Phase 22 (gamification): **22.1** (expanded achievements catalogue) is offline-completable
+backend+UI; 22.2/22.3 need a news source decision + likely network. Recommend 22.1 next.
+
 ## ✅ 2026-06-19 (auto) — 21.15 DONE (analytics CSV export). Pushed to main.
 Working tree was clean at start (only the STATE.md/TODO.md handoff). 21.15 was the topmost
 offline-completable item: 21.11 (credit bucket) needs a product decision; 21.12 depends on 21.14;
@@ -74,38 +108,4 @@ interactive run.
 
 ## ✅ 2026-06-19 (auto) — 21.10 DONE (global closed-trades blotter). Pushed to main.
 Working tree was clean at start (only the prior STATE.md handoff — diff showed binary because the
-committed HEAD copy is stale; the working copy is the latest handoff, which prior runs treat as clean).
-Topmost unchecked items 21.1 (admin audit) and 21.7 (KYC e2e) stay BLOCKED for offline runs (need a
-network-enabled / visual run — each carries its `>` skip note). 21.10 was the topmost offline-completable
-item, as the prior run queued.
-
-**What shipped (commit on main, CI deploys both):**
-- `server/src/routes/admin.ts`: new admin-only `GET /api/admin/trades` — filtered global history of
-  `status='closed'` trades. Params (all optional): `from`/`to` (ISO bounds on `close_time`, gte/lte),
-  `symbol` (exact), `account` (login NUMBER → resolved to account_id; non-numeric = raw id; unknown
-  login → empty set, NOT an error), `reason` (exact), `sort` (close_time|open_time|profit|volume|symbol,
-  default close_time), `dir` (asc|desc, default desc), `limit` (1–500, default 100), `offset` (≥0).
-  Rows carry login via `accounts!inner` embed + `duration_seconds` (close−open). `totals`
-  (count, volume_lots, gross_profit, gross_loss, net_profit=realized_client_pnl, realized_house_pnl,
-  wins, win_rate) computed over the **FULL filtered set** (not the page) so they reconcile against raw
-  `trades`; `trades` is the sorted page slice, `count` is the full filtered count.
-- `lib/api.ts`: `api.adminGetTrades(params)` typed helper.
-- `app/admin/trades.tsx` (new): filter bar (symbol/account/reason + from/to + Apply) + totals card +
-  sort tabs (asc/desc toggle) + per-row blotter + Prev/Next pagination (50/page).
-- `app/admin/index.tsx`: "Trade History" nav tile (History icon, newly imported).
-- Test helper (ADDITIVE): `supabaseMock` Query gained `.lte()`; `seed.trade` now carries `close_price`.
-  New `server/test/adminTradesBlotter.test.ts` (10 tests: 403 gating; closed-only + totals
-  reconciliation; symbol/account-login/reason filters; unknown-login→empty; close_time from/to range;
-  limit/offset paging w/ full-set totals; profit asc sort).
-- Verified offline: client tsc clean, server tsc clean, `npm test` **218 passing** (was 208). No migration.
-
-**⚠️ LESSON RE-CONFIRMED THIS RUN:** editing `server/test/helpers/supabaseMock.ts` with the Edit tool
-TRUNCATED the file (esbuild "Expected } but found end of file"). Restored via
-`git show HEAD:<path> > /tmp/x` then re-applied changes with a python here-doc. **Use bash/python for
-ALL `.ts`/`.tsx` edits — `.md` only for the Edit/Write tools.** (git checkout was blocked by a stale
-`.git/index.lock` the mount can't `rm` — see the WSL wall recipe below.)
-
-**PENDING LIVE VERIFY (next interactive session):** on the live DB, filtering `/api/admin/trades` by
-symbol/account/date narrows the set; totals reconcile against raw closed `trades` for a known account.
-
-### Next pick: **21.13** (online-users mo
+committed HEAD copy is stale; the working copy is the latest handoff, which prior runs t
