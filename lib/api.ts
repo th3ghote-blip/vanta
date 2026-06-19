@@ -60,6 +60,30 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
+/**
+ * 21.15 — fetch an admin analytics export as CSV text (auth header injected).
+ * Returns the CSV body plus the server-suggested download filename (parsed from
+ * Content-Disposition, with a sensible fallback).
+ */
+export async function requestCsv(path: string): Promise<{ filename: string; text: string }> {
+  const res = await fetch(`${API_URL}${path}`, { headers: await authHeaders() });
+  if (!res.ok) {
+    let code = `http_${res.status}`;
+    try {
+      const body = await res.json();
+      if (body && typeof body === 'object' && typeof (body as any).error === 'string') {
+        code = (body as any).error;
+      }
+    } catch {}
+    throw new ApiError(code, res.status, {});
+  }
+  const text = await res.text();
+  const cd = res.headers.get('content-disposition') ?? '';
+  const m = /filename="?([^";]+)"?/i.exec(cd);
+  const filename = m?.[1] ?? 'export.csv';
+  return { filename, text };
+}
+
 export const api = {
   request,
   health: () => request<{ ok: boolean }>('/health'),
@@ -503,6 +527,21 @@ export const api = {
     }>(`/api/admin/analytics/overview?days=${days}`),
 
   // 21.6 — per-account leaderboard (deposits / withdrawals / realized P&L / equity).
+  // 21.15 — CSV report exports. Each returns { filename, text } matching the
+  // on-screen rows of the corresponding analytics view.
+  adminAnalyticsBySymbolCsv: (window: '24h' | '7d' | '30d' | 'all' = '7d') =>
+    requestCsv(`/api/admin/analytics/by-symbol?window=${window}&format=csv`),
+  adminAnalyticsOverviewCsv: (days: number = 30) =>
+    requestCsv(`/api/admin/analytics/overview?days=${days}&format=csv`),
+  adminAnalyticsAccountsCsv: (
+    sort: 'pnl' | 'net' | 'equity' | 'volume' | 'trades' | 'deposits' = 'pnl',
+    limit?: number,
+  ) =>
+    requestCsv(
+      `/api/admin/analytics/accounts?sort=${sort}&format=csv` +
+        (limit ? `&limit=${limit}` : ''),
+    ),
+
   adminAnalyticsAccounts: (
     sort: 'pnl' | 'net' | 'equity' | 'volume' | 'trades' | 'deposits' = 'pnl',
     limit?: number,

@@ -6,6 +6,7 @@ import {
   Pressable,
   ActivityIndicator,
   RefreshControl,
+  Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import {
@@ -16,6 +17,7 @@ import {
   AlertTriangle,
   RefreshCw,
   ChevronRight,
+  Download,
 } from 'lucide-react-native';
 
 import { api } from '@/lib/api';
@@ -49,6 +51,56 @@ function fmtDuration(seconds: number | null): string {
 
 function pnlColor(v: number) {
   return v >= 0 ? colors.profit : colors.loss;
+}
+
+// 21.15 — trigger a browser download of CSV text (web only; no-op on native).
+function downloadCsv(filename: string, text: string) {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+  const blob = new Blob([text], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// "Export CSV" button — fetches the export and saves it. Disabled while loading
+// and on native (download isn't available there).
+function ExportCsvButton({ fetchCsv }: { fetchCsv: () => Promise<{ filename: string; text: string }> }) {
+  const [busy, setBusy] = useState(false);
+  if (Platform.OS !== 'web') return null;
+  const onPress = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const { filename, text } = await fetchCsv();
+      downloadCsv(filename, text);
+    } catch {
+      // best-effort; the on-screen data is already visible
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={busy}
+      style={{
+        flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-end',
+        paddingVertical: spacing.xs, paddingHorizontal: spacing.md, marginBottom: spacing.sm,
+        backgroundColor: colors.bgElevated, borderRadius: radius.md,
+        borderWidth: 1, borderColor: colors.border, opacity: busy ? 0.5 : 1,
+      }}
+    >
+      <Download size={14} color={colors.primary} />
+      <Text style={{ ...typography.bodyBold, color: colors.primary, fontSize: 12 }}>
+        {busy ? 'Exporting…' : 'Export CSV'}
+      </Text>
+    </Pressable>
+  );
 }
 
 // ── types ─────────────────────────────────────────────────────────────────────
@@ -250,6 +302,7 @@ function SymbolView() {
           contentContainerStyle={{ paddingBottom: 64 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         >
+          <ExportCsvButton fetchCsv={() => api.adminAnalyticsBySymbolCsv(windowKey)} />
           {data && <SymbolTotalsCard totals={data.totals} />}
           <SortBar options={SORTS} value={sortKey} onChange={setSortKey} />
           <View style={{
@@ -344,6 +397,7 @@ function PlatformView() {
       contentContainerStyle={{ paddingBottom: 64 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
     >
+      <ExportCsvButton fetchCsv={() => api.adminAnalyticsOverviewCsv(30)} />
       <Card>
         <Text style={{ ...typography.body, color: colors.textMuted, fontSize: 11, marginBottom: spacing.sm }}>
           Lifetime totals
@@ -443,6 +497,7 @@ function AccountsView() {
           contentContainerStyle={{ paddingBottom: 64 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         >
+          <ExportCsvButton fetchCsv={() => api.adminAnalyticsAccountsCsv(sort)} />
           {data && (
             <Card>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg }}>

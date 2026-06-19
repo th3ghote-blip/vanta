@@ -1,9 +1,10 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { authUser, supabaseAdmin } from '../lib/supabase.js';
 import { getMid } from '../lib/quoteCache.js';
 import { calculatePnL, contractSize, notionalUSD } from '../lib/contracts.js';
 import { requiredMargin, releaseMargin } from '../lib/margin.js';
+import { toCsv, csvFilename, type CsvColumn } from '../lib/csv.js';
 
 /** Verify auth + admin role. Returns userId or null. */
 async function authAdmin(token: string | undefined): Promise<string | null> {
@@ -26,6 +27,67 @@ const ModifyPositionSchema = z.object({
   stopLoss: z.number().nullable().optional(),
   takeProfit: z.number().nullable().optional(),
 });
+
+
+/** 21.15 — CSV report export helpers. */
+function wantsCsv(format: string | undefined): boolean {
+  return (format ?? '').trim().toLowerCase() === 'csv';
+}
+function sendCsv(reply: FastifyReply, filename: string, csv: string) {
+  return reply
+    .header('Content-Type', 'text/csv; charset=utf-8')
+    .header('Content-Disposition', `attachment; filename="${filename}"`)
+    .send(csv);
+}
+
+// Column orders mirror the on-screen analytics tables so an export reconciles
+// row-for-row with what the admin sees.
+const BY_SYMBOL_COLUMNS: CsvColumn<any>[] = [
+  { label: 'symbol', value: (r) => r.symbol },
+  { label: 'trade_count', value: (r) => r.trade_count },
+  { label: 'open_count', value: (r) => r.open_count },
+  { label: 'closed_count', value: (r) => r.closed_count },
+  { label: 'volume_lots', value: (r) => r.volume_lots },
+  { label: 'volume_notional', value: (r) => r.volume_notional },
+  { label: 'open_buy_lots', value: (r) => r.open_buy_lots },
+  { label: 'open_sell_lots', value: (r) => r.open_sell_lots },
+  { label: 'net_open_lots', value: (r) => r.net_open_lots },
+  { label: 'net_open_notional', value: (r) => r.net_open_notional },
+  { label: 'realized_client_pnl', value: (r) => r.realized_client_pnl },
+  { label: 'realized_house_pnl', value: (r) => r.realized_house_pnl },
+  { label: 'win_rate', value: (r) => r.win_rate },
+  { label: 'avg_hold_seconds', value: (r) => r.avg_hold_seconds },
+  { label: 'over_exposure', value: (r) => r.over_exposure },
+];
+
+const OVERVIEW_COLUMNS: CsvColumn<any>[] = [
+  { label: 'date', value: (r) => r.date },
+  { label: 'new_users', value: (r) => r.new_users },
+  { label: 'trade_count', value: (r) => r.trade_count },
+  { label: 'trade_volume', value: (r) => r.trade_volume },
+  { label: 'deposits', value: (r) => r.deposits },
+  { label: 'withdrawals', value: (r) => r.withdrawals },
+  { label: 'house_pnl', value: (r) => r.house_pnl },
+];
+
+const ACCOUNTS_COLUMNS: CsvColumn<any>[] = [
+  { label: 'login', value: (r) => r.login },
+  { label: 'account_id', value: (r) => r.account_id },
+  { label: 'user_id', value: (r) => r.user_id },
+  { label: 'balance', value: (r) => r.balance },
+  { label: 'equity', value: (r) => r.equity },
+  { label: 'current_equity', value: (r) => r.current_equity },
+  { label: 'margin_used', value: (r) => r.margin_used },
+  { label: 'leverage', value: (r) => r.leverage },
+  { label: 'deposits', value: (r) => r.deposits },
+  { label: 'withdrawals', value: (r) => r.withdrawals },
+  { label: 'net_deposits', value: (r) => r.net_deposits },
+  { label: 'realized_pnl', value: (r) => r.realized_pnl },
+  { label: 'unrealized_pnl', value: (r) => r.unrealized_pnl },
+  { label: 'trade_count', value: (r) => r.trade_count },
+  { label: 'closed_count', value: (r) => r.closed_count },
+  { label: 'win_rate', value: (r) => r.win_rate },
+];
 
 export async function adminRoutes(app: FastifyInstance) {
   /**
@@ -1172,7 +1234,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const adminId = await authAdmin(req.headers.authorization);
     if (!adminId) return reply.code(403).send({ error: 'forbidden' });
 
-    const q = (req.query ?? {}) as { window?: string; threshold?: string };
+    const q = (req.query ?? {}) as { window?: string; threshold?: string; format?: string };
     const windowKey = (['24h', '7d', '30d', 'all'].includes(q.window ?? '')
       ? q.window
       : '7d') as '24h' | '7d' | '30d' | 'all';
@@ -1337,6 +1399,10 @@ export async function adminRoutes(app: FastifyInstance) {
       })
       .sort((x, y) => y.volume_notional - x.volume_notional);
 
+    if (wantsCsv(q.format)) {
+      return sendCsv(reply, csvFilename(`analytics-by-symbol-${windowKey}`), toCsv(BY_SYMBOL_COLUMNS, symbols));
+    }
+
     return reply.send({
       window: windowKey,
       since,
@@ -1373,7 +1439,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const adminId = await authAdmin(req.headers.authorization);
     if (!adminId) return reply.code(403).send({ error: 'forbidden' });
 
-    const q = (req.query ?? {}) as { days?: string };
+    const q = (req.query ?? {}) as { days?: string; format?: string };
     const reqDays = Number(q.days);
     const days = Number.isFinite(reqDays) ? Math.min(Math.max(Math.trunc(reqDays), 1), 90) : 30;
 
@@ -1494,6 +1560,10 @@ export async function adminRoutes(app: FastifyInstance) {
       { new_users: 0, trade_count: 0, trade_volume: 0, deposits: 0, withdrawals: 0, house_pnl: 0 },
     );
 
+    if (wantsCsv(q.format)) {
+      return sendCsv(reply, csvFilename(`analytics-overview-${days}d`), toCsv(OVERVIEW_COLUMNS, series));
+    }
+
     return reply.send({
       days,
       since: sinceIso,
@@ -1532,7 +1602,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const adminId = await authAdmin(req.headers.authorization);
     if (!adminId) return reply.code(403).send({ error: 'forbidden' });
 
-    const q = (req.query ?? {}) as { sort?: string; limit?: string };
+    const q = (req.query ?? {}) as { sort?: string; limit?: string; format?: string };
     const sortKey = (['pnl', 'net', 'equity', 'volume', 'trades', 'deposits'].includes(q.sort ?? '')
       ? q.sort
       : 'pnl') as 'pnl' | 'net' | 'equity' | 'volume' | 'trades' | 'deposits';
@@ -1669,6 +1739,10 @@ export async function adminRoutes(app: FastifyInstance) {
       },
       { deposits: 0, withdrawals: 0, realized_pnl: 0, unrealized_pnl: 0, balance: 0, current_equity: 0, trade_count: 0 },
     );
+
+    if (wantsCsv(q.format)) {
+      return sendCsv(reply, csvFilename(`analytics-accounts-${sortKey}`), toCsv(ACCOUNTS_COLUMNS, limited));
+    }
 
     return reply.send({
       sort: sortKey,

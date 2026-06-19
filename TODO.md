@@ -1251,7 +1251,8 @@ by `user_id`, see the `attachAccounts` helper added in the 0d4d991 fix).
 - **Acceptance:** Accounts can be assigned to a group; group-level spread/markup/leverage/stop-out apply to its members.
 
 ## 21.15 Report export (CSV / PDF)
-- [ ] **Files:** `server/src/routes/admin.ts` (export endpoints), `app/admin/analytics.tsx`
+- [x] **Files:** `server/src/routes/admin.ts` (export endpoints), `app/admin/analytics.tsx`, `server/src/lib/csv.ts` (new), `lib/api.ts`
+- **Done 2026-06-19 (auto):** CSV export for all three analytics views via a `?format=csv` query param on the EXISTING endpoints (`/analytics/by-symbol`, `/analytics/overview`, `/analytics/accounts`) — so the export serializes the SAME computed payload the JSON path returns, guaranteeing rows reconcile with the on-screen data. New dependency-free `server/src/lib/csv.ts` (`toCsv`/`csvCell`/`csvFilename`, RFC-4180 quoting, CRLF lines, dated sanitized filenames). Each endpoint, when `format=csv`, returns `text/csv; charset=utf-8` + `Content-Disposition: attachment; filename="vanta-analytics-<view>-<scope>-<YYYY-MM-DD>.csv"`. Column order mirrors the on-screen tables: by-symbol exports the `symbols` array (15 cols), overview exports the daily `series` (7 cols, one row/day), accounts exports the page slice `limited` (16 cols). `lib/api.ts`: `requestCsv()` (auth-injected fetch returning `{filename,text}` parsed from Content-Disposition) + `adminAnalyticsBySymbolCsv/OverviewCsv/AccountsCsv`. `app/admin/analytics.tsx`: web-only `ExportCsvButton` (Download icon) on each view, triggers a Blob download; renders null on native. Tests: `server/test/csv.test.ts` (6: cell escaping, null/NaN, header+CRLF, empty rows, filename sanitize) + `server/test/adminAnalyticsExport.test.ts` (5: 403 unauth/non-admin; by-symbol/overview/accounts CSV reconcile cell-for-cell against the same endpoint's JSON, correct content-type + dated attachment filename, overview = one row per day). Verified offline: client tsc clean, server tsc clean, `npm test` **234 passing** (was 223). No migration. PDF deferred (CSV satisfies acceptance; PDF was "optional").
 - **Spawned by 21.8** (Partial #12). **What:** Export the analytics screens (by-symbol, accounts, overview) to CSV (and optionally PDF). *(Offline-completable — backend serialization.)*
 - **Acceptance:** Each analytics view offers a download whose rows match the on-screen data.
 
@@ -1287,17 +1288,4 @@ real events to the assets they move.
 
 ## 22.2 Market news feed tagged to assets
 - [ ] **Files:** `server/src/workers/news.ts` (new), migration `news_items (id, headline, summary, url, source, symbols text[], sentiment, published_at)`, `GET /api/news?symbol=`, `components/NewsFeed.tsx`, surface on Trade screen + a News tab
-- **What:** A worker pulls market headlines on a schedule and tags each to the asset(s) it impacts (e.g. an ETF approval → BTCUSD; an earnings beat → AAPL), with a bull/bear/neutral sentiment tag. The chart/trade screen for a symbol shows a "News affecting BTCUSD" strip; a global feed shows latest items with their asset chips. **Free sources first** (per stack rules): RSS/JSON from CoinGecko/CryptoPanic free tier, Yahoo Finance RSS, or a free news API — quote cost before any paid feed. Symbol tagging: keyword match against the symbol catalogue, optionally a cheap Haiku classify (~$0.001/item) for sentiment + which symbols — quote the per-day cost before enabling.
-- **Decisions to lock at build time:**
-  ```
-  Source:    (a) free RSS/CryptoPanic ✅   (b) paid news API (quote first)
-  Tagging:   (a) keyword match ✅          (b) Haiku classify (~$X/day)
-  Schedule:  (a) Claude cron / worker every 30–60 min ✅   (b) on-demand
-  Storage:   (a) Supabase news_items ✅
-  ```
-- **Acceptance:** Open BTCUSD → see recent headlines tagged to BTC with sentiment; open a News tab → chronological feed with asset chips; tapping a chip filters to that symbol. Stale items age out.
-
-## 22.3 Push a "tip" when news strongly impacts a held/watched asset
-- [ ] **Files:** `server/src/workers/news.ts` (extend), reuse `lib/push.ts` + `profiles.notification_prefs`
-- **What:** When a high-sentiment news item lands for a symbol the user holds (open trade) or has on their watchlist, send a push: "📈 Bitcoin: [headline] — you hold BTCUSD". Respects the existing notification preferences (robot signals / price alerts toggles; add a "market news" toggle). Tip-only robots (Phase 3.4) already have the push plumbing — reuse it.
-- **Acceptance:** A flagged BTC news item with an open BTC position →
+- **What:** A worker pulls market headlines on a schedule and tags each to the asset(s) it impacts (e.g. an ETF approval 
