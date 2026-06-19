@@ -1225,4 +1225,79 @@ by `user_id`, see the `attachAccounts` helper added in the 0d4d991 fix).
 
 ## 21.10 Global closed-trades blotter
 - [x] **Files:** `server/src/routes/admin.ts` (`GET /api/admin/trades`), `app/admin/trades.tsx` (new), `lib/api.ts`
-- **Done 2026-06-19 (auto):** Backend `GET /api/admin/trades` (admin-only via `authAdmin`) — filtered global history of `status='closed'` trades. Query params (all optional): `from`/`to` (ISO bounds on `close_time`, gte/lte), `symbol` (exact), `account` (login NUMBER resolved to `account_id` via the accounts table; a non-numeric value is treated as a raw id; unknown login → empty set, not an error), `reason` (exact), `sort` (close_time|open_time|profit|volume|symbol, default close_time), `dir` (asc|desc, default desc), `limit` (1–500, default 100), `offset` (≥0, default 0). Each row: id, account_id, user_id, login (via `accounts!inner` embed), symbol, side, volume, open_price, close_price, profit, reason, open_time, close_time, duration_seconds. `totals` (count, volume_lots, gross_profit, gross_loss, net_profit=realized_client_pnl, realized_house_pnl=−net, wins, win_rate) are computed over the **full filtered set** (not the page) so they reconcile against raw closed `trades`; `trades` is the sorted page slice; `count` is the full filtered count for paging. `lib/api.ts`: `api.adminGetTrades(params)` typed helper (builds the query string). New screen `app/admin/trades.tsx` — filter bar (symbol/account/reason + from/to + Apply), totals card (client/house P&L, volume, win rate, gross), sort tabs (Closed/P&L/Volume/Symbol with asc/desc toggle), per-row blotter (symbol·side, login, lots, open→close price, duration, colour-coded profit, reason badge, close time), and Prev/Next pagination (50/page). "Trade History" nav tile (History icon) added to `app/admin/index.tsx`. Test helper (additive): `supabaseMock` Query gained `.lte()`; `seed.trade` now carries `close_price`. New `server/test/adminTradesBlotter.test.ts` (10 tests: 403 unauth/non-admin; closed-only + totals reconciliation [3 closed, open excluded, v
+- **Done 2026-06-19 (auto):** Backend `GET /api/admin/trades` (admin-only via `authAdmin`) — filtered global history of `status='closed'` trades. Query params (all optional): `from`/`to` (ISO bounds on `close_time`, gte/lte), `symbol` (exact), `account` (login NUMBER resolved to `account_id` via the accounts table; a non-numeric value is treated as a raw id; unknown login → empty set, not an error), `reason` (exact), `sort` (close_time|open_time|profit|volume|symbol, default close_time), `dir` (asc|desc, default desc), `limit` (1–500, default 100), `offset` (≥0, default 0). Each row: id, account_id, user_id, login (via `accounts!inner` embed), symbol, side, volume, open_price, close_price, profit, reason, open_time, close_time, duration_seconds. `totals` (count, volume_lots, gross_profit, gross_loss, net_profit=realized_client_pnl, realized_house_pnl=−net, wins, win_rate) are computed over the **full filtered set** (not the page) so they reconcile against raw closed `trades`; `trades` is the sorted page slice; `count` is the full filtered count for paging. `lib/api.ts`: `api.adminGetTrades(params)` typed helper (builds the query string). New screen `app/admin/trades.tsx` — filter bar (symbol/account/reason + from/to + Apply), totals card (client/house P&L, volume, win rate, gross), sort tabs (Closed/P&L/Volume/Symbol with asc/desc toggle), per-row blotter (symbol·side, login, lots, open→close price, duration, colour-coded profit, reason badge, close time), and Prev/Next pagination (50/page). "Trade History" nav tile (History icon) added to `app/admin/index.tsx`. Test helper (additive): `supabaseMock` Query gained `.lte()`; `seed.trade` now carries `close_price`. New `server/test/adminTradesBlotter.test.ts` (10 tests: 403 unauth/non-admin; closed-only + totals reconciliation [3 closed, open excluded, vol 0.13, gross +80/−20, net 60, house −60, win 2/3]; symbol filter; account-login filter; unknown-login→empty; reason filter; close_time from/to range; limit/offset paging with full-set totals + no overlap; profit asc sort). Verified offline: client tsc clean, server tsc clean, `npm test` **218 passing** (was 208). No migration this run.
+- **Spawned by 21.8** (Partial #3). **What:** Filtered global history of `status='closed'` trades — params `from`, `to`, `symbol`, `account`, `reason`. Returns login, symbol, side, volume, open/close price, profit, reason, durations; totals row. Sortable, paginated. *(Offline unit-testable — aggregate over `trades`.)*
+- **Acceptance:** Filtering by symbol/account/date narrows the set correctly; totals reconcile against raw closed `trades`.
+
+## 21.11 Non-withdrawable credit bucket (optional)
+- [ ] **Files:** migration `0XX_account_credit.sql`, `server/src/routes/admin.ts` (`/accounts/:id/adjust`), margin/P&L logic, `app/admin/user/`
+- **Spawned by 21.8** (Partial #6). **What:** Add an `accounts.credit` column separate from balance (bonus/credit that affects margin but isn't withdrawable), MT4-style. Adjust UI gains a credit/debit-credit option; free-margin and withdrawal logic account for it. *(Migration — Supabase API reachable offline. Only build if a credit/bonus concept is wanted.)*
+- **Acceptance:** Admin can grant credit; it raises equity/free-margin but is excluded from withdrawable balance.
+
+## 21.12 Per-account configurable stop-out level
+- [ ] **Files:** `server/src/workers/risk.ts`, schema (`accounts.stopout_level` or group-level), admin UI
+- **Spawned by 21.8** (Missing/Partial #8). **What:** Replace the single global stop-out threshold with a per-account (or per-group) configurable level. Likely folds into 21.14 (groups) — revisit after that. *(Depends on 21.14.)*
+- **Acceptance:** Setting an account's stop-out level changes when the risk worker force-closes it.
+
+## 21.13 Online-users monitor
+- [x] **Files:** migration `031_account_last_seen.sql`, `server/src/lib/presence.ts` (new), `server/src/lib/supabase.ts` (authUser hook), `server/src/routes/admin.ts` (`GET /api/admin/online`), `lib/api.ts`, `app/admin/online.tsx` (new), `app/admin/index.tsx` (nav tile)
+- **Done 2026-06-19 (auto):** Migration `031_account_last_seen.sql` adds `accounts.last_seen timestamptz` + `accounts_last_seen_idx` (DESC NULLS LAST). New `server/src/lib/presence.ts` exports `stampLastSeen(userId)` — updates `last_seen=now()` for ALL of a user's accounts, THROTTLED in-memory (one DB write per user per 60s; the slot is reserved before the await so concurrent requests don't all write), best-effort (DB errors swallowed). Lives in its own module so the integration tests (which `vi.mock` supabase.js) exercise it against the in-memory mock. `authUser()` in `supabase.ts` fires `void stampLastSeen(user.id)` after a token verifies — so every authenticated request stamps presence. Backend `GET /api/admin/online?minutes=N` (admin-only via `authAdmin`, default 5, clamped 1..1440) returns accounts with `last_seen >= now-N*60s`, newest-first (limit 500), each stitched to its owner's `display_name`+`is_admin` (by user_id — no profiles↔accounts FK) with `seconds_ago`, plus `count`/`window_minutes`/`generated_at`. `lib/api.ts`: `api.adminGetOnline(minutes?)`. New screen `app/admin/online.tsx` — window selector (1m/5m/15m/1h), live count card, per-row presence dot (green<60s / amber<180s / grey) + login·name·type + ago·balance, empty state. "Online Now" nav tile (Radio icon) in `app/admin/index.tsx`. Test helper (additive): `DbAccount` gained `last_seen`/`type`/`status`, `DbProfile` gained `display_name`, with seed pass-throughs. New `server/test/adminOnline.test.ts` (5 tests: 403 unauth/non-admin; in-window newest-first + profile stitch + stale/never-seen excluded; `minutes` narrows + clamps to [1,1440]; `stampLastSeen` writes-once/throttles/null-noop + stamps all of a user's accounts + becomes visible in the monitor). Verified offline: client tsc clean, server tsc clean, `npm test` **223 passing** (was 218). **⚠️ Migration 031 NOT yet applied** — the Supabase Management API is unreachable from the auto-run sandbox (egress github-only; apply-migration.py returned 403 Tunnel). Apply on the next network-enabled run: `SUPABASE_PAT=... python scripts/apply-migration.py supabase/migrations/031_account_last_seen.sql`. Until applied, `last_seen` writes/reads will error on live (caught best-effort on the write side; `/online` would 500 until the column exists). PENDING LIVE VERIFY: after applying 031, an account that just made an authed request appears in `/admin/online`, then drops off after the window.
+- **Spawned by 21.8** (Missing #10). **What:** Stamp `accounts.last_seen` on authenticated requests (throttled), then an admin "Online now" panel listing accounts seen within the last N minutes. *(Migration + backend; offline-completable.)*
+- **Acceptance:** An account that just made an authed request shows as online; goes offline after the window.
+
+## 21.14 Account groups — per-group spread / markup / leverage / stop-out
+- [ ] **Files:** migration(s), pricing layer, `server/src/routes/admin.ts`, admin UI
+- **Spawned by 21.8** (Missing #11). **What:** Introduce account `groups` and per-group spread/markup, default leverage, and stop-out level (MT4's core grouping model). **Large — design and scope as its own mini-phase before estimating.** *(Design first; partly network/visual.)*
+- **Acceptance:** Accounts can be assigned to a group; group-level spread/markup/leverage/stop-out apply to its members.
+
+## 21.15 Report export (CSV / PDF)
+- [ ] **Files:** `server/src/routes/admin.ts` (export endpoints), `app/admin/analytics.tsx`
+- **Spawned by 21.8** (Partial #12). **What:** Export the analytics screens (by-symbol, accounts, overview) to CSV (and optionally PDF). *(Offline-completable — backend serialization.)*
+- **Acceptance:** Each analytics view offers a download whose rows match the on-screen data.
+
+## 21.16 Operator broadcast / direct client notification
+- [ ] **Files:** `server/src/routes/admin.ts` (`POST /api/admin/notify`), `app/admin/` compose UI, reuse `notifications` table + `lib/push.ts`
+- **Spawned by 21.8** (Partial #13). **What:** Let an operator compose a notification to one client or all clients, persisted to the `notifications` table (22.0) and pushed best-effort. *(Offline unit-testable backend.)*
+- **Acceptance:** A composed message appears in the target client's in-app notifications; "all clients" reaches every account.
+
+---
+
+# Phase 22 — Gamification & engagement (requested 2026-06-11)
+
+Builds on what exists (Phase 11: first-trade confetti, login streak, achievements
+table + `checkFirstTrade/checkFiveWins/checkRiskMaster/checkBalance1000/checkRobotEngineer/seven_day_streak`,
+win-flash). Goal: more reasons to come back daily + a market-news feed that ties
+real events to the assets they move.
+
+## 22.1 Expanded achievements catalogue
+- [ ] **Files:** `server/src/lib/achievements.ts`, `app/(tabs)/profile.tsx` (Achievements section), migration if new codes need metadata
+- **What:** Add a broad set of unlockable badges beyond the current 7. Each = a code + check fired after the relevant event (mirror existing `checkX` helpers, fire-and-forget). Candidate list (pick a sensible ~15):
+  - **Volume:** First 1 lot total, 10 lots, 100 lots traded
+  - **Profit:** First green trade, +$100 realized, +$1,000 realized, +10% on the demo
+  - **Discipline:** 10 trades with SL set (exists as Risk Master — extend), 5 wins in a row, close in profit 3 days running
+  - **Variety:** Trade 5 different symbols, trade crypto + forex + stock, use a limit order, use a robot
+  - **Streaks:** 3/7/30-day login streak, 7-day trading streak
+  - **Quick mode:** First binary round, 5-win round streak
+  - **Social:** Make a robot public, get copied by another trader, share a trade to X
+- **Acceptance:** Each badge unlocks on its trigger, shows in Profile → Achievements (unlocked vs locked silhouette + criteria), and fires at most once.
+
+## 22.0 Robot conditions + in-app tip delivery — FOUNDATION
+- [x] **Done 2026-06-12:** fixed the core reason tip robots "didn't work". Engine now implements the `price_move_pct` condition (fires only when the first symbol moves ≥ pct% from a rolling baseline, re-arms after firing) and conditions gate BOTH tip and trade robots. Tips persist to a new `notifications` table (migration 029, RLS own-row) so they show in-app on web + mobile via `app/notifications.tsx` (Profile → Alerts & Tips); mobile push is now best-effort, not required. Compiler prompt emits `price_move_pct` for "moves/drops N%". New `/api/notifications` routes + `lib/api` methods. Engine no longer spams `robot_runs` on routine no-op ticks. This is the delivery + condition substrate 22.3 (news tips) will reuse.
+- **Still only `price_move_pct` is implemented** — `rsi`, `ma_cross`, `price_drop`-by-window etc. still pass through as `always`. Add real impls per-type as needed (each: a `checkX` in robotEngine + a line in `evaluateConditions`).
+
+## 22.2 Market news feed tagged to assets
+- [ ] **Files:** `server/src/workers/news.ts` (new), migration `news_items (id, headline, summary, url, source, symbols text[], sentiment, published_at)`, `GET /api/news?symbol=`, `components/NewsFeed.tsx`, surface on Trade screen + a News tab
+- **What:** A worker pulls market headlines on a schedule and tags each to the asset(s) it impacts (e.g. an ETF approval → BTCUSD; an earnings beat → AAPL), with a bull/bear/neutral sentiment tag. The chart/trade screen for a symbol shows a "News affecting BTCUSD" strip; a global feed shows latest items with their asset chips. **Free sources first** (per stack rules): RSS/JSON from CoinGecko/CryptoPanic free tier, Yahoo Finance RSS, or a free news API — quote cost before any paid feed. Symbol tagging: keyword match against the symbol catalogue, optionally a cheap Haiku classify (~$0.001/item) for sentiment + which symbols — quote the per-day cost before enabling.
+- **Decisions to lock at build time:**
+  ```
+  Source:    (a) free RSS/CryptoPanic ✅   (b) paid news API (quote first)
+  Tagging:   (a) keyword match ✅          (b) Haiku classify (~$X/day)
+  Schedule:  (a) Claude cron / worker every 30–60 min ✅   (b) on-demand
+  Storage:   (a) Supabase news_items ✅
+  ```
+- **Acceptance:** Open BTCUSD → see recent headlines tagged to BTC with sentiment; open a News tab → chronological feed with asset chips; tapping a chip filters to that symbol. Stale items age out.
+
+## 22.3 Push a "tip" when news strongly impacts a held/watched asset
+- [ ] **Files:** `server/src/workers/news.ts` (extend), reuse `lib/push.ts` + `profiles.notification_prefs`
+- **What:** When a high-sentiment news item lands for a symbol the user holds (open trade) or has on their watchlist, send a push: "📈 Bitcoin: [headline] — you hold BTCUSD". Respects the existing notification preferences (robot signals / price alerts toggles; add a "market news" toggle). Tip-only robots (Phase 3.4) already have the push plumbing — reuse it.
+- **Acceptance:** A flagged BTC news item with an open BTC position →

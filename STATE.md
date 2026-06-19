@@ -1,5 +1,44 @@
 # STATE -- handoff notes for the next agent
 
+## ✅ 2026-06-19 (auto) — 21.13 DONE (online-users monitor). Pushed to main.
+Working tree was clean at start (only the STATE.md/TODO.md handoff). Topmost unchecked items
+21.1 (admin audit) and 21.7 (KYC e2e) stay BLOCKED for offline runs (network/visual — each carries
+its `>` skip note); 21.11 (credit bucket) needs a product decision (left for the user). 21.13 was
+the topmost offline-completable item, as the prior run queued.
+
+**What shipped (commit on main, CI deploys both):**
+- `supabase/migrations/031_account_last_seen.sql` (NEW): `accounts.last_seen timestamptz` +
+  `accounts_last_seen_idx` (DESC NULLS LAST). **⚠️ NOT YET APPLIED** — the auto-run sandbox can't
+  reach the Supabase Management API (egress github-only; `apply-migration.py` → 403 Tunnel). Apply on
+  the next network-enabled run: `SUPABASE_PAT=... python scripts/apply-migration.py supabase/migrations/031_account_last_seen.sql`.
+- `server/src/lib/presence.ts` (NEW): `stampLastSeen(userId)` — updates `last_seen=now()` for ALL of a
+  user's accounts, throttled in-memory (one write per user per 60s; slot reserved before the await),
+  best-effort. Own module so tests (which mock supabase.js) hit it against the in-memory mock. Exports
+  `_resetPresence()` for tests.
+- `server/src/lib/supabase.ts`: `authUser()` now fires `void stampLastSeen(user.id)` after a token
+  verifies — every authed request stamps presence. (NB: creates a runtime-safe circular import
+  supabase↔presence; both refs are used inside functions, so ESM live bindings are fine.)
+- `server/src/routes/admin.ts`: `GET /api/admin/online?minutes=N` (admin-only; default 5, clamp
+  1..1440). Returns accounts seen within the window, newest-first (limit 500), stitched to owner
+  `display_name`+`is_admin` by user_id, with `seconds_ago`; + `count`/`window_minutes`/`generated_at`.
+- `lib/api.ts`: `api.adminGetOnline(minutes?)`. `app/admin/online.tsx` (NEW): window selector
+  (1m/5m/15m/1h) + count card + presence-dot rows. `app/admin/index.tsx`: "Online Now" nav tile (Radio).
+- Test helper (ADDITIVE): `DbAccount`+`last_seen`/`type`/`status`, `DbProfile`+`display_name`, seed
+  pass-throughs. New `server/test/adminOnline.test.ts` (5 tests).
+- Verified offline: client tsc clean, server tsc clean, `npm test` **223 passing** (was 218).
+
+**PENDING LIVE VERIFY (next interactive/network session):** (1) apply migration 031; (2) make an
+authed request from an account → it appears in `/admin/online`, then drops off after the window.
+Until 031 is applied, `/online` will 500 on live (column missing) and the stamp write is a swallowed
+no-op error — applying the migration is the unblock.
+
+### Next pick: **21.15** (report export CSV — backend serialization of the analytics views, no
+migration) is the topmost remaining fully-offline-completable item. **21.16** (operator broadcast —
+`POST /api/admin/notify`, reuse `notifications` table + `lib/push.ts`) is also offline unit-testable.
+21.11 (credit bucket) needs a product decision; 21.12 depends on 21.14; 21.14 (account groups) is a
+large design-first item. 21.1 (admin audit) and 21.7 (KYC e2e) stay blocked until a network-enabled
+interactive run.
+
 ## ✅ 2026-06-19 (auto) — 21.10 DONE (global closed-trades blotter). Pushed to main.
 Working tree was clean at start (only the prior STATE.md handoff — diff showed binary because the
 committed HEAD copy is stale; the working copy is the latest handoff, which prior runs treat as clean).
@@ -69,48 +108,4 @@ as the prior run queued.
 **PENDING LIVE VERIFY (next interactive session):** on the live DB, an account's `equity` /
 `margin_level_pct` on the user-search list match its row in the Accounts analytics leaderboard.
 
-### Next pick: **21.10** (global closed-trades blotter — `GET /api/admin/trades` with from/to/symbol/
-account/reason filters + `app/admin/trades.tsx` + `lib/api.ts`) is the topmost remaining
-offline-unit-testable item (pure aggregate over `trades`). 21.11/21.13 are migration-based and also
-doable offline (Supabase Mgmt API reachable). 21.1 (admin audit) and 21.7 (KYC e2e) stay blocked
-until a network-enabled interactive run.
-
-## ⚠️ READ THIS FIRST — Vercel git-author block
-Set this BEFORE the first commit every session:
-```bash
-git config user.email "229847808+th3ghote-blip@users.noreply.github.com"
-git config user.name "th3ghote-blip"
-```
-
-## ⚠️ WSL mount permission wall (persistent) + PROVEN commit/push recipe
-The mounted repo CANNOT unlink/remove ANY file (`rm` → "Operation not permitted"), incl.
-`.git/index.lock`. You CAN: read via git; overwrite existing working-tree files in place
-(`>`/`cp` over the same inode); create files inside the existing `.git/objects/pack/` dir;
-overwrite `.git/refs/heads/main`, `.git/refs/remotes/origin/main`, and `.git/index` in place.
-
-**Proven recipe (used this run, works — prefer fresh-GitHub-clone over `clone --local`):**
-1. Get the token remote: `git -C <mount> remote -v` (egress is github-only but the token remote is
-   reachable). Clone fresh to a **UNIQUE** dir: `git clone --depth 2 <token-remote> /tmp/gh_$(date +%s)`.
-   (A reused `/tmp/gh` from a prior run is read-only and `rm` fails — always use a fresh timestamped path.)
-2. In the clone: set git author (above), `cp` your touched files in from the mount, `git add <paths>`,
-   `git commit`, `git push origin main`. CI now deploys.
-3. Sync the mount: from the clone, `printf '%s\n^%s\n' <NEW> <OLD> | git pack-objects --revs --stdout
-   > /tmp/sync_$(date +%s).pack` (UNIQUE filename — `/tmp/sync.pack` may be a stale read-only file);
-   `git --git-dir=<mount>/.git index-pack --stdin < that.pack` (a benign "unable to unlink tmp_idx_*"
-   warning is fine — the pack still lands); overwrite loose `.git/refs/heads/main` AND
-   `.git/refs/remotes/origin/main` with <NEW>; rebuild index: `GIT_INDEX_FILE=/tmp/idx_$(date +%s)
-   git --git-dir=<mount>/.git read-tree <NEW>` then `cat that_idx > <mount>/.git/index`.
-   Verify: `git --git-dir=<mount>/.git --work-tree=<mount> status -sb` → `## main...origin/main`, no ahead.
-NB: `.git/packed-refs` has a stale `refs/heads/main`; the **loose** ref wins, so always overwrite the loose one.
-
-## ⚠️ DO NOT edit code files with the Edit/Write file tools — use bash/python
-Editing `.tsx`/`.ts` via the Edit tool has produced files `tsc` rejected with bogus parse errors. Make
-all repo code edits through bash/python heredoc or in-place `open(...,'w')`, then verify with
-`npx --no-install tsc --noEmit` before committing. (.md files like STATE.md/TODO.md are fine via Edit/Write.)
-Also: TS forbids mixing `??` and `||` without parens — write `x ?? (a || b)`.
-
-## ✅ 2026-06-18 (auto) — 21.8 DONE (MT4-Manager parity checklist). Commit `a7e19c8`.
-`docs/mt4-manager-parity.md` — 15-row Have/Partial/Missing matrix (9 Have, 4 Partial, 2 Missing).
-Spawned follow-ups 21.9–21.16 (one per Partial/Missing). Docs-only.
-
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       
+### Next pick: **21.10** (globa

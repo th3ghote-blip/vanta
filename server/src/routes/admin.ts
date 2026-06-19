@@ -1893,4 +1893,77 @@ export async function adminRoutes(app: FastifyInstance) {
     });
   });
 
+  /**
+   * GET /api/admin/online?minutes=N
+   * 21.13 — Online-users monitor. Lists every account whose `last_seen` falls
+   * within the last N minutes (default 5, clamped 1..1440). `last_seen` is
+   * stamped (throttled) from authUser() on every authenticated request.
+   * Each row carries the owning user's display_name + is_admin (stitched by
+   * user_id, since profiles<->accounts have no direct FK) and seconds_ago.
+   * Sorted most-recently-seen first.
+   */
+  app.get('/online', async (req, reply) => {
+    const adminId = await authAdmin(req.headers.authorization);
+    if (!adminId) return reply.code(403).send({ error: 'forbidden' });
+
+    const { minutes } = req.query as { minutes?: string };
+    let windowMin = parseInt(minutes ?? '', 10);
+    if (isNaN(windowMin)) windowMin = 5;
+    windowMin = Math.max(1, Math.min(1440, windowMin));
+
+    const now = Date.now();
+    const cutoff = new Date(now - windowMin * 60_000).toISOString();
+
+    const { data: accts, error } = await supabaseAdmin
+      .from('accounts')
+      .select('id, login, user_id, last_seen, balance, type, status')
+      .gte('last_seen', cutoff)
+      .order('last_seen', { ascending: false })
+      .limit(500);
+    if (error) {
+      app.log.error({ err: error }, 'admin/online: query failed');
+      return reply.code(500).send({ error: 'query_failed' });
+    }
+
+    const rows = accts ?? [];
+
+    // Stitch display_name + is_admin from profiles by user_id.
+    const uids = Array.from(new Set(rows.map((a: any) => a.user_id).filter(Boolean)));
+    const profMap: Record<string, { display_name: string | null; is_admin: boolean }> = {};
+    if (uids.length) {
+      const { data: profs } = await supabaseAdmin
+        .from('profiles')
+        .select('id, display_name, is_admin')
+        .in('id', uids);
+      for (const p of (profs ?? []) as any[]) {
+        profMap[p.id] = { display_name: p.display_name ?? null, is_admin: Boolean(p.is_admin) };
+      }
+    }
+
+    const online = rows.map((a: any) => {
+      const seen = a.last_seen ? new Date(a.last_seen).getTime() : null;
+      const secondsAgo = seen != null ? Math.max(0, Math.round((now - seen) / 1000)) : null;
+      const prof = profMap[a.user_id] ?? { display_name: null, is_admin: false };
+      return {
+        account_id: a.id,
+        login: a.login ?? null,
+        user_id: a.user_id ?? null,
+        display_name: prof.display_name,
+        is_admin: prof.is_admin,
+        balance: Number(a.balance) || 0,
+        type: a.type ?? null,
+        status: a.status ?? null,
+        last_seen: a.last_seen ?? null,
+        seconds_ago: secondsAgo,
+      };
+    });
+
+    return reply.send({
+      online,
+      count: online.length,
+      window_minutes: windowMin,
+      generated_at: new Date(now).toISOString(),
+    });
+  });
+
 }

@@ -22,6 +22,7 @@ import {
   Zap,
   PieChart,
   History,
+  Radio,
 } from 'lucide-react-native';
 
 import { api } from '@/lib/api';
@@ -297,6 +298,11 @@ export default function AdminDashboard() {
             icon={<Activity size={18} color={colors.primary} />}
             label="Live Positions"
             onPress={() => router.push('/admin/positions' as any)}
+          />
+          <NavRow
+            icon={<Radio size={18} color={colors.profit} />}
+            label="Online Now"
+            onPress={() => router.push('/admin/online' as any)}
           />
           <NavRow
             icon={<History size={18} color={colors.primary} />}

@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { stampLastSeen } from './presence.js';
 
 const url = process.env.SUPABASE_URL ?? '';
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
@@ -77,6 +78,8 @@ export async function authUser(token: string | undefined): Promise<string | null
     });
     if (!res.ok) return null;
     const user = (await res.json()) as { id?: string };
+    // 21.13 — record presence for the online-users monitor (throttled, best-effort).
+    if (user.id) void stampLastSeen(user.id);
     return user.id ?? null;
   } catch {
     return null;

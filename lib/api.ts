@@ -614,6 +614,27 @@ export const api = {
     }>(`/api/admin/trades${query ? `?${query}` : ''}`);
   },
 
+  adminGetOnline: (minutes?: number) => {
+    const qs = minutes != null ? `?minutes=${minutes}` : '';
+    return request<{
+      online: {
+        account_id: string;
+        login: number | null;
+        user_id: string | null;
+        display_name: string | null;
+        is_admin: boolean;
+        balance: number;
+        type: string | null;
+        status: string | null;
+        last_seen: string | null;
+        seconds_ago: number | null;
+      }[];
+      count: number;
+      window_minutes: number;
+      generated_at: string;
+    }>(`/api/admin/online${qs}`);
+  },
+
 };
 
 // ─── Shared interfaces ────────────────────────────────────────────────────────

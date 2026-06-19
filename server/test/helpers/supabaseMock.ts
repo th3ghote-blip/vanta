@@ -24,6 +24,9 @@ export interface DbAccount {
   margin_used: number;
   leverage: number;
   hedging_enabled?: boolean;
+  last_seen?: string;
+  type?: string;
+  status?: string;
 }
 export interface DbTrade {
   id: number;
@@ -64,6 +67,7 @@ export interface DbRound {
 export interface DbProfile {
   id: string;
   created_at?: string;
+  display_name?: string | null;
   last_login_date?: string;
   login_streak?: number;
   copy_leader_enabled?: boolean;
@@ -167,6 +171,9 @@ export const seed = {
       margin_used: overrides.margin_used ?? 0,
       leverage: overrides.leverage ?? 100,
       hedging_enabled: overrides.hedging_enabled ?? false,
+      last_seen: overrides.last_seen,
+      type: overrides.type,
+      status: overrides.status,
     };
     tables.accounts.push(a);
     return a;
@@ -175,6 +182,7 @@ export const seed = {
     const p: DbProfile = {
       id: overrides.id ?? 'user-1',
       created_at: overrides.created_at,
+      display_name: overrides.display_name ?? null,
       last_login_date: overrides.last_login_date,
       login_streak: overrides.login_streak ?? 0,
       copy_leader_enabled: overrides.copy_leader_enabled ?? false,
