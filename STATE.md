@@ -1,5 +1,37 @@
 # STATE -- handoff notes for the next agent
 
+## ⏸️ 2026-06-20 (auto) — NO ITEM PICKED. Offline-completable queue is DRAINED.
+Working tree was byte-for-byte identical to HEAD at start (`diff` confirmed; the git `status`/`diff --cached`
+"uncommitted changes" are purely the STALE-INDEX artifact from the stuck `.git/index.lock` dated 2026-06-18 —
+the staged diff *reverts* 22.1 and the unstaged diff *re-adds* it; they cancel). 22.1 is genuinely committed
+(`c8b3d71`) and pushed; branch up to date with origin/main. So this was NOT a user-mid-edit STOP — safe to run.
+
+**Triaged every unchecked `- [ ]` in TODO.md. None is offline-completable this run:**
+- **R.7** (topmost, Better-Stack uptime) — externally gated: needs a betterstack.com signup + a live URL + live takedown to verify. Added a `>` SKIPPED note under it this run.
+- **5.3 / 8.1 / 9.3 / 9.4 / 10.1–10.6 / 20.2** — PARKED (externally gated: Sumsub sales call, OANDA setup, Apple/Google dev accounts, domain purchase, Resend email). Resume only on explicit user say-so.
+- **18.2** (chart drawing) / **18.7** (AI assistant) / **21.1** (admin route audit) / **21.7** (KYC e2e) — BLOCKED for offline: each needs network (Claude API / live Railway+Supabase) and/or visual confirmation. Each carries its `>` note.
+- **18.3** (light/dark mode) — large ~58-component mechanical refactor whose acceptance is VISUAL ("a missed token = broken render"); unsafe without a screenshot/preview run. Split plan 18.3a–g already in the file.
+- **18.8** (MT4 manager panel) — oversized (~8 pages + ~10 routes); needs splitting into sub-items first.
+- **21.11** (non-withdrawable credit bucket) — marked "(optional) … only build if a credit/bonus concept is wanted": a PRODUCT/financial decision for the owner, not an autonomous pick.
+- **21.12** (per-account stop-out level) — explicitly "(Depends on 21.14.)"; dependency unmet → skip per the operating manual.
+- **21.14** (account groups) — large, design-first mini-phase; partly network/visual. Needs scoping before an auto-run.
+
+**This run shipped (docs/handoff only — NO code, NO migration, NO deploy):** a `>` SKIPPED note under R.7 in
+TODO.md + this STATE entry. Committed via the GIT_INDEX_FILE workaround (the `.git/index.lock` is still stuck).
+
+**⚠️ ACTION FOR THE USER:** the clean offline auto-run queue is now exhausted. To unblock further auto progress,
+ONE of these is needed: (a) an **interactive/network-enabled run** (lets 18.2, 18.7, 21.1, 21.7, and the 18.3
+visual refactor proceed, AND lets us finally apply **migration 031**); (b) a **product decision** on 21.11 (do we
+want a credit/bonus bucket?); (c) **scoping** 21.14 (account groups) into sub-items; or (d) unparking an external
+item (domain, mobile builds, etc.). Until then, auto-runs have no safe offline work to pick.
+
+**CARRIED-OVER PENDING (unchanged):** migration **031** (`031_account_last_seen.sql`) still NOT applied — the
+sandbox can't reach the Supabase Management API (egress github-only). Apply on the next network run:
+`SUPABASE_PAT=... python scripts/apply-migration.py supabase/migrations/031_account_last_seen.sql`. Until then
+`/api/admin/online` 500s on live and `last_seen` writes are swallowed no-ops. Also the usual `.git/index.lock`
+(0-byte, 2026-06-18) is still STUCK — use the `GIT_INDEX_FILE=/tmp/<idx> git read-tree HEAD && … add && … commit`
+workaround; the `Edit` file-tool can TRUNCATE files through the sync layer, so prefer Write/python + verify `wc -l`.
+
 ## ✅ 2026-06-20 (auto) — 22.1 DONE (expanded achievements catalogue). Pushed to main.
 Working tree was clean at start (after clearing a STALE `.git/index.lock` dated 2026-06-18 that the
 sandbox could NOT `rm` — sync-layer owned; used the precheck's `GIT_INDEX_FILE` workaround to commit).
@@ -152,7 +184,3 @@ migration) is the topmost remaining fully-offline-completable item. **21.16** (o
 21.11 (credit bucket) needs a product decision; 21.12 depends on 21.14; 21.14 (account groups) is a
 large design-first item. 21.1 (admin audit) and 21.7 (KYC e2e) stay blocked until a network-enabled
 interactive run.
-
-## ✅ 2026-06-19 (auto) — 21.10 DONE (global closed-trades blotter). Pushed to main.
-Working tree was clean at start (only the prior STATE.md handoff — diff showed binary because the
-committed HEAD copy is stale; the working copy is the latest handoff, which prior runs t

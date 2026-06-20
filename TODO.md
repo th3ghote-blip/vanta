@@ -158,6 +158,7 @@ The agent's deploy gap (commits land but Railway/Vercel aren't shipped without m
 
 ## R.7 Better-Stack uptime monitoring
 - [ ] **What:** Sign up free tier (https://betterstack.com/sign-up), point at `/health` + `/api/quotes` every 3 min. Alert via email + (optional) Slack on downtime.
+> SKIPPED — externally gated (2026-06-20 auto): requires creating a Better-Stack account at betterstack.com (signup + dashboard config) plus a reachable live URL to point monitors at, and the acceptance ("take Railway down → email arrives") is live/external. The auto-run sandbox egress is github-only and must not create third-party accounts. Resume when the user sets up the Better-Stack account (or do it together in an interactive session).
 - **Acceptance:** Take Railway down → email arrives within 5 min.
 
 ## R.8 E2E smoke test in CI
