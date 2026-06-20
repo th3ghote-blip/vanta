@@ -1,74 +1,41 @@
 # STATE -- handoff notes for the next agent
 
-## ⏸️ 2026-06-20 (auto, run 2) — NO ITEM PICKED. Offline queue still DRAINED (unchanged since c6ce3ae).
-HEAD = `c6ce3ae`, branch up to date with origin/main. Working tree verified byte-for-byte identical to HEAD
-(`diff` of every file git-status flagged → all MATCH; the status/`diff --cached` "uncommitted changes" are the
-SAME stale-index artifact from the stuck 0-byte `.git/index.lock` dated 2026-06-18 — NOT a user mid-edit, safe to run).
+## ⏸️ 2026-06-20 (auto, run 3) — NO ITEM PICKED. Offline queue still DRAINED (3rd consecutive no-op).
+HEAD local = `c6ce3ae` (TRAILS origin/main by 2 — origin = `fc2daae`); prior runs pushed STATE-only commits by sha
+because BOTH `.git/index.lock` (0B, 2026-06-18) and `.git/refs/heads/main.lock` (41B, 2026-06-20) are STILL stuck and
+un-removable, so local `refs/heads/main` cannot be advanced. **Verified safe to run:** built a fresh temp index off
+origin/main and diffed — the working tree is byte-for-byte identical to origin/main (the git-status "uncommitted
+changes" are purely the stale-index artifact, NOT a user mid-edit). Next run: `git fetch` and treat origin as truth.
 
-**Re-triaged every unchecked non-PARKED `- [ ]`. Still none offline-completable; nothing changed since last run:**
-- **R.7** (Better-Stack uptime) — externally gated (betterstack.com signup + live URL + live takedown to verify).
-- **18.2** (chart drawing) — visual + persistence + `chart_drawings` round-trip; needs screenshot run.
-- **18.3** (light/dark refactor) — ~58-component mechanical refactor, acceptance is VISUAL; needs preview. Split 18.3a–g already in file.
-- **18.7** (AI assistant) — needs Claude API key + live DB to verify streamed answers; large chat UI.
-- **18.8** (MT4 manager panel) — oversized (~8 pages + ~10 routes); needs splitting into sub-items first.
-- **21.1** (admin route audit) — acceptance = live 200 on every `/api/admin/*`; needs network (Railway/Supabase).
-- **21.7** (KYC e2e) — live/visual verification.
-- **21.11** (credit bucket) — "(optional)"; a PRODUCT/financial decision for the owner, not an autonomous pick.
-- **21.12** (per-account stop-out) — "(Depends on 21.14.)"; dependency unmet → skip.
-- **21.14** (account groups) — large design-first mini-phase; partly network/visual. Needs scoping first.
+**Re-triaged every unchecked non-PARKED `- [ ]` independently this run (not inherited). None offline-completable:**
+- **R.7** (topmost) — externally gated (Better-Stack signup + live URL + live takedown to verify). Already has its `>` note.
+- **18.2** chart drawing / **18.3** light-dark (~58-component VISUAL refactor) / **18.7** AI assistant (needs Claude API + live DB)
+  / **18.8** manager panel (oversized — needs splitting first) — each blocked for an offline/no-screenshot run; each carries its `>` note.
+- **21.1** admin audit (acceptance = live 200 on every `/api/admin/*`) / **21.7** KYC e2e (live + visual) — network/visual gated.
+- **21.11** credit bucket — "(optional)" PRODUCT decision for the owner. **21.12** — "(Depends on 21.14.)" dependency unmet → skip.
+- **21.14** account groups — explicitly "Large — design & scope as its own mini-phase first"; not an autonomous pick.
 - **PARKED** (5.3 / 8.1 / 9.3 / 9.4 / 10.1–10.6 / 20.2) — externally gated; resume only on explicit user say-so.
+- NB for the next agent: 21.8–21.10, 21.13, 21.15, 21.16 and 22.1 are all DONE — their `- [ ] **Files:**` sub-bullets are a
+  formatting quirk sitting under a `- [x] Done` first line, NOT open items. Phase 22 currently has only 22.1 (done); no
+  22.2/22.3 checkboxes exist in the file yet (the Phase-22 intro mentions a future market-news feed but it isn't written as items).
 
-**Network empirically re-confirmed this run** (not inherited): `git ls-remote origin` OK (github reachable, push works);
-`curl https://api.supabase.com` → 000 UNREACHABLE; `curl …railway.app/health` → 000 UNREACHABLE. So the egress is
-github-only as the deploy-model note says — the manual's "apply-migration.py IS reachable" line is WRONG for this sandbox.
+**Network empirically re-confirmed this run** (not inherited): `git ls-remote origin` OK; `curl https://api.supabase.com`
+→ 000 UNREACHABLE. Egress is github-only — the TODO header's "apply-migration.py IS reachable" line is WRONG for this sandbox.
 
 **This run shipped:** docs/handoff only — NO code, NO migration, NO deploy. Just this STATE entry (committed via the
-GIT_INDEX_FILE workaround; `.git/index.lock` is still stuck). TODO.md unchanged (every blocked item already carries its `>` note).
+`GIT_INDEX_FILE` + `commit-tree` + push-by-sha workaround; both locks still stuck). TODO.md unchanged — every blocked item already carries its `>` note.
 
-**⚠️ ACTION FOR THE USER — auto-runs have no safe offline work left.** To unblock, ONE of: (a) an **interactive/
-network-enabled run** (unblocks 18.2, 18.7, 21.1, 21.7, the 18.3 visual refactor, AND lets us finally apply **migration
-031**); (b) a **product decision** on 21.11 (credit/bonus bucket?); (c) **scoping** 21.14 (account groups) or splitting
-18.8 into sub-items; or (d) unparking an external item (domain, mobile builds, Better-Stack). Until then, no auto pick exists.
+**⚠️ ACTION FOR THE USER — auto-runs have had no safe offline work for 3 runs straight.** To unblock, ONE of:
+(a) an **interactive / network-enabled run** (unblocks 18.2, 18.7, 21.1, 21.7, the 18.3 visual refactor, AND finally lets us
+apply **migration 031**); (b) a **product decision** on 21.11 (do we want a credit/bonus bucket?); (c) **scoping** 21.14
+(account groups) or **splitting** 18.8 into sub-items; or (d) unparking an external item (domain, mobile builds, Better-Stack).
 
-**CARRIED-OVER PENDING (unchanged):** migration **031** (`031_account_last_seen.sql`) still NOT applied — sandbox can't
-reach Supabase. Apply on the next network run: `SUPABASE_PAT=... python scripts/apply-migration.py supabase/migrations/031_account_last_seen.sql`.
-Until then `/api/admin/online` 500s on live and `last_seen` writes are swallowed no-ops. The 0-byte `.git/index.lock`
-(2026-06-18) is still STUCK — use `GIT_INDEX_FILE=/tmp/<idx> git read-tree HEAD && … add && … commit`; the `Edit`
-file-tool can TRUNCATE through the sync layer, so prefer Write/python + verify `wc -l`.
-
-**⚠️ NEW LOCK + COMMIT WORKAROUND (this run):** a SECOND stale lock `.git/refs/heads/main.lock` (41 bytes, 2026-06-20) is now ALSO stuck and un-removable — so BOTH `git commit` and `git update-ref` fail. Workaround that WORKED: build the commit with plumbing then push by sha — `GIT_INDEX_FILE=/tmp/i git read-tree HEAD && GIT_INDEX_FILE=/tmp/i git add <file> && TREE=$(GIT_INDEX_FILE=/tmp/i git write-tree) && C=$(git commit-tree $TREE -p HEAD -m '…') && git push origin $C:refs/heads/main`. NB: local `refs/heads/main` could NOT be advanced (still at c6ce3ae), so **local main now TRAILS origin/main by 1** (origin=41c5806). Next run: `git fetch` and treat origin as truth; the on-disk STATE.md/TODO.md ARE current. Object writes log a benign `unable to unlink tmp_obj` sync-layer warning but succeed.
-
-## ⏸️ 2026-06-20 (auto) — NO ITEM PICKED. Offline-completable queue is DRAINED.
-Working tree was byte-for-byte identical to HEAD at start (`diff` confirmed; the git `status`/`diff --cached`
-"uncommitted changes" are purely the STALE-INDEX artifact from the stuck `.git/index.lock` dated 2026-06-18 —
-the staged diff *reverts* 22.1 and the unstaged diff *re-adds* it; they cancel). 22.1 is genuinely committed
-(`c8b3d71`) and pushed; branch up to date with origin/main. So this was NOT a user-mid-edit STOP — safe to run.
-
-**Triaged every unchecked `- [ ]` in TODO.md. None is offline-completable this run:**
-- **R.7** (topmost, Better-Stack uptime) — externally gated: needs a betterstack.com signup + a live URL + live takedown to verify. Added a `>` SKIPPED note under it this run.
-- **5.3 / 8.1 / 9.3 / 9.4 / 10.1–10.6 / 20.2** — PARKED (externally gated: Sumsub sales call, OANDA setup, Apple/Google dev accounts, domain purchase, Resend email). Resume only on explicit user say-so.
-- **18.2** (chart drawing) / **18.7** (AI assistant) / **21.1** (admin route audit) / **21.7** (KYC e2e) — BLOCKED for offline: each needs network (Claude API / live Railway+Supabase) and/or visual confirmation. Each carries its `>` note.
-- **18.3** (light/dark mode) — large ~58-component mechanical refactor whose acceptance is VISUAL ("a missed token = broken render"); unsafe without a screenshot/preview run. Split plan 18.3a–g already in the file.
-- **18.8** (MT4 manager panel) — oversized (~8 pages + ~10 routes); needs splitting into sub-items first.
-- **21.11** (non-withdrawable credit bucket) — marked "(optional) … only build if a credit/bonus concept is wanted": a PRODUCT/financial decision for the owner, not an autonomous pick.
-- **21.12** (per-account stop-out level) — explicitly "(Depends on 21.14.)"; dependency unmet → skip per the operating manual.
-- **21.14** (account groups) — large, design-first mini-phase; partly network/visual. Needs scoping before an auto-run.
-
-**This run shipped (docs/handoff only — NO code, NO migration, NO deploy):** a `>` SKIPPED note under R.7 in
-TODO.md + this STATE entry. Committed via the GIT_INDEX_FILE workaround (the `.git/index.lock` is still stuck).
-
-**⚠️ ACTION FOR THE USER:** the clean offline auto-run queue is now exhausted. To unblock further auto progress,
-ONE of these is needed: (a) an **interactive/network-enabled run** (lets 18.2, 18.7, 21.1, 21.7, and the 18.3
-visual refactor proceed, AND lets us finally apply **migration 031**); (b) a **product decision** on 21.11 (do we
-want a credit/bonus bucket?); (c) **scoping** 21.14 (account groups) into sub-items; or (d) unparking an external
-item (domain, mobile builds, etc.). Until then, auto-runs have no safe offline work to pick.
-
-**CARRIED-OVER PENDING (unchanged):** migration **031** (`031_account_last_seen.sql`) still NOT applied — the
-sandbox can't reach the Supabase Management API (egress github-only). Apply on the next network run:
+**CARRIED-OVER PENDING (unchanged):** migration **031** (`031_account_last_seen.sql`) still NOT applied — the sandbox
+can't reach the Supabase Management API. Apply on the next network run:
 `SUPABASE_PAT=... python scripts/apply-migration.py supabase/migrations/031_account_last_seen.sql`. Until then
-`/api/admin/online` 500s on live and `last_seen` writes are swallowed no-ops. Also the usual `.git/index.lock`
-(0-byte, 2026-06-18) is still STUCK — use the `GIT_INDEX_FILE=/tmp/<idx> git read-tree HEAD && … add && … commit`
-workaround; the `Edit` file-tool can TRUNCATE files through the sync layer, so prefer Write/python + verify `wc -l`.
+`/api/admin/online` 500s on live and `last_seen` writes are swallowed no-ops. Both git locks remain stuck — commit via
+`GIT_INDEX_FILE=/tmp/i git read-tree origin/main && … add <file> && TREE=$(… write-tree) && C=$(git commit-tree $TREE -p origin/main -m '…') && git push origin $C:refs/heads/main`.
+The `Edit` file-tool can TRUNCATE files through the sync layer — prefer Write/python and verify `wc -l` before trusting a write.
 
 ## ✅ 2026-06-20 (auto) — 22.1 DONE (expanded achievements catalogue). Pushed to main.
 Working tree was clean at start (after clearing a STALE `.git/index.lock` dated 2026-06-18 that the
@@ -111,12 +78,6 @@ grow to $11k, build robots, 3-day login streak) and confirm they render on the p
 (Carried over: **migration 031 still NOT applied** — apply on the next network-enabled run:
 `SUPABASE_PAT=... python scripts/apply-migration.py supabase/migrations/031_account_last_seen.sql`.)
 
-### Next pick: offline-completable Phase 21/22 work is now thin. **22.2/22.3** (market-news feed) need a news-source
-decision + likely network. **21.11** (credit bucket) needs a product decision; **21.12** depends on 21.14; **21.14**
-(account groups) is a large design-first mini-phase. **21.1** (admin audit) and **21.7** (KYC e2e) stay BLOCKED until a
-network-enabled/visual interactive run. Recommend the next run flag to the user that the clean offline queue is
-essentially drained and the remaining items need a decision, design, or live/network access.
-
 ## ✅ 2026-06-19 (auto) — 21.16 DONE (operator broadcast / notify). Pushed to main.
 Working tree was clean at start (only the STATE.md/TODO.md handoff). 21.16 was the topmost
 offline unit-testable item, as the prior run queued. 21.11 (credit bucket) needs a product decision;
@@ -141,15 +102,6 @@ offline unit-testable item, as the prior run queued. 21.11 (credit bucket) needs
 
 **PENDING LIVE VERIFY (next interactive session):** a composed message appears in the target client's
 in-app notifications; "all clients" reaches every account; push arrives on devices with a token.
-(Carried over: **migration 031 still NOT applied** — apply on the next network-enabled run, see the
-21.13 entry below.)
-
-### Next pick: **21.11** (credit bucket) needs a product decision; **21.12** depends on 21.14; **21.14**
-(account groups) is a large design-first item — none are clean offline auto-picks. The remaining
-offline-completable Phase 21 work is **exhausted** except items needing a product decision or design.
-**21.1** (admin audit) and **21.7** (KYC e2e) stay blocked until a network-enabled/visual interactive
-run. Consider Phase 22 (gamification): **22.1** (expanded achievements catalogue) is offline-completable
-backend+UI; 22.2/22.3 need a news source decision + likely network. Recommend 22.1 next.
 
 ## ✅ 2026-06-19 (auto) — 21.15 DONE (analytics CSV export). Pushed to main.
 Working tree was clean at start (only the STATE.md/TODO.md handoff). 21.15 was the topmost
@@ -177,10 +129,5 @@ BLOCKED for offline runs. So 21.15 was picked, as the prior run queued.
 
 **PENDING LIVE VERIFY (next interactive session):** on live, each analytics view's "Export CSV" button
 downloads a file whose rows match the on-screen table. (NB carried over from 21.13: **migration 031
-still NOT applied** — apply on the next network-enabled run, see entry below.)
-
-### Next pick: **21.16** (operator broadcast — `POST /api/admin/notify`, reuse `notifications` table +
-`lib/push.ts`) is the topmost remaining fully-offline unit-testable item. 21.11 (credit bucket) needs a
-product decision; 21.12 depends on 21.14; 21.14 (account groups) is a large design-first item; 21.1
-(admin audit) and 21.7 (KYC e2e) stay blocked until a network-enabled/visual interactive run.
-
+still NOT applied** — apply on the next network-enabled run.)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
