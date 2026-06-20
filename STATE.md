@@ -1,5 +1,44 @@
 # STATE -- handoff notes for the next agent
 
+## ⏸️ 2026-06-21 (auto, run 4) — NO ITEM PICKED. Offline queue still DRAINED (4th consecutive no-op).
+origin/main = `bf89ccb` (treated as truth; local `refs/heads/main` = `c6ce3ae`, behind by 3 — cannot fast-forward
+because BOTH `.git/index.lock` and `.git/refs/heads/main.lock` (plus a `.git/HEAD.lock`) are STILL stuck
+("Operation not permitted" — sync-layer owned, `rm` fails). **Verified safe to run:** built a fresh temp index off
+origin/main (`GIT_INDEX_FILE=/tmp/vidx git read-tree origin/main`) and diffed — the working tree is byte-for-byte
+identical to origin/main. The git-status "uncommitted changes" are purely the stale-index artifact (the already-pushed
+22.1 work sitting in the dead local index), NOT a user mid-edit.
+
+**Network empirically re-confirmed this run** (curl, not inherited): `github.com` 200; `api.supabase.com`,
+`vanta-server-production.up.railway.app/health`, `vanta-jade.vercel.app` all **000 UNREACHABLE**. Egress is
+github-only — the TODO header's "apply-migration.py IS reachable" line is WRONG for this sandbox. So no migration
+can be applied and no live/visual acceptance can be verified offline.
+
+**Re-triaged every unchecked non-PARKED `- [ ]` independently this run. None offline-completable:**
+- **R.7** Better-Stack — needs a third-party account signup + a reachable live URL + a live takedown to verify. Has its `>` note.
+- **18.2** chart drawing (interactive+persistence+visual) / **18.3** light-dark (~58-component VISUAL refactor; a missed token = broken render)
+  / **18.7** AI assistant (Claude API + live DB) / **18.8** manager panel (oversized — split into 18.8a… first). Each carries its `>` note.
+- **21.1** admin audit (acceptance = live 200 on every `/api/admin/*`) / **21.7** KYC e2e (live upload + signed-URL image preview). Network/visual gated.
+- **21.11** credit bucket — "(optional)" PRODUCT decision for the owner (build a non-withdrawable bonus bucket or not?). **21.12** — depends on 21.14 → skip.
+- **21.14** account groups — explicitly "Large — design & scope as its own mini-phase first"; not an autonomous pick.
+- **PARKED** (5.3 / 8.1 / 9.3 / 9.4 / 10.1–10.6 / 20.2) — externally gated; resume only on explicit user say-so.
+- Phase 22 has only 22.1 (done); no 22.2/22.3 checkboxes exist in the file yet.
+
+**This run shipped:** docs/handoff only — NO code, NO migration, NO deploy. Just this STATE entry (committed via the
+`GIT_INDEX_FILE` + `commit-tree` + push-by-sha workaround onto origin/main; all three git locks still stuck). TODO.md
+unchanged — every blocked item already carries its `>` skip note.
+
+**⚠️ ACTION FOR THE USER — auto-runs have had no safe offline work for 4 runs straight.** To unblock, ONE of:
+(a) an **interactive / network-enabled run** (unblocks 18.2, 18.7, 21.1, 21.7, the 18.3 visual refactor, AND finally lets us
+apply **migration 031**); (b) a **product decision** on 21.11 (do we want a credit/bonus bucket?); (c) **scoping** 21.14
+(account groups) or **splitting** 18.8 into sub-items; or (d) unparking an external item (domain, mobile builds, Better-Stack).
+
+**CARRIED-OVER PENDING (unchanged):** migration **031** (`031_account_last_seen.sql`) still NOT applied — sandbox can't
+reach the Supabase Management API. Apply on the next network run:
+`SUPABASE_PAT=... python scripts/apply-migration.py supabase/migrations/031_account_last_seen.sql`. Until then
+`/api/admin/online` 500s on live and `last_seen` writes are swallowed no-ops. Commit workaround while locks are stuck:
+`GIT_INDEX_FILE=/tmp/i git read-tree origin/main && … add <file> && TREE=$(… write-tree) && C=$(git commit-tree $TREE -p origin/main -m '…') && git push origin $C:refs/heads/main`.
+The `Edit` file-tool can TRUNCATE files through the sync layer — prefer Write/python and verify `wc -l` before trusting a write.
+
 ## ⏸️ 2026-06-20 (auto, run 3) — NO ITEM PICKED. Offline queue still DRAINED (3rd consecutive no-op).
 HEAD local = `c6ce3ae` (TRAILS origin/main by 2 — origin = `fc2daae`); prior runs pushed STATE-only commits by sha
 because BOTH `.git/index.lock` (0B, 2026-06-18) and `.git/refs/heads/main.lock` (41B, 2026-06-20) are STILL stuck and
@@ -102,32 +141,3 @@ offline unit-testable item, as the prior run queued. 21.11 (credit bucket) needs
 
 **PENDING LIVE VERIFY (next interactive session):** a composed message appears in the target client's
 in-app notifications; "all clients" reaches every account; push arrives on devices with a token.
-
-## ✅ 2026-06-19 (auto) — 21.15 DONE (analytics CSV export). Pushed to main.
-Working tree was clean at start (only the STATE.md/TODO.md handoff). 21.15 was the topmost
-offline-completable item: 21.11 (credit bucket) needs a product decision; 21.12 depends on 21.14;
-21.14 (account groups) is a large design-first item; 21.1 (admin audit) and 21.7 (KYC e2e) stay
-BLOCKED for offline runs. So 21.15 was picked, as the prior run queued.
-
-**What shipped (commit on main, CI deploys both):**
-- `server/src/lib/csv.ts` (NEW): dependency-free RFC-4180 serializer — `toCsv(columns, rows)`,
-  `csvCell` (quotes on `, " CR LF`, null/NaN→empty, CRLF lines), `csvFilename(base)` →
-  `vanta-<base>-<YYYY-MM-DD>.csv` (sanitized).
-- `server/src/routes/admin.ts`: the three analytics endpoints now accept `?format=csv`. The CSV path
-  serializes the SAME computed payload the JSON path returns (so rows reconcile with on-screen data),
-  returns `text/csv; charset=utf-8` + `Content-Disposition: attachment`. Module-scope helpers
-  `wantsCsv`/`sendCsv` + column defs `BY_SYMBOL_COLUMNS` (15), `OVERVIEW_COLUMNS` (7), `ACCOUNTS_COLUMNS`
-  (16). by-symbol exports `symbols`; overview exports daily `series`; accounts exports the page slice
-  `limited` (matches what the screen shows).
-- `lib/api.ts`: `requestCsv(path)` (auth-injected fetch → `{filename,text}`) + `adminAnalyticsBySymbolCsv`
-  / `adminAnalyticsOverviewCsv` / `adminAnalyticsAccountsCsv`.
-- `app/admin/analytics.tsx`: web-only `ExportCsvButton` (Download icon, Blob download) on each of the
-  three views; renders null on native.
-- Tests: `server/test/csv.test.ts` (6) + `server/test/adminAnalyticsExport.test.ts` (5, cell-for-cell
-  JSON↔CSV reconciliation + headers + dated filename). Verified offline: client tsc clean, server tsc
-  clean, `npm test` **234 passing** (was 223). No migration.
-
-**PENDING LIVE VERIFY (next interactive session):** on live, each analytics view's "Export CSV" button
-downloads a file whose rows match the on-screen table. (NB carried over from 21.13: **migration 031
-still NOT applied** — apply on the next network-enabled run.)
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
