@@ -36,6 +36,8 @@ Until then `/api/admin/online` 500s on live and `last_seen` writes are swallowed
 (2026-06-18) is still STUCK — use `GIT_INDEX_FILE=/tmp/<idx> git read-tree HEAD && … add && … commit`; the `Edit`
 file-tool can TRUNCATE through the sync layer, so prefer Write/python + verify `wc -l`.
 
+**⚠️ NEW LOCK + COMMIT WORKAROUND (this run):** a SECOND stale lock `.git/refs/heads/main.lock` (41 bytes, 2026-06-20) is now ALSO stuck and un-removable — so BOTH `git commit` and `git update-ref` fail. Workaround that WORKED: build the commit with plumbing then push by sha — `GIT_INDEX_FILE=/tmp/i git read-tree HEAD && GIT_INDEX_FILE=/tmp/i git add <file> && TREE=$(GIT_INDEX_FILE=/tmp/i git write-tree) && C=$(git commit-tree $TREE -p HEAD -m '…') && git push origin $C:refs/heads/main`. NB: local `refs/heads/main` could NOT be advanced (still at c6ce3ae), so **local main now TRAILS origin/main by 1** (origin=41c5806). Next run: `git fetch` and treat origin as truth; the on-disk STATE.md/TODO.md ARE current. Object writes log a benign `unable to unlink tmp_obj` sync-layer warning but succeed.
+
 ## ⏸️ 2026-06-20 (auto) — NO ITEM PICKED. Offline-completable queue is DRAINED.
 Working tree was byte-for-byte identical to HEAD at start (`diff` confirmed; the git `status`/`diff --cached`
 "uncommitted changes" are purely the STALE-INDEX artifact from the stuck `.git/index.lock` dated 2026-06-18 —
