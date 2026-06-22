@@ -95,6 +95,7 @@ interface Tables {
   robot_runs: any[];
   notifications: any[];
   transactions: any[];
+  price_alerts: any[];
 }
 
 let users: DbUser[] = [];
@@ -110,6 +111,7 @@ let tables: Tables = {
   robot_runs: [],
   notifications: [],
   transactions: [],
+  price_alerts: [],
 };
 let tradeIdCounter = 1;
 let roundIdCounter = 1;
@@ -129,6 +131,7 @@ export function resetDb() {
     robot_runs: [],
   notifications: [],
     transactions: [],
+    price_alerts: [],
   };
   tradeIdCounter = 1;
   roundIdCounter = 1;
@@ -268,6 +271,19 @@ export const seed = {
     };
     tables.robot_runs.push(r);
     return r;
+  },
+  priceAlert(overrides: { id?: string; user_id?: string; symbol?: string; threshold?: number; direction?: string; triggered_at?: string | null; created_at?: string } = {}): any {
+    const a = {
+      id: overrides.id ?? `alert-${tables.price_alerts.length + 1}`,
+      user_id: overrides.user_id ?? 'user-1',
+      symbol: overrides.symbol ?? 'BTCUSD',
+      threshold: overrides.threshold ?? 50000,
+      direction: overrides.direction ?? 'above',
+      triggered_at: overrides.triggered_at ?? null,
+      created_at: overrides.created_at ?? new Date().toISOString(),
+    };
+    tables.price_alerts.push(a);
+    return a;
   },
 };
 

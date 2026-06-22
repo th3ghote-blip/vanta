@@ -708,6 +708,61 @@ export const api = {
     }>(`/api/admin/robot-runs${query ? `?${query}` : ''}`);
   },
 
+  adminGetAlerts: (params: {
+    status?: 'active' | 'triggered';
+    symbol?: string;
+    direction?: 'above' | 'below';
+    account?: string | number;
+    user?: string;
+    from?: string;
+    to?: string;
+    dir?: 'asc' | 'desc';
+    limit?: number;
+    offset?: number;
+  } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.status) qs.set('status', params.status);
+    if (params.symbol) qs.set('symbol', params.symbol);
+    if (params.direction) qs.set('direction', params.direction);
+    if (params.account != null && `${params.account}` !== '') qs.set('account', `${params.account}`);
+    if (params.user) qs.set('user', params.user);
+    if (params.from) qs.set('from', params.from);
+    if (params.to) qs.set('to', params.to);
+    if (params.dir) qs.set('dir', params.dir);
+    if (params.limit != null) qs.set('limit', String(params.limit));
+    if (params.offset != null) qs.set('offset', String(params.offset));
+    const query = qs.toString();
+    return request<{
+      alerts: {
+        id: string;
+        user_id: string;
+        login: number | null;
+        display_name: string | null;
+        symbol: string | null;
+        threshold: number | null;
+        direction: 'above' | 'below' | string | null;
+        status: 'active' | 'triggered';
+        triggered_at: string | null;
+        created_at: string | null;
+      }[];
+      count: number;
+      limit: number;
+      offset: number;
+      filters: {
+        status: string | null;
+        symbol: string | null;
+        direction: string | null;
+        account: string | null;
+        user: string | null;
+        from: string | null;
+        to: string | null;
+      };
+      dir: 'asc' | 'desc';
+      totals: { count: number; active: number; triggered: number; by_direction: Record<string, number> };
+      generated_at: string;
+    }>(`/api/admin/alerts${query ? `?${query}` : ''}`);
+  },
+
   adminGetOnline: (minutes?: number) => {
     const qs = minutes != null ? `?minutes=${minutes}` : '';
     return request<{

@@ -2324,4 +2324,192 @@ export async function adminRoutes(app: FastifyInstance) {
     return reply.send({ ok: true, audience, recipients: userIds.length });
   });
 
+
+  /**
+   * 18.8c — GET /api/admin/alerts
+   * Operator price-alerts log (the "Price Alerts" page of the MT4-style manager
+   * panel). Lists `price_alerts` rows stitched to the owning user's account
+   * login + profile display_name. price_alerts.user_id IS the auth user id, so
+   * login comes from accounts(user_id) (first account wins) and display_name
+   * from profiles(id). An alert is "active" while `triggered_at` is null and
+   * "triggered" once it has fired.
+   * Query params (all optional):
+   *   status     active|triggered                     (else both)
+   *   symbol     exact symbol match
+   *   direction  above|below
+   *   account    login NUMBER (resolved to its user_id) — filters that user's alerts
+   *   user       raw user_id (auth uid) — alternative to account
+   *   from, to   ISO datetime bounds on created_at (gte / lte)
+   *   dir        asc|desc on created_at                (default desc)
+   *   limit      page size 1..500                      (default 100)
+   *   offset     page offset >= 0                      (default 0)
+   * `totals` (count + active/triggered split + per-direction breakdown) is
+   * computed over the FULL filtered set so it reconciles against raw
+   * `price_alerts`; `alerts` is the sorted page slice. Admin-only.
+   */
+  app.get('/alerts', async (req, reply) => {
+    const adminId = await authAdmin(req.headers.authorization);
+    if (!adminId) return reply.code(403).send({ error: 'forbidden' });
+
+    const q = (req.query ?? {}) as {
+      status?: string; symbol?: string; direction?: string; account?: string;
+      user?: string; from?: string; to?: string; dir?: string; limit?: string; offset?: string;
+    };
+
+    const statusParam =
+      q.status === 'active' || q.status === 'triggered' ? q.status : null;
+    const symbol = q.symbol && q.symbol.trim() ? q.symbol.trim() : null;
+    const direction =
+      q.direction === 'above' || q.direction === 'below' ? q.direction : null;
+    const accountParam = q.account && q.account.trim() ? q.account.trim() : null;
+    const userParam = q.user && q.user.trim() ? q.user.trim() : null;
+    const from = q.from && q.from.trim() ? q.from.trim() : null;
+    const to = q.to && q.to.trim() ? q.to.trim() : null;
+    const dir = q.dir === 'asc' ? 'asc' : 'desc';
+
+    const reqLimit = Number(q.limit);
+    const limitN = Number.isFinite(reqLimit) ? Math.min(Math.max(Math.trunc(reqLimit), 1), 500) : 100;
+    const reqOffset = Number(q.offset);
+    const offsetN = Number.isFinite(reqOffset) && reqOffset > 0 ? Math.trunc(reqOffset) : 0;
+
+    const emptyResponse = () =>
+      reply.send({
+        alerts: [],
+        count: 0,
+        limit: limitN,
+        offset: offsetN,
+        filters: { status: statusParam, symbol, direction, account: accountParam, user: userParam, from, to },
+        dir,
+        totals: { count: 0, active: 0, triggered: 0, by_direction: {} as Record<string, number> },
+        generated_at: new Date().toISOString(),
+      });
+
+    // Resolve an optional account-login filter to its user_id. A numeric value
+    // is a login resolved against accounts; a non-numeric value is treated as a
+    // raw user_id. An explicit `user` param takes precedence.
+    let userIdFilter: string | null = userParam;
+    if (!userIdFilter && accountParam) {
+      const loginNum = Number(accountParam);
+      if (Number.isFinite(loginNum) && /^[0-9]+$/.test(accountParam)) {
+        const { data: accRow } = await supabaseAdmin
+          .from('accounts')
+          .select('user_id')
+          .eq('login', loginNum)
+          .maybeSingle();
+        if (!accRow) return emptyResponse(); // unknown login -> empty, not an error
+        userIdFilter = (accRow as any).user_id ?? null;
+        if (!userIdFilter) return emptyResponse();
+      } else {
+        userIdFilter = accountParam;
+      }
+    }
+
+    interface RawAlert {
+      id: string;
+      user_id: string;
+      symbol: string | null;
+      threshold: number | string | null;
+      direction: string | null;
+      triggered_at: string | null;
+      created_at: string | null;
+    }
+
+    let alertQuery = supabaseAdmin
+      .from('price_alerts')
+      .select('id, user_id, symbol, threshold, direction, triggered_at, created_at');
+    if (symbol) alertQuery = alertQuery.eq('symbol', symbol);
+    if (direction) alertQuery = alertQuery.eq('direction', direction);
+    if (userIdFilter) alertQuery = alertQuery.eq('user_id', userIdFilter);
+    if (from) alertQuery = alertQuery.gte('created_at', from);
+    if (to) alertQuery = alertQuery.lte('created_at', to);
+
+    const { data: alertsUnsafe, error: alertsErr } = await alertQuery;
+    if (alertsErr) {
+      app.log.error({ err: alertsErr }, 'admin/alerts: query failed');
+      return reply.code(500).send({ error: 'query_failed' });
+    }
+    let raw = (alertsUnsafe ?? []) as unknown as RawAlert[];
+
+    // Status is a derived predicate over triggered_at — filter in-route.
+    if (statusParam === 'active') raw = raw.filter((a) => a.triggered_at == null);
+    if (statusParam === 'triggered') raw = raw.filter((a) => a.triggered_at != null);
+
+    // Stitch login (first account per user) + display_name (profiles by id).
+    const { data: accountsUnsafe, error: accErr } = await supabaseAdmin
+      .from('accounts')
+      .select('id, login, user_id');
+    if (accErr) {
+      app.log.error({ err: accErr }, 'admin/alerts: accounts query failed');
+      return reply.code(500).send({ error: 'query_failed' });
+    }
+    interface RawAcct { id: string; login: number | string | null; user_id: string }
+    const loginByUser = new Map<string, number | null>();
+    for (const a of (accountsUnsafe ?? []) as unknown as RawAcct[]) {
+      if (!loginByUser.has(a.user_id)) {
+        loginByUser.set(a.user_id, a.login != null ? Number(a.login) : null);
+      }
+    }
+
+    const { data: profilesUnsafe, error: profErr } = await supabaseAdmin
+      .from('profiles')
+      .select('id, display_name');
+    if (profErr) {
+      app.log.error({ err: profErr }, 'admin/alerts: profiles query failed');
+      return reply.code(500).send({ error: 'query_failed' });
+    }
+    const nameByUser = new Map<string, string | null>();
+    for (const p of (profilesUnsafe ?? []) as any[]) {
+      nameByUser.set(p.id, p.display_name ?? null);
+    }
+
+    const rows = raw.map((a) => ({
+      id: a.id,
+      user_id: a.user_id,
+      login: loginByUser.get(a.user_id) ?? null,
+      display_name: nameByUser.get(a.user_id) ?? null,
+      symbol: a.symbol ?? null,
+      threshold: a.threshold != null ? Number(a.threshold) : null,
+      direction: a.direction ?? null,
+      status: a.triggered_at == null ? 'active' : 'triggered',
+      triggered_at: a.triggered_at ?? null,
+      created_at: a.created_at ?? null,
+    }));
+
+    // Totals over the FULL filtered set (reconcile against raw price_alerts).
+    const byDirection: Record<string, number> = {};
+    let activeCount = 0;
+    let triggeredCount = 0;
+    for (const r of rows) {
+      const key = r.direction ?? 'unknown';
+      byDirection[key] = (byDirection[key] ?? 0) + 1;
+      if (r.status === 'active') activeCount += 1;
+      else triggeredCount += 1;
+    }
+
+    const cmpStr = (a: string | null, b: string | null): number => {
+      const av = a ?? '';
+      const bv = b ?? '';
+      return av < bv ? -1 : av > bv ? 1 : 0;
+    };
+    const mult = dir === 'asc' ? 1 : -1;
+    rows.sort((a, b) => {
+      const primary = cmpStr(a.created_at, b.created_at) * mult;
+      if (primary !== 0) return primary;
+      return cmpStr(a.id, b.id); // stable tiebreak by id asc
+    });
+
+    const page = rows.slice(offsetN, offsetN + limitN);
+
+    return reply.send({
+      alerts: page,
+      count: rows.length,
+      limit: limitN,
+      offset: offsetN,
+      filters: { status: statusParam, symbol, direction, account: accountParam, user: userParam, from, to },
+      dir,
+      totals: { count: rows.length, active: activeCount, triggered: triggeredCount, by_direction: byDirection },
+      generated_at: new Date().toISOString(),
+    });
+  });
+
 }
