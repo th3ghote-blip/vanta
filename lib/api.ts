@@ -653,6 +653,55 @@ export const api = {
     }>(`/api/admin/trades${query ? `?${query}` : ''}`);
   },
 
+  adminGetRobotRuns: (params: {
+    from?: string;
+    to?: string;
+    action?: 'open_trade' | 'close_trade' | 'tip' | 'noop' | string;
+    robot?: string;
+    account?: string | number;
+    dir?: 'asc' | 'desc';
+    limit?: number;
+    offset?: number;
+  } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.from) qs.set('from', params.from);
+    if (params.to) qs.set('to', params.to);
+    if (params.action) qs.set('action', params.action);
+    if (params.robot) qs.set('robot', params.robot);
+    if (params.account != null && `${params.account}` !== '') qs.set('account', `${params.account}`);
+    if (params.dir) qs.set('dir', params.dir);
+    if (params.limit != null) qs.set('limit', String(params.limit));
+    if (params.offset != null) qs.set('offset', String(params.offset));
+    const query = qs.toString();
+    return request<{
+      runs: {
+        id: number;
+        robot_id: string;
+        robot_name: string | null;
+        account_id: string | null;
+        login: number | null;
+        user_id: string | null;
+        triggered_at: string | null;
+        action: string | null;
+        trade_id: number | null;
+        notes: string | null;
+      }[];
+      count: number;
+      limit: number;
+      offset: number;
+      filters: {
+        from: string | null;
+        to: string | null;
+        action: string | null;
+        robot: string | null;
+        account: string | null;
+      };
+      dir: 'asc' | 'desc';
+      totals: { count: number; trades_opened: number; by_action: Record<string, number> };
+      generated_at: string;
+    }>(`/api/admin/robot-runs${query ? `?${query}` : ''}`);
+  },
+
   adminGetOnline: (minutes?: number) => {
     const qs = minutes != null ? `?minutes=${minutes}` : '';
     return request<{

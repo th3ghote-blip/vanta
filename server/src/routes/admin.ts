@@ -1980,6 +1980,182 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   /**
+   * 18.8a — GET /api/admin/robot-runs
+   * Operator robot-run log (the "Robot Runs" page of the MT4-style manager
+   * panel). Lists `robot_runs` rows stitched to their robot's name and the
+   * owning account's login/user_id. robot_runs -> robots(account_id) ->
+   * accounts(login) is a two-hop relation, so the join is stitched in-route
+   * (the same approach used wherever there's no direct FK to embed).
+   * Query params (all optional):
+   *   from, to   ISO datetime bounds on triggered_at (gte / lte)
+   *   action     exact run action  (open_trade|close_trade|tip|noop)
+   *   robot      exact robot_id (uuid)
+   *   account    login NUMBER (resolved to its account_id) or a raw account_id
+   *   dir        asc|desc on triggered_at                     (default desc)
+   *   limit      page size 1..500                             (default 100)
+   *   offset     page offset >= 0                             (default 0)
+   * `totals` (count + per-action breakdown + trades_opened) is computed over
+   * the FULL filtered set so it reconciles against raw `robot_runs`; `runs` is
+   * the sorted page slice. Admin-only.
+   */
+  app.get('/robot-runs', async (req, reply) => {
+    const adminId = await authAdmin(req.headers.authorization);
+    if (!adminId) return reply.code(403).send({ error: 'forbidden' });
+
+    const q = (req.query ?? {}) as {
+      from?: string; to?: string; action?: string; robot?: string;
+      account?: string; dir?: string; limit?: string; offset?: string;
+    };
+
+    const from = q.from && q.from.trim() ? q.from.trim() : null;
+    const to = q.to && q.to.trim() ? q.to.trim() : null;
+    const action = q.action && q.action.trim() ? q.action.trim() : null;
+    const robotId = q.robot && q.robot.trim() ? q.robot.trim() : null;
+    const accountParam = q.account && q.account.trim() ? q.account.trim() : null;
+    const dir = q.dir === 'asc' ? 'asc' : 'desc';
+
+    const reqLimit = Number(q.limit);
+    const limitN = Number.isFinite(reqLimit) ? Math.min(Math.max(Math.trunc(reqLimit), 1), 500) : 100;
+    const reqOffset = Number(q.offset);
+    const offsetN = Number.isFinite(reqOffset) && reqOffset > 0 ? Math.trunc(reqOffset) : 0;
+
+    const emptyResponse = () =>
+      reply.send({
+        runs: [],
+        count: 0,
+        limit: limitN,
+        offset: offsetN,
+        filters: { from, to, action, robot: robotId, account: accountParam },
+        dir,
+        totals: { count: 0, trades_opened: 0, by_action: {} as Record<string, number> },
+        generated_at: new Date().toISOString(),
+      });
+
+    // Resolve an optional account filter. A numeric value is a login resolved
+    // to its account_id; a non-numeric value is treated as a raw account_id.
+    let accountIdFilter: string | null = null;
+    if (accountParam) {
+      const loginNum = Number(accountParam);
+      if (Number.isFinite(loginNum) && /^[0-9]+$/.test(accountParam)) {
+        const { data: accRow } = await supabaseAdmin
+          .from('accounts')
+          .select('id')
+          .eq('login', loginNum)
+          .maybeSingle();
+        if (!accRow) return emptyResponse(); // unknown login -> empty, not an error
+        accountIdFilter = (accRow as any).id;
+      } else {
+        accountIdFilter = accountParam;
+      }
+    }
+
+    // Build the robot -> {name, account_id} map. Scope to the filtered account
+    // when present so we can both name the runs and restrict the run query.
+    interface RawRobot { id: string; name: string | null; account_id: string }
+    let robotQuery = supabaseAdmin.from('robots').select('id, name, account_id');
+    if (accountIdFilter) robotQuery = robotQuery.eq('account_id', accountIdFilter);
+    const { data: robotsUnsafe, error: robotsErr } = await robotQuery;
+    if (robotsErr) {
+      app.log.error({ err: robotsErr }, 'admin/robot-runs: robots query failed');
+      return reply.code(500).send({ error: 'query_failed' });
+    }
+    const robots = (robotsUnsafe ?? []) as unknown as RawRobot[];
+    const robotMap = new Map<string, RawRobot>();
+    for (const r of robots) robotMap.set(r.id, r);
+
+    // If an account filter is set and it owns no robots, there can be no runs.
+    if (accountIdFilter && robots.length === 0) return emptyResponse();
+
+    // Account map for login/user_id stitching.
+    const { data: accountsUnsafe, error: accErr } = await supabaseAdmin
+      .from('accounts')
+      .select('id, login, user_id');
+    if (accErr) {
+      app.log.error({ err: accErr }, 'admin/robot-runs: accounts query failed');
+      return reply.code(500).send({ error: 'query_failed' });
+    }
+    interface RawAcct { id: string; login: number | string | null; user_id: string }
+    const accountMap = new Map<string, RawAcct>();
+    for (const a of (accountsUnsafe ?? []) as unknown as RawAcct[]) accountMap.set(a.id, a);
+
+    interface RawRun {
+      id: number;
+      robot_id: string;
+      triggered_at: string | null;
+      action: string | null;
+      trade_id: number | null;
+      notes: string | null;
+    }
+
+    let runQuery = supabaseAdmin
+      .from('robot_runs')
+      .select('id, robot_id, triggered_at, action, trade_id, notes');
+    if (from) runQuery = runQuery.gte('triggered_at', from);
+    if (to) runQuery = runQuery.lte('triggered_at', to);
+    if (action) runQuery = runQuery.eq('action', action);
+    if (robotId) runQuery = runQuery.eq('robot_id', robotId);
+    if (accountIdFilter) runQuery = runQuery.in('robot_id', robots.map((r) => r.id));
+
+    const { data: runsUnsafe, error: runsErr } = await runQuery;
+    if (runsErr) {
+      app.log.error({ err: runsErr }, 'admin/robot-runs: query failed');
+      return reply.code(500).send({ error: 'query_failed' });
+    }
+    const raw = (runsUnsafe ?? []) as unknown as RawRun[];
+
+    const rows = raw.map((run) => {
+      const robot = robotMap.get(run.robot_id) ?? null;
+      const acc = robot ? accountMap.get(robot.account_id) ?? null : null;
+      return {
+        id: run.id,
+        robot_id: run.robot_id,
+        robot_name: robot?.name ?? null,
+        account_id: robot?.account_id ?? null,
+        login: acc?.login != null ? Number(acc.login) : null,
+        user_id: acc?.user_id ?? null,
+        triggered_at: run.triggered_at ?? null,
+        action: run.action ?? null,
+        trade_id: run.trade_id ?? null,
+        notes: run.notes ?? null,
+      };
+    });
+
+    // Totals over the FULL filtered set (reconcile against raw robot_runs).
+    const byAction: Record<string, number> = {};
+    let tradesOpened = 0;
+    for (const r of rows) {
+      const key = r.action ?? 'unknown';
+      byAction[key] = (byAction[key] ?? 0) + 1;
+      if (r.action === 'open_trade' && r.trade_id != null) tradesOpened += 1;
+    }
+
+    const cmpStr = (a: string | null, b: string | null): number => {
+      const av = a ?? '';
+      const bv = b ?? '';
+      return av < bv ? -1 : av > bv ? 1 : 0;
+    };
+    const mult = dir === 'asc' ? 1 : -1;
+    rows.sort((a, b) => {
+      const primary = cmpStr(a.triggered_at, b.triggered_at) * mult;
+      if (primary !== 0) return primary;
+      return b.id - a.id; // stable tiebreak by id desc
+    });
+
+    const page = rows.slice(offsetN, offsetN + limitN);
+
+    return reply.send({
+      runs: page,
+      count: rows.length,
+      limit: limitN,
+      offset: offsetN,
+      filters: { from, to, action, robot: robotId, account: accountParam },
+      dir,
+      totals: { count: rows.length, trades_opened: tradesOpened, by_action: byAction },
+      generated_at: new Date().toISOString(),
+    });
+  });
+
+  /**
    * GET /api/admin/online?minutes=N
    * 21.13 — Online-users monitor. Lists every account whose `last_seen` falls
    * within the last N minutes (default 5, clamped 1..1440). `last_seen` is

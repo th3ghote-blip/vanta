@@ -245,7 +245,32 @@ export const seed = {
     tables.copy_relationships.push(r);
     return r;
   },
+  robot(overrides: { id?: string; account_id?: string; name?: string; status?: string } = {}): any {
+    const r = {
+      id: overrides.id ?? `robot-${tables.robots.length + 1}`,
+      account_id: overrides.account_id ?? 'acct-1',
+      name: overrides.name ?? `Robot ${tables.robots.length + 1}`,
+      status: overrides.status ?? 'active',
+      created_at: new Date().toISOString(),
+    };
+    tables.robots.push(r);
+    return r;
+  },
+  robotRun(overrides: { id?: number; robot_id?: string; triggered_at?: string; action?: string; trade_id?: number | null; notes?: string | null; payload?: any } = {}): any {
+    const r = {
+      id: overrides.id ?? tables.robot_runs.length + 1,
+      robot_id: overrides.robot_id ?? 'robot-1',
+      triggered_at: overrides.triggered_at ?? new Date().toISOString(),
+      action: overrides.action ?? 'noop',
+      trade_id: overrides.trade_id ?? null,
+      notes: overrides.notes ?? null,
+      payload: overrides.payload ?? null,
+    };
+    tables.robot_runs.push(r);
+    return r;
+  },
 };
+
 
 export function getTable<K extends keyof Tables>(name: K): Tables[K] {
   return tables[name];
