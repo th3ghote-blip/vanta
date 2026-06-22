@@ -110,7 +110,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const adminId = await authAdmin(req.headers.authorization);
     if (!adminId) return reply.code(403).send({ error: 'forbidden' });
 
-    const { status } = req.query as { status?: string };
+    const { status, type } = req.query as { status?: string; type?: string };
 
     let query = supabaseAdmin
       .from('transactions')
@@ -120,6 +120,13 @@ export async function adminRoutes(app: FastifyInstance) {
 
     if (status && status !== 'all') {
       query = query.eq('status', status as any);
+    }
+
+    // 18.8e/18.8f — manager-panel Deposits/Withdrawals pages request a single
+    // slice by transaction type. Whitelist guards against arbitrary column input.
+    const ALLOWED_TX_TYPES = ['deposit', 'withdrawal', 'bonus', 'adjustment'];
+    if (type && type !== 'all' && ALLOWED_TX_TYPES.includes(type)) {
+      query = query.eq('type', type as any);
     }
 
     const { data, error } = await query;

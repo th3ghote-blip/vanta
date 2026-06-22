@@ -270,8 +270,14 @@ export const api = {
     }),
 
   // Admin
-  adminGetTransactions: (status: 'pending' | 'completed' | 'rejected' | 'all' = 'pending') =>
-    request<{ transactions: any[] }>(`/api/admin/transactions?status=${status}`),
+  adminGetTransactions: (
+    status: 'pending' | 'completed' | 'rejected' | 'all' = 'pending',
+    type?: 'deposit' | 'withdrawal' | 'bonus' | 'adjustment' | 'all',
+  ) => {
+    const qs = new URLSearchParams({ status });
+    if (type) qs.set('type', type);
+    return request<{ transactions: any[] }>(`/api/admin/transactions?${qs.toString()}`);
+  },
 
   adminApproveTransaction: (id: string) =>
     request<{ transaction: any; balance_delta: number }>(`/api/admin/transactions/${id}/approve`, {

@@ -494,6 +494,26 @@ class Query {
         // accounts!inner → rows with no matching account are dropped
         .filter((r) => r !== null) as any[];
     }
+    if (this.embedAccount && this.table === 'transactions') {
+      matching = matching
+        .map((t) => {
+          const a = tables.accounts.find((x) => x.id === t.account_id);
+          return a
+            ? {
+                ...t,
+                accounts: {
+                  id: a.id,
+                  user_id: a.user_id,
+                  balance: a.balance,
+                  type: a.type,
+                  currency: (a as any).currency,
+                },
+              }
+            : null;
+        })
+        // accounts!inner → rows with no matching account are dropped
+        .filter((t) => t !== null) as any[];
+    }
 
     if (this.wantArray) return { data: matching, error: null };
     const data = matching[0] ?? null;

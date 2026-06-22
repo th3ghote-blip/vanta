@@ -1,5 +1,30 @@
 # STATE -- handoff notes for the next agent
 
+## ✅ 2026-06-22 (auto, run 12) — 18.8e/18.8f DONE (backend). Second offline-completable item in a row.
+**Shipped — admin transactions `type` filter.** The manager-panel Deposits & Withdrawals pages each need just their
+slice of `transactions`. Approve/reject already existed generically since 4.3 (`/api/admin/transactions/:id/approve|reject`
+branch on `tx.type`), so the ONLY missing backend piece was the read slice — the list route filtered by `status` only.
+Added optional `type` query param to `GET /api/admin/transactions` (whitelisted `deposit|withdrawal|bonus|adjustment`;
+unknown type ignored → full set, never errors; composes with `status`). `lib/api.ts`: `adminGetTransactions(status, type?)`
+— backward-compatible (URLSearchParams). Added a transactions account-embed branch to `supabaseMock.ts` (additive) so the
+Withdrawals "balance next to the ask" is asserted. New `server/test/adminTransactions.test.ts` (8 tests). **One `type`
+filter satisfies BOTH 18.8e and 18.8f** — the pages differ only by `type=deposit` vs `type=withdrawal`.
+**Verified offline: client tsc clean, server tsc clean, `npm test` 273 passing (was 265).** Pushed to `main` (additive,
+CI deploys).
+**PENDING LIVE VERIFY:** `GET /api/admin/transactions?type=withdrawal` on live → approve one → balance debits.
+**Edit-tool truncation bug: AVOIDED this run** — made all three flagged-file edits (`admin.ts`, `lib/api.ts`,
+`supabaseMock.ts`) via `python3` string-replace + `wc -l`/`tail` verification (admin.ts 2320→2327, api.ts 893→899,
+mock 624→644 — all tails intact). Confirms the workaround. NEVER use the `Edit` file-tool on those three.
+
+**Queue for next run (good offline candidates first):**
+- **18.8b** admin "Robot Runs" screen UI — VISUAL (consumes run-11's `/api/admin/robot-runs`). Needs a screenshot run.
+- **18.8e/18.8f screen UIs** — VISUAL (consume this run's slices). Screenshot run.
+- **18.8c** price-alerts log route+screen — backend route is offline-completable IF `price_alerts` table exists
+  (check schema first); screen is visual.
+- **18.8d** AI chat-logs — depends on 18.7 assistant (network-gated). Skip offline.
+- Migration 031 (`031_account_last_seen.sql`, for 21.13) STILL UNAPPLIED — `/api/admin/online` 500s live until applied.
+  Apply on a network run: `SUPABASE_PAT=... python scripts/apply-migration.py supabase/migrations/031_account_last_seen.sql`.
+
 ## ✅ 2026-06-22 (auto, run 11) — 18.8a DONE. Broke the 10-run no-op streak with a genuinely offline-completable item.
 **Key reframe:** prior runs 3–10 concluded "no safe offline work," but the TODO header's operating manual is more
 permissive than they treated it — live/visual verification is **deferred** (note under "PENDING LIVE VERIFY"), the
@@ -24,31 +49,4 @@ addition in via `python3` (Write/python only — NEVER the `Edit` tool on these 
 show origin/main:<f> | wc -l` after any edit to confirm no truncation. This is the single biggest footgun here.
 
 **Carried-over still-open queue (all genuinely blocked for a pure-offline no-screenshot run):**
-- **Migration 031** (`031_account_last_seen.sql`, for shipped 21.13) STILL UNAPPLIED — Supabase Management API
-  (`api.supabase.com`) is unreachable (egress github-only, re-tested run 11: 000/no-DNS). Until applied, `/api/admin/online`
-  500s live. Apply on a network run: `SUPABASE_PAT=... python scripts/apply-migration.py supabase/migrations/031_account_last_seen.sql`.
-- **More 18.8 sub-items** carved but NOT done: 18.8b "Robot Runs" screen UI (visual), 18.8c price-alerts log,
-  18.8d AI chat-logs (depends 18.7), 18.8e deposits admin approve/reject, 18.8f withdrawals admin approve/reject.
-  **18.8e/18.8f are likely the next offline-completable backend items** (approve/reject routes over existing transactions
-  table — unit-testable like 18.8a). Good candidates for run 12.
-- **18.2** chart drawing (interactive+visual+migration 026), **18.3** light/dark (~58-component visual refactor — split into
-  18.3a-g for a preview run), **18.7** AI assistant (needs Claude API key + live DB), **21.1** admin audit (live 200s),
-  **21.7** KYC e2e (live upload + image preview), **21.11** credit bucket (PRODUCT DECISION + migration), **21.12**
-  stop-out (depends 21.14), **21.14** account groups (large — design first), **R.7** Better-Stack (external signup),
-  **PARKED** (5.3/8.1/9.3/9.4/10.x/20.2 — external; resume only on explicit user say-so).
-
-**ENV GOTCHAS (carried):** `.git/index.lock` is STUCK & un-`rm`-able (sync-layer owned). Commit workaround used this run:
-`GIT_INDEX_FILE=/tmp/i git read-tree origin/main && GIT_INDEX_FILE=/tmp/i git add <files> &&`
-`TREE=$(GIT_INDEX_FILE=/tmp/i git write-tree) && C=$(git commit-tree $TREE -p origin/main -m '...') &&`
-`git push origin $C:refs/heads/main`. Local HEAD trails origin/main by handoff commits — normal, not a user edit.
-STATE/TODO-only (`**.md`) pushes do NOT trigger a deploy (deploy.yml `paths-ignore`); code pushes DO.
-
-## (PAUSED) 2026-06-22 (auto, run 10) — NO ITEM PICKED (superseded by run 11's reframe). Egress github-only; concluded all
-open items live/visual/large/product-gated. Migration 031 unapplied.
-
-## (PAUSED) 2026-06-21 (auto, run 9) — NO ITEM PICKED. 9th no-op. Egress github-only. Migration 031 unapplied.
-
-## (PAUSED) 2026-06-21 (auto, run 8) — NO ITEM PICKED. Dirty tree was NUL-byte corruption of `rateLimit.test.ts`
-(sync-layer, not a user edit), since self-healed.
-
-## (DONE) 2026-06-20 (auto) — 22.1 DONE (expanded achievements catalogue, +15 badges). Pushed to main. tsc clean, 255 tests.
+- **Migration 031** (`031_account_last_seen.sql`, for shipped 21.13) STILL UNAPPLIED — Supabase
