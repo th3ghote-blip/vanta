@@ -1248,6 +1248,7 @@ by `user_id`, see the `attachAccounts` helper added in the 0d4d991 fix).
 
 ## 21.11 Non-withdrawable credit bucket (optional)
 - [ ] **Files:** migration `0XX_account_credit.sql`, `server/src/routes/admin.ts` (`/accounts/:id/adjust`), margin/P&L logic, `app/admin/user/`
+> SKIPPED (2026-06-24 auto, run 20): judgment call, not an implementation detail. The item is tagged **(optional)** and says "Only build if a credit/bonus concept is wanted" — standing up a non-withdrawable credit/bonus system is a product/business decision an autonomous run shouldn't make speculatively. The migration path IS reachable offline, so this is ready to build the moment the user confirms they want a credit/bonus bucket.
 - **Spawned by 21.8** (Partial #6). **What:** Add an `accounts.credit` column separate from balance (bonus/credit that affects margin but isn't withdrawable), MT4-style. Adjust UI gains a credit/debit-credit option; free-margin and withdrawal logic account for it. *(Migration — Supabase API reachable offline. Only build if a credit/bonus concept is wanted.)*
 - **Acceptance:** Admin can grant credit; it raises equity/free-margin but is excluded from withdrawable balance.
 
@@ -1264,6 +1265,7 @@ by `user_id`, see the `attachAccounts` helper added in the 0d4d991 fix).
 
 ## 21.14 Account groups — per-group spread / markup / leverage / stop-out
 - [ ] **Files:** migration(s), pricing layer, `server/src/routes/admin.ts`, admin UI
+> SKIPPED (2026-06-24 auto, run 20): too large for one verifiable offline run. The item itself says "Large — design and scope as its own mini-phase before estimating" and is "partly network/visual" — account groups span migration(s) + the pricing layer + admin UI. Needs a design/decomposition pass into sub-items first (and 21.12 is blocked on this). Resume once it's broken down.
 - **Spawned by 21.8** (Missing #11). **What:** Introduce account `groups` and per-group spread/markup, default leverage, and stop-out level (MT4's core grouping model). **Large — design and scope as its own mini-phase before estimating.** *(Design first; partly network/visual.)*
 - **Acceptance:** Accounts can be assigned to a group; group-level spread/markup/leverage/stop-out apply to its members.
 
@@ -1274,4 +1276,16 @@ by `user_id`, see the `attachAccounts` helper added in the 0d4d991 fix).
 - **Acceptance:** Each analytics view offers a download whose rows match the on-screen data.
 
 ## 21.16 Operator broadcast / direct client notification
-- [x] **Files:** `server/src/routes/admin.ts` (`POST /api/admin/notify`), `app/admin/noti
+- [x] **Files:** `server/src/routes/admin.ts` (`POST /api/admin/notify`), `app/admin/notify.tsx` (new compose UI), `app/admin/index.tsx` (nav tile), `lib/api.ts`, `server/test/adminNotify.test.ts`
+- **Done 2026-06-19 (auto):** Backend `POST /api/admin/notify` (admin-only via `authAdmin`). Body (zod-validated): `title` (1–200), `body` (1–4000), `audience` `'all'|'account'` (default `account`), plus `login` (account login NUMBER) OR `userId` (uuid) for single-client targeting, optional `symbol`/`data`. `audience='account'` resolves a single recipient by explicit `userId` else by account login → owner `user_id` (unknown login → **404 `account_not_found`**; neither given → **400 `missing_target`**). `audience='all'` fans out to every distinct `profiles.id`. Each recipient gets a `notifications` row (`kind='system'`, the in-app feed is the source of truth) carrying `data={...,broadcast,from_admin}`, then a **best-effort** `sendPushBatch` (never fails the request; silently skips users without a push token). Returns `{ok,audience,recipients}`. `lib/api.ts`: `api.adminNotify({title,body,audience?,login?,userId?,symbol?,data?})`. New screen `app/admin/notify.tsx` — audience toggle (Single account / All clients), login input, title + multiline message, all-clients warning banner, success/error state, Send button. "Broadcast / Notify" nav tile (Send icon) in `app/admin/index.tsx`. Tests: `server/test/adminNotify.test.ts` (8: 403 unauth/non-admin; 400 invalid_input blank title/body; single-by-login persists one system row w/ broadcast=false+from_admin; 404 unknown login; 400 missing_target; single-by-userId; audience=all → one row per distinct user incl. dedupe of a 2-account user, broadcast=true). Verified offline: client tsc clean, server tsc clean, `npm test` **242 passing** (was 234). No migration (reuses `notifications` table from migration 029). PENDING LIVE VERIFY (next interactive session): a composed message appears in the target client's in-app notifications; "all clients" reaches every account; push arrives on devices with a registered token.
+- **Spawned by 21.8** (Partial #13). **What:** Let an operator compose a notification to one client or all clients, persisted to the `notifications` table (22.0) and pushed best-effort. *(Offline unit-testable backend.)*
+- **Acceptance:** A composed message appears in the target client's in-app notifications; "all clients" reaches every account.
+
+---
+
+# Phase 22 — Gamification & engagement (requested 2026-06-11)
+
+Builds on what exists (Phase 11: first-trade confetti, login streak, achievements
+table + `checkFirstTrade/checkFiveWins/checkRiskMaster/checkBalance1000/checkRobotEngineer/seven_day_streak`,
+win-flash). Goal: more reasons to come back daily + a market-news feed that ties
+real events to the assets they move.

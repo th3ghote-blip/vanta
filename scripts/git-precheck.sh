@@ -30,30 +30,42 @@ try_remove_lock() {
     echo "[git-precheck] WARNING: $LOCK_FILE is only ${FILE_AGE}s old — may be live, skipping"
     return 0
   fi
-  if rm -f "$LOCK_FILE" 2>/dev/null; then
+  if rm -f "$LOCK_FILE" 2>/dev/null && [ ! -f "$LOCK_FILE" ]; then
     echo "[git-precheck] removed stale lock: $LOCK_FILE (age ${FILE_AGE}s)"
     LOCK_REMOVED=$(( LOCK_REMOVED + 1 ))
+  # On the Windows/WSL mount, unlink (rm) fails with "Operation not permitted"
+  # but RENAME (mv) succeeds. Move the lock aside so git can re-create it.
+  # This is what actually unblocks a stuck index.lock / HEAD.lock / ref.lock --
+  # GIT_INDEX_FILE only helps the index, not the HEAD/ref locks needed to commit.
+  elif mv -f "$LOCK_FILE" "${LOCK_FILE}.stale.$(date +%s%N)" 2>/dev/null && [ ! -f "$LOCK_FILE" ]; then
+    echo "[git-precheck] renamed stale lock aside (rm not permitted on this mount): $LOCK_FILE (age ${FILE_AGE}s)"
+    LOCK_REMOVED=$(( LOCK_REMOVED + 1 ))
   else
-    echo "[git-precheck] WARNING: could not remove $LOCK_FILE (age ${FILE_AGE}s) — WSL/permission issue; git workaround (GIT_INDEX_FILE) still applies"
+    echo "[git-precheck] WARNING: could not clear $LOCK_FILE (age ${FILE_AGE}s) -- neither rm nor mv worked"
     LOCK_STUCK=$(( LOCK_STUCK + 1 ))
   fi
 }
 
+# Order matters: HEAD/ref locks block commits, index.lock blocks add/reset.
 try_remove_lock ".git/index.lock"
 try_remove_lock ".git/HEAD.lock"
+try_remove_lock ".git/ORIG_HEAD.lock"
 try_remove_lock ".git/MERGE_HEAD.lock"
 try_remove_lock ".git/CHERRY_PICK_HEAD.lock"
+try_remove_lock ".git/objects/maintenance.lock"
 
-# .git/refs/heads/*.lock
+# every other *.lock anywhere under .git (refs/heads, refs/remotes, packed-refs,
+# etc.), skipping the .stale.* files we just renamed aside
 while IFS= read -r LOCK_FILE; do
+  case "$LOCK_FILE" in *.stale.*) continue ;; esac
   try_remove_lock "$LOCK_FILE"
-done < <(find .git/refs/heads -name "*.lock" 2>/dev/null)
+done < <(find .git -name "*.lock" 2>/dev/null)
 
 if [ "$LOCK_REMOVED" -eq 0 ] && [ "$LOCK_STUCK" -eq 0 ]; then
   echo "[git-precheck] no stale locks found"
 fi
 if [ "$LOCK_STUCK" -gt 0 ]; then
-  echo "[git-precheck] $LOCK_STUCK lock(s) could not be removed — use GIT_INDEX_FILE=/tmp/vanta_idx_$$ for git operations"
+  echo "[git-precheck] $LOCK_STUCK lock(s) could not be cleared -- manual intervention needed"
 fi
 
 # ── 2. Verify branch ────────────────────────────────────────────────────────
