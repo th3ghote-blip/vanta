@@ -1,27 +1,32 @@
 # STATE -- handoff notes for the next agent
 
-## (auto, run 23) 2026-06-25 -- AUDIT-ONLY, clean exit. No code changed.
-Precheck clean (`scripts/git-precheck.sh`): no stale locks, branch=main, working tree clean,
-HEAD = run-22 handoff. Independently re-walked the ENTIRE unchecked `- [ ]` set in TODO.md and
-reproduced runs 21-22's finding -- **every remaining item is blocked, parked, gated, a product
-decision, or undecomposed.** Nothing offline-completable. Snapshot:
-- **Network-gated (egress github-only):** R.7 Better-Stack (acct signup + live URL), 18.7 AI
-  assistant (Claude API + live DB), 21.1 admin audit (acceptance = live 200s on railway), 21.7
-  KYC e2e (live upload + signed-URL image preview).
+## (auto, run 24) 2026-06-25 -- AUDIT-ONLY, clean exit. No code changed.
+Precheck clean (`scripts/git-precheck.sh`): no stale locks, branch=main, author OK, working tree
+clean, HEAD = run-23 handoff. Independently re-walked the ENTIRE unchecked `- [ ]` set in TODO.md
+(grep of every `- [ ]`, read each with context) and reproduced runs 21-23's finding -- **every
+remaining item is blocked, parked, gated, a product decision, or undecomposed.** Nothing
+offline-completable. Snapshot:
+- **Network-gated (egress github-only, can't reach railway/supabase/Claude API):** R.7 Better-Stack
+  (acct signup + live URL), 18.7 AI assistant (Claude API + live DB), 21.1 admin audit (acceptance =
+  live 200s on railway), 21.7 KYC e2e (live upload + signed-URL image preview).
 - **Visual/screenshot-gated:** 18.2 chart drawing tools (interactive + persistence + render);
-  18.3 light/dark refactor (~58 components, acceptance explicitly visual -- split into 18.3a-g).
+  18.3 light/dark refactor (~58 components, acceptance explicitly visual -- recommended split into
+  18.3a-g but sub-items NOT yet created as `## x.y` headings); 18.8b/18.8d screen UIs.
 - **Product/business decision:** 21.11 credit/bonus bucket (tagged optional; build only if wanted).
 - **Dependency-blocked:** 21.12 per-account stop-out (depends on 21.14).
-- **Too large / undecomposed:** 21.14 account groups (own mini-phase); 18.8 (umbrella -- remaining
-  sub-pages 18.8b/18.8d are screenshot-gated UIs); **Phase 22 Gamification is still a heading +
-  intro paragraph with ZERO `## 22.x` sub-items** -- must be decomposed before an auto-run can take it.
+- **Too large / undecomposed:** 21.14 account groups (own mini-phase); 18.8 umbrella; **Phase 22
+  Gamification is STILL just a heading + intro paragraph at L1286-1291 with ZERO `## 22.x` sub-items**
+  -- confirmed by reading to EOF (L1298). Must be decomposed before an auto-run can take it.
 - **PARKED (need user action):** 5.3 Sumsub, 8.1 OANDA, 9.3/9.4 app stores, 10.1-10.6 domain chain,
   20.2 forgot-password (gated on 10.4 Resend).
 - Stray `- [ ]` **Files:** bullets under already-`[x]` items (21.8 L1233, 21.9 L1239) are cosmetic
   leftovers, not work -- ignore.
 Committed this STATE.md handoff only (TODO.md untouched; `**.md` is paths-ignored so no deploy).
-**To unblock the next run:** (a) grant network egress (railway/supabase/Claude API) for the live-verify
-items; (b) approve building 21.11; or (c) decompose Phase 22 / 18.3 into sized `## x.y` sub-items.
+**To unblock the next run:** (a) grant network egress (railway/supabase/Claude API) for the
+live-verify items; (b) approve building 21.11; or (c) decompose Phase 22 / 18.3 into sized `## x.y`
+sub-items with offline-checkable acceptance.
+
+## (auto, run 23) 2026-06-25 -- AUDIT-ONLY, clean exit. Same finding (every item blocked/parked/gated).
 
 ## (auto, run 22) 2026-06-25 -- AUDIT-ONLY, clean exit. Same finding (every item blocked/parked/gated).
 
@@ -51,6 +56,6 @@ every `*.lock` under `.git`. Run `bash scripts/git-precheck.sh` at start; future
   screenshot-capable run.
 
 ## Prior runs (pruned)
-- Run 21 (Jun 25): audit-only, no actionable item.
-- Runs 14-19 (Jun 23-24): SKIPPED no-ops, blocked by the now-fixed git lock (resolved run 20).
+- Runs 21-23 (Jun 25): audit-only, no actionable item.
+- Run 20 (Jun 24): fixed git lock (mv-aside fallback in precheck).
 - Runs 11-13: admin backend slices (18.8a/c, 18.8e/f) shipped, offline-tested green.
