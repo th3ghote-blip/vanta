@@ -1,35 +1,30 @@
 # STATE -- handoff notes for the next agent
 
-## ✅ 2026-06-25 (auto, run 21) -- AUDIT-ONLY, clean exit. No offline-completable item.
-Git is healthy (precheck self-heals the stuck `index.lock` via `mv`-aside; READ ops work with a
-leftover lock). Working tree clean at start. Walked the ENTIRE unchecked `- [ ]` set in TODO.md;
-**every remaining item is blocked, parked, gated, a product decision, or undecomposed** -- all
-already annotated by prior runs, so nothing new to annotate:
-- **Network-gated (github-only egress):** 21.1 admin audit (needs live 200s), 21.7 KYC e2e
-  (live upload+signed-URL image preview), 18.7 AI assistant (Claude API), R.7 Better-Stack (acct+live URL).
-- **Visual/screenshot-gated:** 18.2 chart drawing tools, 18.3 light/dark refactor (~58 components;
-  a missed token = broken render, unverifiable offline -- recommended split 18.3a-g stands).
+## (auto, run 22) 2026-06-25 -- AUDIT-ONLY, clean exit. Nothing changed since run 21.
+Precheck clean: no stale locks, branch=main, working tree clean, HEAD = run-21 handoff
+(`b6879e2`); no new commits since. Independently re-walked the ENTIRE unchecked `- [ ]`
+set in TODO.md and reproduced run 21's finding -- **every remaining item is blocked,
+parked, gated, a product decision, or undecomposed.** All are already annotated by prior
+runs, so nothing new to add. Snapshot:
+- **Network-gated (egress github-only):** R.7 Better-Stack (acct+live URL), 18.7 AI assistant
+  (Claude API+live DB), 21.1 admin audit (needs live 200s), 21.7 KYC e2e (live upload+signed-URL preview).
+- **Visual/screenshot-gated:** 18.2 chart drawing tools, 18.3 light/dark refactor (~58 components).
 - **Product/business decision:** 21.11 credit/bonus bucket ("optional", build only if wanted).
-- **Dependency-blocked:** 21.12 per-account stop-out ("Depends on 21.14"; author intends groups first).
-- **Too large / undecomposed:** 21.14 account groups ("design as its own mini-phase"); **Phase 22
-  Gamification** is still just a heading + description with NO `## 22.x` sub-items -- decompose before
-  an auto-run can take one (a gamification design is itself a product call, not an impl detail).
+- **Dependency-blocked:** 21.12 per-account stop-out (depends on 21.14).
+- **Too large / undecomposed:** 21.14 account groups (own mini-phase); Phase 22 Gamification is
+  still a heading with NO `## 22.x` sub-items -- decompose before an auto-run can take one.
 - **PARKED (need user action):** 5.3 Sumsub, 8.1 OANDA, 9.3/9.4 app stores, 10.x domain chain, 10.6 reset.
-- Stray unchecked `- [ ]` **Files:** lines under already-`[x]` items (21.8 L1233, 21.9 L1239) are
-  cosmetic un-flipped bullets, not real work -- left as-is.
-No code changed; committed this STATE.md handoff only. **To unblock the next run, the user can:**
-grant network egress (railway/supabase/Claude API) for the live-verify items; approve building 21.11;
-or decompose Phase 22 / 18.3 into sized sub-items.
+- Stray `- [ ]` **Files:** bullets under already-`[x]` items (21.8 L1233, 21.9 L1239) are cosmetic, not work.
+No code changed; committed this STATE.md handoff only. **To unblock the next run:** grant network
+egress (railway/supabase/Claude API) for live-verify items; approve building 21.11; or decompose
+Phase 22 / 18.3 into sized sub-items.
 
-## ✅ 2026-06-24 (auto, run 20) -- BROKE THE 6-RUN BLOCK. Git is writable again.
-Root cause of runs 14-19 no-ops: on this Windows mount you **cannot `rm`** files in `.git`
-("Operation not permitted") but you **CAN `mv` (rename)** them. Renaming stuck 0-byte locks aside
-cleared them. **Durable fix shipped:** `scripts/git-precheck.sh` now `mv`-aside-falls-back when `rm`
-fails and sweeps every `*.lock` under `.git`. Run `bash scripts/git-precheck.sh` at start; future
-runs self-heal. (Every git command still leaves a new `index.lock` it can't unlink -- harmless for
-READ ops; WRITE ops need the precheck sweep first.)
+## (auto, run 20) 2026-06-24 -- Git is writable again.
+On this Windows mount you **cannot `rm`** files in `.git` ("Operation not permitted") but you **CAN
+`mv` (rename)** them. `scripts/git-precheck.sh` now `mv`-aside-falls-back when `rm` fails and sweeps
+every `*.lock` under `.git`. Run `bash scripts/git-precheck.sh` at start; future runs self-heal.
 
-## ⚠️ CRITICAL operating notes (carry forward every run)
+## CRITICAL operating notes (carry forward every run)
 - **The Edit/Write file-tools TRUNCATE files on this mount.** Use `python3` string-replace in bash
   for ALL file edits, then verify `wc -l` + `tail`. Never trust the Edit tool here.
 - Sensitive large files to edit ONLY via python string-replace: `server/src/routes/admin.ts`,
@@ -49,5 +44,6 @@ READ ops; WRITE ops need the precheck sweep first.)
   screenshot-capable run.
 
 ## Prior runs (pruned)
+- Run 21 (Jun 25): audit-only, no actionable item (same finding as this run).
 - Runs 14-19 (Jun 23-24): SKIPPED no-ops, blocked by the now-fixed git lock (resolved run 20).
 - Runs 11-13: admin backend slices (18.8a/c, 18.8e/f) shipped, offline-tested green.
