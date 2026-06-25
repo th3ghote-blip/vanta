@@ -1,23 +1,29 @@
 # STATE -- handoff notes for the next agent
 
-## (auto, run 22) 2026-06-25 -- AUDIT-ONLY, clean exit. Nothing changed since run 21.
-Precheck clean: no stale locks, branch=main, working tree clean, HEAD = run-21 handoff
-(`b6879e2`); no new commits since. Independently re-walked the ENTIRE unchecked `- [ ]`
-set in TODO.md and reproduced run 21's finding -- **every remaining item is blocked,
-parked, gated, a product decision, or undecomposed.** All are already annotated by prior
-runs, so nothing new to add. Snapshot:
-- **Network-gated (egress github-only):** R.7 Better-Stack (acct+live URL), 18.7 AI assistant
-  (Claude API+live DB), 21.1 admin audit (needs live 200s), 21.7 KYC e2e (live upload+signed-URL preview).
-- **Visual/screenshot-gated:** 18.2 chart drawing tools, 18.3 light/dark refactor (~58 components).
-- **Product/business decision:** 21.11 credit/bonus bucket ("optional", build only if wanted).
+## (auto, run 23) 2026-06-25 -- AUDIT-ONLY, clean exit. No code changed.
+Precheck clean (`scripts/git-precheck.sh`): no stale locks, branch=main, working tree clean,
+HEAD = run-22 handoff. Independently re-walked the ENTIRE unchecked `- [ ]` set in TODO.md and
+reproduced runs 21-22's finding -- **every remaining item is blocked, parked, gated, a product
+decision, or undecomposed.** Nothing offline-completable. Snapshot:
+- **Network-gated (egress github-only):** R.7 Better-Stack (acct signup + live URL), 18.7 AI
+  assistant (Claude API + live DB), 21.1 admin audit (acceptance = live 200s on railway), 21.7
+  KYC e2e (live upload + signed-URL image preview).
+- **Visual/screenshot-gated:** 18.2 chart drawing tools (interactive + persistence + render);
+  18.3 light/dark refactor (~58 components, acceptance explicitly visual -- split into 18.3a-g).
+- **Product/business decision:** 21.11 credit/bonus bucket (tagged optional; build only if wanted).
 - **Dependency-blocked:** 21.12 per-account stop-out (depends on 21.14).
-- **Too large / undecomposed:** 21.14 account groups (own mini-phase); Phase 22 Gamification is
-  still a heading with NO `## 22.x` sub-items -- decompose before an auto-run can take one.
-- **PARKED (need user action):** 5.3 Sumsub, 8.1 OANDA, 9.3/9.4 app stores, 10.x domain chain, 10.6 reset.
-- Stray `- [ ]` **Files:** bullets under already-`[x]` items (21.8 L1233, 21.9 L1239) are cosmetic, not work.
-No code changed; committed this STATE.md handoff only. **To unblock the next run:** grant network
-egress (railway/supabase/Claude API) for live-verify items; approve building 21.11; or decompose
-Phase 22 / 18.3 into sized sub-items.
+- **Too large / undecomposed:** 21.14 account groups (own mini-phase); 18.8 (umbrella -- remaining
+  sub-pages 18.8b/18.8d are screenshot-gated UIs); **Phase 22 Gamification is still a heading +
+  intro paragraph with ZERO `## 22.x` sub-items** -- must be decomposed before an auto-run can take it.
+- **PARKED (need user action):** 5.3 Sumsub, 8.1 OANDA, 9.3/9.4 app stores, 10.1-10.6 domain chain,
+  20.2 forgot-password (gated on 10.4 Resend).
+- Stray `- [ ]` **Files:** bullets under already-`[x]` items (21.8 L1233, 21.9 L1239) are cosmetic
+  leftovers, not work -- ignore.
+Committed this STATE.md handoff only (TODO.md untouched; `**.md` is paths-ignored so no deploy).
+**To unblock the next run:** (a) grant network egress (railway/supabase/Claude API) for the live-verify
+items; (b) approve building 21.11; or (c) decompose Phase 22 / 18.3 into sized `## x.y` sub-items.
+
+## (auto, run 22) 2026-06-25 -- AUDIT-ONLY, clean exit. Same finding (every item blocked/parked/gated).
 
 ## (auto, run 20) 2026-06-24 -- Git is writable again.
 On this Windows mount you **cannot `rm`** files in `.git` ("Operation not permitted") but you **CAN
@@ -38,12 +44,13 @@ every `*.lock` under `.git`. Run `bash scripts/git-precheck.sh` at start; future
   `SUPABASE_PAT=... python scripts/apply-migration.py supabase/migrations/031_account_last_seen.sql`
 
 ## PENDING LIVE VERIFY (deferred to an interactive/network run)
-- 18.8c price-alerts log, 18.8e/f transactions type-filter, 21.x admin slices (positions, analytics,
-  trades, online, notify, users-equity) -- backend-shipped + offline-tested, awaiting live-DB confirm.
-- Visual sub-items 18.2 chart tools, 18.3 light/dark mode, 18.8b/18.8d screen UIs -- need a
+- 18.8a robot-runs, 18.8c price-alerts log, 18.8e/f transactions type-filter, 21.x admin slices
+  (positions, force-close/modify, analytics by-symbol/overview/accounts, trades blotter, users-equity,
+  online, notify, CSV export) -- backend-shipped + offline-tested, awaiting live-DB confirm.
+- Visual sub-items: 18.2 chart tools, 18.3 light/dark mode, 18.8b/18.8d screen UIs -- need a
   screenshot-capable run.
 
 ## Prior runs (pruned)
-- Run 21 (Jun 25): audit-only, no actionable item (same finding as this run).
+- Run 21 (Jun 25): audit-only, no actionable item.
 - Runs 14-19 (Jun 23-24): SKIPPED no-ops, blocked by the now-fixed git lock (resolved run 20).
 - Runs 11-13: admin backend slices (18.8a/c, 18.8e/f) shipped, offline-tested green.
