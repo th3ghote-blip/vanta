@@ -1,18 +1,26 @@
 # STATE -- handoff notes for the next agent
 
-## (auto, run 26) 2026-06-26 -- 21.8 box ticked (already-shipped work reconciled; doc only, no deploy).
-Precheck clean (git-precheck renamed 1 stale `.git/objects/maintenance.lock` aside; branch=main, author OK,
-tree clean = run-25 handoff). Re-walked every unchecked `- [ ]`: all concrete items remain
-blocked/parked/gated/undecomposed (same set as runs 21-25). Found 21.8 ("MT4-Manager parity checklist")
-had its work DONE 2026-06-18 (`docs/mt4-manager-parity.md` shipped) and tests/tsc green, but its
-secondary `**Files:**` checkbox was left `[ ]` while its `Done` line was `[x]` -- a stray box, not real
-open work. Verified 21.8's acceptance fully OFFLINE: doc exists (69 lines), complete 15-row
-Have/Partial/Missing matrix (9 Have / 4 Partial / 2 Missing summary), and linked follow-ups 21.9-21.16.
-Ticked the stray box `[x]`. Markdown-only edit (paths-ignored -> NO deploy fires). Client+server
-`tsc --noEmit` both clean. Committed TODO.md + STATE.md.
-- **NOTE for next run:** 21.9 (line ~1240) has the SAME stray-box situation -- its `Done 2026-06-18`
-  line is `[x]` (equity/margin-level columns shipped, 208 tests green) but its `**Files:**` box is still
-  `[ ]`. It's verifiably done; a future tidy run can tick it. Left untouched this run (one item per run).
+## (auto, run 27) 2026-06-26 -- 21.9 stray `**Files:**` box ticked (already-shipped work; doc only, no deploy).
+Precheck clean (git-precheck renamed 3 stale `.git/*.lock` files aside; branch=main, author OK, tree
+clean = run-26 handoff). Re-walked the unchecked list top-to-bottom: every concrete item above 21.9 stays
+blocked/parked/gated/SKIPPED (R.7 BetterStack external-acct, 18.2/18.3 visual, 18.7 network+Claude-key,
+21.1 live-200-gated, 21.7 KYC live/visual, 21.11 product decision, 21.12 dep-on-21.14, 21.14 undecomposed,
+Phase 22 still a bare heading) -- same set as runs 21-26. Acted on the item run 26 flagged: 21.9 ("Admin
+account list -- equity + margin-level columns") had its work DONE 2026-06-18 (equity + margin_level_pct on
+`/api/admin/users`, UI line in `app/admin/users.tsx`, typed in `lib/api.ts`) with its `Done` line `[x]`,
+but its secondary `**Files:**` checkbox left `[ ]` -- a stray box, not open work. Verified 21.9 OFFLINE:
+`equityByAccount()` helper present in `server/src/routes/admin.ts` (l.475), UI "Equity $X · ML NN%" line in
+users.tsx (l.101), `AdminUser.accounts[].equity?/margin_level_pct?` in lib/api.ts; client + server
+`tsc --noEmit` both clean; `adminUsersEquity.test.ts` 5/5 passing. Ticked the stray box `[x]`. Markdown-only
+edit (deploy.yml `paths-ignore` covers `**.md` -> NO deploy fires). Committed TODO.md + STATE.md.
+- **NOTE for next run:** the 21.8/21.9 stray-box pattern is now fully cleared. The remaining unchecked `[ ]`
+  boxes are all real open work that is blocked/parked/gated/undecomposed -- not stray boxes. Next genuine
+  progress needs one of the unblock actions below.
+
+## (auto, run 26) 2026-06-26 -- 21.8 box ticked (already-shipped parity doc reconciled; doc only, no deploy).
+`docs/mt4-manager-parity.md` was shipped 2026-06-18 (69 lines, 15-row Have/Partial/Missing matrix,
+9 Have / 4 Partial / 2 Missing, follow-ups 21.9-21.16) with its `Done` line `[x]` but `**Files:**` box `[ ]`.
+Verified offline, ticked the stray box. Markdown-only, no deploy.
 
 ## (auto, run 25) 2026-06-26 -- 21.1 STATIC AUDIT shipped (`docs/admin-audit.md`, 114 lines).
 Cross-checked all 24 `/api/admin/*` routes column-by-column vs migrations 001-031: NO column/embed bug
@@ -39,8 +47,10 @@ applied (not a code bug). Box left `[ ]` -- acceptance needs a LIVE 200 per rout
 ## PENDING LIVE VERIFY (deferred to an interactive/network run)
 - **21.1 live half:** apply 031, then curl each of the 24 admin routes with an admin JWT, confirm 200 +
   shape per `docs/admin-audit.md`, fill the live status into the doc's Verdict column, THEN mark 21.1 [x].
+- **21.9 live half:** on the live DB, confirm an account's `equity`/`margin_level_pct` on the user-search
+  list match its row in the Accounts analytics leaderboard.
 - 18.8a robot-runs, 18.8c price-alerts log, 18.8e/f transactions type-filter, 21.x admin slices
-  (positions, force-close/modify, analytics, trades blotter, users-equity, online, notify, CSV export) --
+  (positions, force-close/modify, analytics, trades blotter, online, notify, CSV export) --
   backend-shipped + offline-tested, awaiting live-DB confirm.
 - Visual sub-items: 18.2 chart tools, 18.3 light/dark mode, 18.8b/18.8d screen UIs -- need a
   screenshot-capable run.
@@ -49,7 +59,8 @@ applied (not a code bug). Box left `[ ]` -- acceptance needs a LIVE 200 per rout
 (a) grant network egress (railway/supabase/Claude API) for the live-verify items; (b) approve building
 21.11 (credit bucket -- a product decision); or (c) decompose Phase 22 (Gamification -- still just a
 heading at TODO L1287+, ZERO `## 22.x` sub-items) and 18.3 (light/dark, recommend split 18.3a-g) into
-sized `## x.y` sub-items with offline-checkable acceptance. (d) Quick: tick 21.9's stray `**Files:**` box.
+sized `## x.y` sub-items with offline-checkable acceptance. The 21.8/21.9 stray-box tidies are now DONE --
+no easy box-tick wins remain; every open `[ ]` is real blocked/parked/gated work.
 
 ## Prior runs (pruned)
 - Runs 21-24: AUDIT-ONLY exits; every concrete item blocked/parked/gated/undecomposed.
