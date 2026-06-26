@@ -1,42 +1,40 @@
 # STATE -- handoff notes for the next agent
 
-## (auto, run 25) 2026-06-26 -- 21.1 STATIC AUDIT shipped (doc only; box left [ ]).
-Precheck clean (`scripts/git-precheck.sh` renamed 3 stale `.git/*.lock` aside; branch=main, author OK,
-tree was clean = run-24 handoff). Re-walked every unchecked `- [ ]` again: all concrete items still
-blocked/parked/gated/undecomposed (same set as runs 21-24) EXCEPT the offline-doable half of **21.1** --
-`docs/admin-audit.md` did not exist yet. Did it: built the cumulative schema from migrations 001-031,
-then cross-checked column-by-column EVERY `.from/.select/.order/.eq/.gte/.lte/.insert/.update/.rpc` call
-across all 24 `/api/admin/*` routes in `server/src/routes/admin.ts`.
-- **Result: NO column/embed bug.** Historical defects (`opened_at`->`open_time` on /risk; profiles<->accounts
-  embed -> stitch on /users) confirmed fixed, not regressed. RPC `apply_trade_pnl(p_account_id,p_amount)`
-  signature matches (defined in 002, not 013). `storage.from('kyc')` is a bucket, not a missing table.
-- **One non-code caveat:** `/api/admin/online` reads `accounts.last_seen` (migration **031, still UNAPPLIED**)
-  -> will 500 live until applied. Not a code bug.
-- Shipped `docs/admin-audit.md` (114 lines, route-by-route table + findings + the live-verify checklist).
-  Updated 21.1's `>` comment in TODO.md to record the static audit. **Left 21.1 `[ ]`** -- acceptance
-  still requires a LIVE 200 from each route (network-gated), which this sandbox can't do.
-- Client + server `tsc --noEmit` both clean. No code/tests changed (doc + 2 markdown edits only; `**.md`
-  is paths-ignored so NO deploy fires). Committed admin-audit.md + TODO.md + STATE.md.
+## (auto, run 26) 2026-06-26 -- 21.8 box ticked (already-shipped work reconciled; doc only, no deploy).
+Precheck clean (git-precheck renamed 1 stale `.git/objects/maintenance.lock` aside; branch=main, author OK,
+tree clean = run-25 handoff). Re-walked every unchecked `- [ ]`: all concrete items remain
+blocked/parked/gated/undecomposed (same set as runs 21-25). Found 21.8 ("MT4-Manager parity checklist")
+had its work DONE 2026-06-18 (`docs/mt4-manager-parity.md` shipped) and tests/tsc green, but its
+secondary `**Files:**` checkbox was left `[ ]` while its `Done` line was `[x]` -- a stray box, not real
+open work. Verified 21.8's acceptance fully OFFLINE: doc exists (69 lines), complete 15-row
+Have/Partial/Missing matrix (9 Have / 4 Partial / 2 Missing summary), and linked follow-ups 21.9-21.16.
+Ticked the stray box `[x]`. Markdown-only edit (paths-ignored -> NO deploy fires). Client+server
+`tsc --noEmit` both clean. Committed TODO.md + STATE.md.
+- **NOTE for next run:** 21.9 (line ~1240) has the SAME stray-box situation -- its `Done 2026-06-18`
+  line is `[x]` (equity/margin-level columns shipped, 208 tests green) but its `**Files:**` box is still
+  `[ ]`. It's verifiably done; a future tidy run can tick it. Left untouched this run (one item per run).
 
-## (auto, runs 21-24) 2026-06-25/26 -- AUDIT-ONLY exits; every concrete item blocked/parked/gated/undecomposed.
-
-## (auto, run 20) 2026-06-24 -- Git writable again.
-On this Windows mount you **cannot `rm`** files in `.git` ("Operation not permitted") but you **CAN
-`mv` (rename)** them. `scripts/git-precheck.sh` `mv`-aside-falls-back when `rm` fails and sweeps every
-`*.lock` under `.git`. Run `bash scripts/git-precheck.sh` at start; future runs self-heal.
+## (auto, run 25) 2026-06-26 -- 21.1 STATIC AUDIT shipped (`docs/admin-audit.md`, 114 lines).
+Cross-checked all 24 `/api/admin/*` routes column-by-column vs migrations 001-031: NO column/embed bug
+(historical `opened_at`->`open_time` and profiles<->accounts-embed defects confirmed fixed). One caveat:
+`/api/admin/online` reads `accounts.last_seen` (migration **031, still UNAPPLIED**) -> 500s live until
+applied (not a code bug). Box left `[ ]` -- acceptance needs a LIVE 200 per route (network-gated).
 
 ## CRITICAL operating notes (carry forward every run)
-- **The Edit/Write file-tools TRUNCATE files on this mount.** Use `python3` string-replace in bash for
-  ALL file edits, then verify `wc -l` + `tail`. Never trust the Edit tool here.
+- **The Edit/Write file-tools TRUNCATE files on this mount.** Use `python3` string-replace (or a heredoc
+  whole-file write) in bash for ALL file edits, then verify `wc -l` + `tail`. Never trust the Edit tool here.
 - **NUL-byte check the RIGHT way:** `tr -cd '\000' < file | wc -c` (must be 0). `grep -c $'\x00'` is
   USELESS here -- bash truncates the pattern at NUL so it matches every line (false positive).
 - Sensitive large files to edit ONLY via python string-replace: `server/src/routes/admin.ts`,
   `lib/api.ts`, `server/test/helpers/supabaseMock.ts` (mock's two table literals use DIFFERENT
   indentation -- replace separately).
 - **Deploy = push to `main`** -> GitHub Actions (github.com reachable; railway/vercel/supabase NOT --
-  egress github-only). deploy.yml has `paths-ignore` for `**.md`/`docs/**`/`scripts/**`.
+  egress github-only). deploy.yml has `paths-ignore` for `**.md`/`docs/**`/`scripts/**` -- doc/MD edits
+  do NOT trigger a deploy.
+- **On this Windows mount you cannot `rm` files in `.git`** ("Operation not permitted") but you CAN
+  `mv` (rename). `scripts/git-precheck.sh` self-heals stale `*.lock` files -- run it at start.
 - **Migration 031** (`031_account_last_seen.sql`) STILL UNAPPLIED -- `/api/admin/online` 500s live until
-  applied. On a network run: `SUPABASE_PAT=... python scripts/apply-migration.py supabase/migrations/031_account_last_seen.sql`
+  applied. Network run: `SUPABASE_PAT=... python scripts/apply-migration.py supabase/migrations/031_account_last_seen.sql`
 
 ## PENDING LIVE VERIFY (deferred to an interactive/network run)
 - **21.1 live half:** apply 031, then curl each of the 24 admin routes with an admin JWT, confirm 200 +
@@ -51,7 +49,8 @@ On this Windows mount you **cannot `rm`** files in `.git` ("Operation not permit
 (a) grant network egress (railway/supabase/Claude API) for the live-verify items; (b) approve building
 21.11 (credit bucket -- a product decision); or (c) decompose Phase 22 (Gamification -- still just a
 heading at TODO L1287+, ZERO `## 22.x` sub-items) and 18.3 (light/dark, recommend split 18.3a-g) into
-sized `## x.y` sub-items with offline-checkable acceptance.
+sized `## x.y` sub-items with offline-checkable acceptance. (d) Quick: tick 21.9's stray `**Files:**` box.
 
 ## Prior runs (pruned)
+- Runs 21-24: AUDIT-ONLY exits; every concrete item blocked/parked/gated/undecomposed.
 - Runs 11-13: admin backend slices (18.8a/c, 18.8e/f) shipped, offline-tested green.

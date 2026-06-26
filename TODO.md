@@ -1231,7 +1231,7 @@ by `user_id`, see the `attachAccounts` helper added in the 0d4d991 fix).
 
 ## 21.8 MT4-Manager feature-parity checklist
 - [x] **Done 2026-06-18 (auto):** Wrote `docs/mt4-manager-parity.md` — a 15-row Have/Partial/Missing matrix grounded in the actual `server/src/routes/admin.ts` routes, `app/admin/*` screens, and `server/src/workers/*`. Result: 9 Have (live positions, force-close, modify SL/TP, transaction queue, margin-call+stop-out monitor, exposure-by-symbol, reporting account/symbol/day, impersonate, perf), 4 Partial (account list lacks equity/margin-level column; no global filtered closed-trades blotter; balance ops have no separate credit bucket; no operator broadcast notification), 2 Missing (online-users monitor; per-group spread/markup). Every Partial/Missing was turned into a linked follow-up item (21.9–21.16 below). Pure markdown — no code/tests changed; client+server tsc still clean.
-- [ ] **Files:** `docs/mt4-manager-parity.md` (new)
+- [x] **Files:** `docs/mt4-manager-parity.md` (new)
 - **What:** Document each MT4 Manager capability and Vanta's status: live positions ✓/✗, account list w/ equity·margin·margin-level, order/trade history, force-close, modify, balance operations (deposit/withdraw/credit/adjust), margin-call & stop-out monitor, exposure by symbol, online-users monitor, per-group spread/markup, reporting (P&L per account/symbol/day), client notifications. Each row: Have / Partial / Missing + which TODO item covers the gap. Turn every "Missing" into a 21.x sub-item.
 - **Acceptance:** `docs/mt4-manager-parity.md` exists with a complete Have/Partial/Missing matrix and linked follow-up items.
 
