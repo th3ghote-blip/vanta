@@ -1,43 +1,43 @@
 # STATE -- handoff notes for the next agent
 
-## (auto, run 29) 2026-06-27 -- AUDIT-ONLY exit. No completable item. Tree healthy.
-Precheck clean (git-precheck: no stale locks, branch=main, author OK, tree clean). Client
-`tsc --noEmit` clean (exit 0). Re-walked the full unchecked `[ ]` list top-to-bottom; every
-concrete item is the SAME blocked/parked/gated/undecomposed set as runs 21-28 -- no box-tick
-wins remain:
+## (auto, run 30) 2026-06-27 -- AUDIT-ONLY exit. No completable item. Tree healthy.
+Precheck clean (git-precheck self-healed one stale `.git/index.lock` aged 14520s via rename;
+branch=main OK, author OK, working tree clean). Client `tsc --noEmit` exit 0; server `tsc --noEmit`
+exit 0. Independently re-walked the FULL unchecked `[ ]` list top-to-bottom (not just trusting the
+handoff) -- same blocked/parked/gated/undecomposed set as runs 21-29, no box-tick wins remain:
 - R.7 (BetterStack, L160): external signup + network.
-- 18.2 chart drawing (L835): interactive/persistence/visual.
-- 18.3 light/dark (L847): single undecomposed item, VISUAL acceptance (missed token = broken
-  render, unverifiable offline). Needs split into 18.3a-g + a screenshot/preview run.
+- 18.2 chart drawing (L835): interactive + `chart_drawings` round-trip + visual.
+- 18.3 light/dark (L847): undecomposed, VISUAL acceptance (missed token = broken render,
+  unverifiable offline). Needs split into 18.3a-g + a screenshot/preview run.
 - 18.7 AI assistant (L999): Claude API key + network + live verify, multi-page chat UI.
-- 18.8 parent (L911) + remaining sub-items: visual/oversized; backend slices already shipped.
-- 21.1 (L1185): needs a LIVE 200 per admin route (network). Static audit in `docs/admin-audit.md`.
+- 18.8 parent (L911): remaining sub-items are screen UIs (visual) + 18.8d depends on 18.7;
+  all offline backend slices already shipped (18.8a/c/e/f).
+- 21.1 (L1185): needs LIVE 200 per admin route (network). Static audit done in `docs/admin-audit.md`.
 - 21.7 KYC (L1227): live doc upload + signed-URL image preview (visual + network).
 - 21.11 credit bucket (L1251): *(optional)*, product/business decision -- not for an autonomous run.
 - 21.12 stop-out (L1257): explicit "Depends on 21.14"; 21.14 not done -> dependency unmet.
-- 21.14 account groups (L1268): large/undecomposed.
-- Phase 22 (Gamification): STILL a bare heading at TODO L1289 (file ends L1292), ZERO `## 22.x`
-  sub-items. Nothing to pick.
-PARKED (skip): 5.3 Sumsub, 8.1 OANDA, 9.3/9.4 store builds, 10.x domain/email, 11.x reset.
+- 21.14 account groups (L1268): large/undecomposed -- needs a design/decomposition pass first.
+- Phase 22 (Gamification): STILL a bare heading (TODO L1287-1292), ZERO `## 22.x` sub-items.
 No file changed except this STATE.md entry. Markdown-only -> NO deploy (deploy.yml paths-ignore
-covers `**.md`). Committed STATE.md only.
-- **NOTE for next run:** unchanged since run 28 (same day, clean tree). Do not expect an easy win.
-  An offline, no-network, no-screenshot run cannot complete or verify any open item. Another clean
-  audit exit is the correct outcome until the user grants an unblock (see below). Do NOT fabricate work.
+covers `**.md`). Committing STATE.md only.
+- **NOTE for next run:** unchanged since runs 28-29 (same clean tree). An offline, no-network,
+  no-screenshot run cannot complete or verify any open item. Another clean audit exit is the correct
+  outcome until the user grants an unblock (see "To unblock" below). Do NOT fabricate work.
+
+## (auto, run 29) 2026-06-27 -- AUDIT-ONLY exit. No completable item. Tree healthy.
+Precheck clean. Client `tsc --noEmit` clean. Re-walked the unchecked list; every concrete item the
+SAME blocked/parked/gated/undecomposed set as runs 21-28. STATE.md only changed.
 
 ## (auto, run 28) 2026-06-27 -- AUDIT-ONLY exit. No completable item. Tree healthy.
 Precheck clean. Client+server `tsc --noEmit` clean, `npm test` **285/285 passing** (27 files).
-Re-walked entire unchecked list; every item blocked/parked/gated/undecomposed (same set as 21-27);
-21.8/21.9 stray-box tidies already cleared. No file changed except STATE.md.
+Every unchecked item blocked/parked/gated/undecomposed; 21.8/21.9 stray-box tidies cleared.
 
-## (auto, run 27) 2026-06-26 -- 21.9 stray `**Files:**` box ticked (already-shipped work; doc only, no deploy).
-21.9 ("Admin account list -- equity + margin-level columns") was DONE 2026-06-18 (equity +
-margin_level_pct on `/api/admin/users`, UI in `app/admin/users.tsx`, typed in `lib/api.ts`) with its
-`Done` line `[x]` but secondary `**Files:**` box `[ ]`. Verified offline, ticked the stray box.
+## (auto, run 27) 2026-06-26 -- 21.9 stray `**Files:**` box ticked (already-shipped; doc only, no deploy).
+21.9 ("Admin account list -- equity + margin-level columns") was DONE 2026-06-18; secondary
+`**Files:**` box was stray `[ ]`. Verified offline, ticked it.
 
-## (auto, run 26) 2026-06-26 -- 21.8 box ticked (already-shipped parity doc reconciled; doc only, no deploy).
-`docs/mt4-manager-parity.md` shipped 2026-06-18 (15-row Have/Partial/Missing matrix, follow-ups
-21.9-21.16) with `Done` `[x]` but `**Files:**` `[ ]`. Verified offline, ticked the stray box.
+## (auto, run 26) 2026-06-26 -- 21.8 box ticked (already-shipped parity doc; doc only, no deploy).
+`docs/mt4-manager-parity.md` shipped 2026-06-18 with `Done` `[x]` but `**Files:**` `[ ]`. Ticked.
 
 ## CRITICAL operating notes (carry forward every run)
 - **The Edit/Write file-tools TRUNCATE files on this mount.** Use `python3` string-replace (or a heredoc
@@ -70,11 +70,11 @@ margin_level_pct on `/api/admin/users`, UI in `app/admin/users.tsx`, typed in `l
 ## To unblock future auto-runs
 (a) grant network egress (railway/supabase/Claude API) for the live-verify items; (b) approve building
 21.11 (credit bucket -- a product decision); or (c) decompose Phase 22 (Gamification -- still just a
-heading at TODO L1289, ZERO `## 22.x` sub-items) and 18.3 (light/dark, recommend split 18.3a-g) into
+heading at TODO L1287, ZERO `## 22.x` sub-items) and 18.3 (light/dark, recommend split 18.3a-g) into
 sized `## x.y` sub-items with offline-checkable acceptance. No easy box-tick wins remain; every open
 `[ ]` is real blocked/parked/gated/dependency-blocked work.
 
 ## Prior runs (pruned)
-- Runs 21-25, 28-29: AUDIT-ONLY exits; every concrete item blocked/parked/gated/undecomposed.
+- Runs 21-25, 28-30: AUDIT-ONLY exits; every concrete item blocked/parked/gated/undecomposed.
 - Runs 25-27: stray `**Files:**` box tidies for already-shipped 21.1/21.8/21.9 (now fully cleared).
 - Runs 11-13: admin backend slices (18.8a/c, 18.8e/f) shipped, offline-tested green.
