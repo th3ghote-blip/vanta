@@ -1,5 +1,28 @@
 # STATE -- handoff notes for the next agent
 
+## (auto, run 36) 2026-06-30 02:08 UTC -- AUDIT-ONLY exit. No completable item. Tree healthy.
+Precheck clean (git-precheck renamed 3 stale `.git/*.lock` aged ~14217s via mv; branch=main OK,
+author OK, working tree clean). Client `tsc --noEmit` exit 0; server `tsc --noEmit` exit 0;
+`npm test` **285 passing** (27 files). Independently re-walked the FULL unchecked `[ ]` list
+top-to-bottom (did NOT just trust the handoff) -- identical blocked/parked/gated/undecomposed/visual
+set as runs 21-35, no box-tick wins remain:
+- R.7 BetterStack (L160), 5.3 Sumsub, 8.1 OANDA, 9.3/9.4 stores, 10.1-10.6 domain, 20.2 forgot-pw:
+  PARKED / externally gated.
+- 18.2 chart drawing (L835), 18.3 light/dark (L847, undecomposed -> split 18.3a-g; each sub-item is
+  STILL visual-acceptance so decomposing alone unblocks nothing offline), 18.8 remaining sub-items
+  (screen UIs; backend slices shipped), 19.2 UI steps (L1169): VISUAL acceptance -> screenshot run.
+- 18.7 AI assistant (L999): Claude API key + network + live verify + multi-page chat UI.
+- 21.1 admin audit (L1185): needs LIVE 200 per route (network); static audit done in docs/admin-audit.md.
+- 21.7 KYC (L1227): live doc upload + signed-URL preview (visual + network).
+- 21.11 credit bucket (L1251): *(optional)* product/business decision -- not autonomous.
+- 21.12 stop-out (L1257): "Depends on 21.14"; 21.14 not done -> dependency unmet.
+- 21.14 account groups (L1268): large/undecomposed -- needs a design/decomposition pass first.
+- Phase 22 (Gamification): STILL a bare heading (TODO L1287-1292), ZERO `## 22.x` sub-items.
+No file changed except this STATE.md entry. Markdown-only -> NO deploy (deploy.yml paths-ignore covers
+`**.md`). Committing STATE.md only. Migration 031 STILL UNAPPLIED. An offline, no-network, no-screenshot
+run cannot complete or verify any open item; another clean audit exit is correct until the user grants
+an unblock (see "To unblock" below). Do NOT fabricate work.
+
 ## (auto, run 35) 2026-06-29 22:08 UTC -- AUDIT-ONLY exit. No completable item. Tree healthy.
 Precheck clean (git-precheck self-healed three stale `.git/*.lock` aged ~14307s via rename; branch=main
 OK, author OK, working tree clean). Client `tsc --noEmit` exit 0; server `tsc --noEmit` exit 0.
@@ -93,10 +116,6 @@ No file changed except this STATE.md entry. Markdown-only -> NO deploy (deploy.y
   no-screenshot run cannot complete or verify any open item. Another clean audit exit is the correct
   outcome until the user grants an unblock (see "To unblock" below). Do NOT fabricate work.
 
-## (auto, run 31) 2026-06-28 -- AUDIT-ONLY exit. No completable item. Tree healthy.
-Precheck clean (self-healed three stale `.git/*.lock`). Client+server `tsc --noEmit` exit 0. Re-walked
-the FULL unchecked list -- same blocked/parked/gated/undecomposed set as runs 21-30. STATE.md only.
-
 ## CRITICAL operating notes (carry forward every run)
 - **The Edit/Write file-tools TRUNCATE files on this mount.** Use `python3` string-replace (or a heredoc
   whole-file write) in bash for ALL file edits, then verify `wc -l` + `tail`. Never trust the Edit tool here.
@@ -133,6 +152,6 @@ sized `## x.y` sub-items with offline-checkable acceptance. No easy box-tick win
 `[ ]` is real blocked/parked/gated/dependency-blocked work.
 
 ## Prior runs (pruned)
-- Runs 21-29, 30-32: AUDIT-ONLY exits; every concrete item blocked/parked/gated/undecomposed.
+- Runs 21-31: AUDIT-ONLY exits; every concrete item blocked/parked/gated/undecomposed.
 - Runs 25-27: stray `**Files:**` box tidies for already-shipped 21.1/21.8/21.9 (now fully cleared).
 - Runs 11-13: admin backend slices (18.8a/c, 18.8e/f) shipped, offline-tested green.
