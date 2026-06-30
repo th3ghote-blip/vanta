@@ -1,5 +1,31 @@
 # STATE -- handoff notes for the next agent
 
+## (auto, run 38) 2026-06-30 ~10:20 UTC -- AUDIT-ONLY exit. No completable item. Tree healthy.
+Precheck clean (git-precheck renamed 3 stale `.git/*.lock` aged ~7600s via mv -- rm not permitted on this
+mount; branch=main OK, author OK, working tree clean). Client `tsc --noEmit` exit 0; server `tsc --noEmit`
+exit 0. Independently re-walked the FULL unchecked `[ ]` list top-to-bottom (read each item's context, did
+NOT just trust the handoff) -- identical blocked/parked/gated/undecomposed/visual set as runs 21-37, no
+box-tick wins remain:
+- R.7 BetterStack (L160), 5.3 Sumsub, 8.1 OANDA, 9.3/9.4 stores, 10.1-10.6 domain, 20.2 forgot-pw:
+  PARKED / externally gated.
+- 18.2 chart drawing (L835): interactive + `chart_drawings` round-trip + visual.
+- 18.3 light/dark (L847, undecomposed -> recommend split 18.3a-g): ~58-component themed-lookup refactor,
+  VISUAL acceptance -> needs a screenshot/preview run.
+- 18.7 AI assistant (L999): Claude API key + network + live verify + multi-page chat UI.
+- 18.8 (L911) remaining sub-items: screen UIs; all offline backend slices shipped (18.8a/c/e/f) -> visual.
+- 19.2 UI steps (L1169), 21.1 admin audit (L1185, needs LIVE 200/route; static audit in
+  docs/admin-audit.md), 21.7 KYC (L1227, live doc upload + signed-URL preview): visual + network.
+- 21.11 credit bucket (L1251): *(optional)* product/business decision -- not autonomous.
+- 21.12 stop-out (L1257): "Depends on 21.14"; 21.14 not done -> dependency unmet.
+- 21.14 account groups (L1268): large/undecomposed -- needs a design/decomposition pass first.
+- Phase 22 (Gamification): STILL a bare heading (TODO L1287-1292, file ends at 1292), ZERO `## 22.x`
+  sub-items.
+No file changed except this STATE.md entry. Markdown-only -> NO deploy (deploy.yml paths-ignore covers
+`**.md`). Committing STATE.md only. Migration 031 STILL UNAPPLIED. An offline, no-network, no-screenshot
+run cannot complete or verify any open item; another clean audit exit is correct until the user grants an
+unblock (see "To unblock" below). Do NOT fabricate work.
+
+
 ## (auto, run 37) 2026-06-30 ~06:10 UTC -- AUDIT-ONLY exit. No completable item. Tree healthy.
 Precheck clean (git-precheck renamed 3 stale `.git/*.lock` aged ~35300s via mv -- rm not permitted on
 this mount; branch=main OK, author OK, working tree clean). Client `tsc --noEmit` exit 0; server
@@ -37,9 +63,6 @@ identical blocked set as runs 21-34. Committed STATE.md only.
 Precheck clean (self-healed 1 stale lock). Client+server tsc exit 0. Re-walked full `[ ]` list --
 identical blocked set as runs 21-33. Committed STATE.md only.
 
-## (auto, run 33) 2026-06-29 -- AUDIT-ONLY exit. No completable item. Tree healthy.
-Precheck clean. Client+server tsc exit 0. Re-walked full `[ ]` list -- identical blocked set as runs
-21-32. Committed STATE.md only.
 
 ## CRITICAL operating notes (carry forward every run)
 - **The Edit/Write file-tools TRUNCATE files on this mount.** Use `python3` string-replace (or a heredoc
