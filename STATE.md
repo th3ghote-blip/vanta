@@ -1,5 +1,30 @@
 # STATE -- handoff notes for the next agent
 
+## (auto, run 41) 2026-07-01 11:57 UTC -- AUDIT-ONLY exit. No completable item. Tree healthy.
+Precheck clean (git-precheck renamed 3 stale `.git/*.lock` aged ~49600s via mv -- rm not permitted on this
+mount; branch=main OK, author OK, working tree clean). Client `tsc --noEmit` exit 0; server `tsc --noEmit`
+exit 0; `npm test` **285 passing** (27 files). Independently re-walked the FULL 32-item unchecked `[ ]`
+list top-to-bottom (read each item's full text + surrounding context; did NOT just trust the handoff) --
+identical blocked/parked/gated/undecomposed/visual set as runs 21-40, no box-tick wins remain:
+- R.7 BetterStack (L160), 5.3 Sumsub (L485-486), 8.1 OANDA (L550-552), 9.3/9.4 stores (L582-588),
+  10.1-10.6 domain (L598-624), 20.2 forgot-pw (L1085): PARKED / externally gated. Skip per header rule.
+- 18.2 chart drawing (L835): interactive + `chart_drawings` round-trip + visual.
+- 18.3 light/dark (L847): ~58-component themed-lookup refactor, VISUAL acceptance (missed token = broken
+  render) -> screenshot run. Not yet decomposed into 18.3a-g sub-items.
+- 18.7 AI assistant (L999): Claude API key + network + live verify + multi-page chat UI.
+- 18.8 (L911): oversized parent; ALL offline backend slices shipped (18.8a/c/e/f). Remaining sub-items
+  (18.8b/d screen UIs) are visual; 18.8d also depends on 18.7.
+- 21.1 admin audit (L1185): static audit in docs/admin-audit.md done; box needs a LIVE 200 per route.
+- 21.7 KYC (L1227): live doc upload + signed Storage URL image preview -> visual + network.
+- 21.11 credit bucket (L1251): *(optional)* product/business decision -- not autonomous.
+- 21.12 stop-out (L1257): depends on 21.14 (not done) -> dependency unmet.
+- 21.14 account groups (L1268): large/undecomposed -- needs a design/decomposition pass first.
+- Phase 22 (Gamification): STILL a bare heading (TODO L1287-1292, file ends 1292), ZERO `## 22.x` items.
+No file changed except this STATE.md entry. Markdown-only -> NO deploy (deploy.yml paths-ignore covers
+`**.md`). Committing STATE.md only. Migration 031 STILL UNAPPLIED. An offline, no-network, no-screenshot
+run cannot complete or verify any open item; another clean audit exit is correct until the user grants an
+unblock (see "To unblock" below). Do NOT fabricate work.
+
 ## (auto, run 40) 2026-06-30 22:07 UTC -- AUDIT-ONLY exit. No completable item. Tree healthy.
 Precheck clean (git-precheck renamed 1 stale `.git/objects/maintenance.lock` aged ~14322s via mv -- rm
 not permitted on this mount; branch=main OK, author OK, working tree clean). Client `tsc --noEmit` exit 0;
@@ -99,12 +124,6 @@ No file changed except this STATE.md entry. Markdown-only -> NO deploy (deploy.y
 run cannot complete or verify any open item; another clean audit exit is correct until the user grants an
 unblock (see "To unblock" below). Do NOT fabricate work.
 
-## (auto, run 36) 2026-06-30 02:08 UTC -- AUDIT-ONLY exit. No completable item. Tree healthy.
-Precheck clean (renamed 3 stale `.git/*.lock`). Client+server tsc exit 0; `npm test` **285 passing**
-(27 files). Re-walked full `[ ]` list -- identical blocked/parked/gated/visual set as runs 21-35.
-Committed STATE.md only. Migration 031 unapplied.
-
-
 ## CRITICAL operating notes (carry forward every run)
 - **The Edit/Write file-tools TRUNCATE files on this mount.** Use `python3` string-replace (or a heredoc
   whole-file write) in bash for ALL file edits, then verify `wc -l` + `tail`. Never trust the Edit tool here.
@@ -141,6 +160,6 @@ sized `## x.y` sub-items with offline-checkable acceptance. No easy box-tick win
 `[ ]` is real blocked/parked/gated/dependency-blocked work.
 
 ## Prior runs (pruned)
-- Runs 21-32 + 36: AUDIT-ONLY exits; every concrete item blocked/parked/gated/undecomposed.
+- Runs 21-32 + 36-40: AUDIT-ONLY exits; every concrete item blocked/parked/gated/undecomposed.
 - Runs 25-27: stray `**Files:**` box tidies for already-shipped 21.1/21.8/21.9 (now fully cleared).
 - Runs 11-13: admin backend slices (18.8a/c, 18.8e/f) shipped, offline-tested green.
