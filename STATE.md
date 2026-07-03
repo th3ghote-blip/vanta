@@ -1,5 +1,29 @@
 # STATE -- handoff notes for the next agent
 
+## (auto, run 49) 2026-07-03 13:40 UTC -- AUDIT-ONLY exit. No completable item. Tree healthy.
+Precheck clean (git-precheck renamed 3 stale locks aside via mv: index.lock/HEAD.lock/objects/maintenance.lock,
+age ~48550s; branch=main OK, author OK, tree clean). Client `tsc --noEmit` exit 0; server `tsc --noEmit`
+exit 0; `npm test` **285 passing** (27 files) -- identical to runs 44-48. Egress re-probed live this run:
+github.com 200; api.supabase.com HTTP 000; railway /health HTTP 000 (curl exit 56 -- STILL github-only).
+Independently re-walked the FULL unchecked `[ ]` list top-to-bottom (read each item's full text + surrounding
+`>` notes, did NOT just trust the handoff) -- identical blocked/parked/gated/undecomposed/visual set as runs
+21-48, no box-tick wins:
+- PARKED/externally-gated (skip per header): R.7 BetterStack (L160), 5.3 Sumsub (L485), 8.1 OANDA (L550),
+  9.3/9.4 stores (L582/586), 10.1-10.6 domain (L597-624), 20.2 forgot-pw (L1085).
+- 18.2 chart drawing (L835): interactive + `chart_drawings` round-trip + visual.
+- 18.3 light/dark (L847): ~58-component themed-lookup refactor, VISUAL acceptance; not decomposed 18.3a-g.
+- 18.7 AI assistant (L999): Claude API key + network + live verify + multi-page chat UI.
+- 18.8 (L911): oversized parent; offline backend slices all shipped under Phase 21; remaining sub-pages visual.
+- 21.1 admin audit (L1185): static audit done in docs/admin-audit.md; box needs a LIVE 200 per route (network).
+- 21.7 KYC (L1227): live doc upload + signed Storage image preview -> visual + network.
+- 21.11 credit bucket (L1251): *(optional)* product/business decision -- not autonomous.
+- 21.12 stop-out (L1257): depends on 21.14 (not done) -> dependency unmet.
+- 21.14 account groups (L1268): large/undecomposed -- needs a design/decomposition pass first.
+- Phase 22 (Gamification): STILL a bare heading (file ends L1292), ZERO `## 22.x` items.
+No file changed except this STATE.md entry. Markdown-only -> NO deploy (deploy.yml paths-ignore covers
+`**.md`). Committing STATE.md only. Migration 031 STILL UNAPPLIED (network gated). Do NOT fabricate work.
+
+
 ## (auto, run 48) 2026-07-03 00:07 UTC -- AUDIT-ONLY exit. No completable item. Tree healthy.
 Precheck clean (git-precheck renamed 3 stale locks aside via mv: index.lock/HEAD.lock/objects/maintenance.lock,
 age ~14277s; branch=main OK, author OK, tree clean). Client `tsc --noEmit` exit 0; server `tsc --noEmit`
@@ -89,39 +113,6 @@ set as runs 21-44, no box-tick wins:
 No file changed except this STATE.md entry. Markdown-only -> NO deploy (deploy.yml paths-ignore covers
 `**.md`). Committing STATE.md only. Migration 031 STILL UNAPPLIED (network gated). Do NOT fabricate work.
 
-
-## (auto, run 44) 2026-07-01 22:09 UTC -- AUDIT-ONLY exit. No completable item. Tree healthy.
-Precheck clean (git-precheck renamed 1 stale `.git/objects/maintenance.lock` aged ~14321s via mv -- rm
-not permitted on this mount; branch=main OK, author OK, working tree clean). Client `tsc --noEmit` exit 0;
-server `tsc --noEmit` exit 0; `npm test` **285 passing** (27 files). Independently re-walked the FULL
-unchecked `[ ]` list top-to-bottom (read each item's full text + surrounding context, did NOT just trust
-the handoff) -- identical blocked/parked/gated/undecomposed/visual set as runs 21-43, no box-tick wins:
-- R.7 BetterStack (L160), 5.3 Sumsub (L485), 8.1 OANDA (L550), 9.3/9.4 stores (L582/586),
-  10.1-10.6 domain (L597-624), 20.2 forgot-pw (L1084): PARKED / externally gated. Skip per header rule.
-- 18.2 chart drawing (L834): interactive + `chart_drawings` round-trip + visual.
-- 18.3 light/dark (L846): ~58-component themed-lookup refactor, VISUAL acceptance -> screenshot run.
-  Not yet decomposed into 18.3a-g sub-items.
-- 18.7 AI assistant (L998): Claude API key + network + live verify + multi-page chat UI.
-- 18.8 (L910): oversized parent; ALL offline backend slices shipped (18.8a/c/e/f). Remaining sub-items
-  (18.8b/d screen UIs) are visual; 18.8d also depends on 18.7.
-- 21.1 admin audit (L1184): static audit in docs/admin-audit.md done; box needs a LIVE 200 per route.
-- 21.7 KYC (L1226): live doc upload + signed Storage URL image preview -> visual + network.
-- 21.11 credit bucket (L1250): *(optional)* product/business decision -- not autonomous.
-- 21.12 stop-out (L1256): depends on 21.14 (not done) -> dependency unmet.
-- 21.14 account groups (L1267): large/undecomposed -- needs a design/decomposition pass first.
-- Phase 22 (Gamification): STILL a bare heading (file ends ~L1292), ZERO `## 22.x` items.
-
-**NEW THIS RUN -- network egress confirmed github-only (settles a standing contradiction).** The TODO
-header claims "apply-migration.py IS reachable (Supabase Management API allowlisted)". That is FALSE in
-this sandbox. Live probe: `github.com` -> 200; `api.supabase.com` -> HTTP 000 / curl exit 56 (conn
-reset); Railway `/health` -> HTTP 000 / exit 56. So **migration 031 CANNOT be applied from an auto-run**
-(confirmed, not just assumed) -- it needs an interactive/network-enabled session. Future auto-runs should
-stop treating "apply 031" as reachable work.
-
-No file changed except this STATE.md entry. Markdown-only -> NO deploy (deploy.yml paths-ignore covers
-`**.md`). Committing STATE.md only. Migration 031 STILL UNAPPLIED. An offline, github-only,
-no-screenshot run cannot complete or verify any open item; another clean audit exit is correct until the
-user grants an unblock (see "To unblock" below). Do NOT fabricate work.
 
 ## CRITICAL operating notes (carry forward every run)
 - **Network egress is GITHUB-ONLY** (probed run 44): github.com 200; api.supabase.com + railway both fail
