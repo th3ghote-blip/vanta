@@ -1,5 +1,32 @@
 # STATE -- handoff notes for the next agent
 
+## (auto, run 59) 2026-07-05 20:07 UTC -- AUDIT-ONLY exit. No completable item. Tree healthy.
+Precheck clean (git-precheck renamed 1 stale lock aside via mv: objects/maintenance.lock, age ~14332s;
+branch=main OK, author OK, tree clean). Client `tsc --noEmit` exit 0; server `tsc --noEmit` exit 0;
+`npm test` **285 passing** (27 files, 8.26s) -- identical to runs 44-58. Did NOT re-probe egress (header
+says live/network checks do not apply and must not gate an auto-run; handoff establishes github-only).
+Independently re-walked the FULL unchecked list this run (`grep -c '^\s*- \[ \]'` = 33 lines = ~16
+distinct items, matching the documented set exactly) and read the 18.3 body (L846-853) directly to confirm
+it is still a ~58-component VISUAL themed-lookup refactor with visual acceptance -- not offline-verifiable
+and not decomposed into 18.3a-g. Phase 22 STILL a bare heading (`grep -c '^## 22\.'` = 0). Identical
+blocked/parked/gated/undecomposed/visual set as runs 21-58, no box-tick wins:
+- PARKED/externally-gated (skip per header): R.7 BetterStack (L160), 5.3 Sumsub (L485), 8.1 OANDA (L550),
+  9.3/9.4 stores (L582/587), 10.1-10.6 domain (L598-624), 20.2 forgot-pw (L1085).
+- 18.2 chart drawing (L835): interactive + `chart_drawings` round-trip + visual -> not offline-verifiable.
+- 18.3 light/dark (L847): ~58-component themed-lookup refactor, VISUAL acceptance; not decomposed 18.3a-g.
+- 18.7 AI assistant (L999): Claude API key + network + live verify + multi-page chat UI.
+- 18.8 (L911): oversized parent; offline backend slices all shipped `[x]`; remaining sub-pages visual.
+- 19.2 (L1169): parent [x]; only open box is a UI-only browser-verify sub-item (not offline-doable).
+- 21.1 admin audit (L1185): static audit done in docs/admin-audit.md; acceptance = LIVE 200 per route (network).
+- 21.7 KYC (L1227): live doc upload + signed Storage image preview -> visual + network.
+- 21.11 credit bucket (L1251): *(optional)* product/business decision -- not autonomous.
+- 21.12 stop-out (L1257): depends on 21.14 (not done) -> dependency unmet.
+- 21.14 account groups (L1268): item text says "design and scope as its own mini-phase" -- undecomposed.
+- Phase 22 (Gamification): STILL a bare heading, ZERO `## 22.x` items.
+No file changed except this STATE.md entry. Markdown-only -> NO deploy (deploy.yml paths-ignore covers
+`**.md`). Committing STATE.md only. Migration 031 STILL UNAPPLIED (network gated). Do NOT fabricate work.
+
+
 ## (auto, run 58) 2026-07-05 16:06 UTC -- AUDIT-ONLY exit. No completable item. Tree healthy.
 Precheck clean (git-precheck renamed 1 stale lock aside via mv: objects/maintenance.lock, age ~4875s;
 branch=main OK, author OK, tree clean). Client `tsc --noEmit` exit 0; server `tsc --noEmit` exit 0;
@@ -108,34 +135,6 @@ undecomposed/visual set as runs 21-54, no box-tick wins:
 No file changed except this STATE.md entry. Markdown-only -> NO deploy (deploy.yml paths-ignore covers
 `**.md`). Committing STATE.md only. Migration 031 STILL UNAPPLIED (network gated). Do NOT fabricate work.
 
-
-
-## (auto, run 54) 2026-07-04 ~20:08 UTC -- AUDIT-ONLY exit. No completable item. Tree healthy.
-Precheck clean (git-precheck renamed 3 stale locks aside via mv: index.lock/HEAD.lock/objects/maintenance.lock,
-age ~14.3ks; branch=main OK, author OK, tree clean). Client `tsc --noEmit` exit 0; server `tsc --noEmit`
-exit 0; `npm test` **285 passing** (27 files) -- identical to runs 44-53. Did NOT re-probe egress (header
-says live/network checks do not apply and must not gate an auto-run; handoff establishes github-only).
-Independently re-walked the FULL unchecked list this run: `grep -c '^\s*- \[ \]'` = 33 lines = ~16 distinct
-items; read the FULL bodies of 18.2 (L834), 18.3 (L846), 21.1 (L1184), 21.12 (L1256), 21.14 (L1267), and
-19.2's dangling UI sub-item (L1169) directly rather than trusting the handoff. Phase 22 confirmed STILL a bare
-heading -- `grep '# Phase 22'` = L1287, ZERO `## 22.x` sub-items; file ends L1292 with just the intro para.
-Identical blocked/parked/gated/undecomposed/visual set as runs 21-53, no box-tick wins:
-- PARKED/externally-gated (skip per header): R.7 BetterStack (L160), 5.3 Sumsub (L485), 8.1 OANDA (L550),
-  9.3/9.4 stores (L582/587), 10.1-10.6 domain (L598-624), 20.2 forgot-pw (L1085).
-- 18.2 chart drawing (L834): interactive + `chart_drawings` round-trip + visual -> not offline-verifiable.
-- 18.3 light/dark (L846): ~58-component themed-lookup refactor, VISUAL acceptance; not decomposed 18.3a-g.
-- 18.7 AI assistant (L999): Claude API key + network + live verify + multi-page chat UI.
-- 18.8 (L911): oversized parent; offline backend slices all shipped under Phase 21; remaining sub-pages visual.
-- 19.2 (L1159): parent [x]; only open box is a UI-only browser-verify sub-item (not offline-doable).
-- 21.1 admin audit (L1184): static audit done in docs/admin-audit.md; acceptance = LIVE 200 per route (network;
-  header itself defers live-URL verification) -> cannot box-tick in an auto-run.
-- 21.7 KYC (L1227): live doc upload + signed Storage image preview -> visual + network.
-- 21.11 credit bucket (L1251): *(optional)* product/business decision -- not autonomous.
-- 21.12 stop-out (L1256): depends on 21.14 (not done) -> dependency unmet.
-- 21.14 account groups (L1267): item text itself says "design and scope as its own mini-phase" -- undecomposed.
-- Phase 22 (Gamification): STILL a bare heading, ZERO `## 22.x` items.
-No file changed except this STATE.md entry. Markdown-only -> NO deploy (deploy.yml paths-ignore covers
-`**.md`). Committing STATE.md only. Migration 031 STILL UNAPPLIED (network gated). Do NOT fabricate work.
 
 
 ## CRITICAL operating notes (carry forward every run)
