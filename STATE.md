@@ -1,5 +1,35 @@
 # STATE -- handoff notes for the next agent
 
+
+## (auto, run 68) 2026-07-07 22:08 UTC -- AUDIT-ONLY exit. No completable item. Tree healthy.
+Precheck clean (git-precheck renamed 3 stale locks aside: index.lock/HEAD.lock/objects/maintenance.lock,
+age ~14378s; branch=main OK, author OK, tree clean). Client `tsc --noEmit` exit 0; server `tsc --noEmit`
+exit 0; `npm test` **285 passing** (27 files, 8.06s) -- identical to runs 44-67. Did NOT probe egress
+(header: live/network checks do not apply, must not gate an auto-run).
+Independently re-walked the full unchecked set (`grep -c '^\s*- \[ \]'` = 33 sub-bullet lines = ~16 distinct
+items) and read the bodies of the non-PARKED candidates directly (18.2 L835, 18.3 L847, 18.7 L999, 18.8 L911,
+21.1 L1185, 21.7 L1227, 21.11 L1251, 21.12 L1257, 21.14 L1268). Each remains interactive/visual/network/
+undecomposed/product-decision -- no offline-verifiable slice. Phase 22 still a bare heading
+(`grep -c '^## 22\.'` = 0; file ends L1292). Same set as runs 21-67:
+- PARKED/externally-gated (skip per header): R.7 BetterStack (L160), 5.3 Sumsub (L485), 8.1 OANDA (L550),
+  9.3/9.4 stores (L582/587), 10.1-10.6 domain (L598-624), 20.2 forgot-pw (L1085).
+- 18.2 chart drawing: interactive + `chart_drawings` round-trip + screenshot -> not offline-verifiable.
+- 18.3 light/dark: ~58-component themed-lookup refactor, VISUAL acceptance; not decomposed into 18.3a-g.
+  A partial theme migration is risky (half-light/half-dark = worse than consistent dark) -> leave for a
+  screenshot-capable run. (User re-reported this bug 2026-06-11; still the top real user-facing gap.)
+- 18.7 AI assistant: Claude API key + network + live verify + multi-page chat UI.
+- 18.8: oversized parent; offline backend slices all shipped `[x]`; remaining sub-pages visual.
+- 19.2 (L1169): only open box is a UI-only browser-verify sub-item.
+- 21.1 admin audit: static audit done in docs/admin-audit.md; acceptance = LIVE 200 per route (network).
+- 21.7 KYC: live doc upload + signed Storage image preview -> visual + network.
+- 21.11 credit bucket: *(optional)* product/business decision -- not autonomous.
+- 21.12 stop-out: depends on 21.14 (not done) -> dependency unmet.
+- 21.14 account groups: item says "design and scope as its own mini-phase" -- undecomposed.
+- Phase 22 (Gamification): bare heading, zero `## 22.x` items.
+No file changed except this STATE.md entry (markdown-only -> NO deploy; deploy.yml paths-ignore covers `**.md`).
+Migration 031 STILL UNAPPLIED (network-gated; not a checkbox item). Do NOT fabricate work.
+
+
 ## (auto, run 67) 2026-07-07 20:10 UTC -- AUDIT-ONLY exit. No completable item. Tree healthy.
 Precheck clean (git-precheck renamed 3 stale locks aside via mv: index.lock/HEAD.lock/objects/maintenance.lock,
 age ~14300s; branch=main OK, author OK, tree clean). Client `tsc --noEmit` exit 0; server `tsc --noEmit`
@@ -113,69 +143,3 @@ No file changed except this STATE.md entry. Markdown-only -> NO deploy (deploy.y
 `**.md`). Committing STATE.md only. Migration 031 STILL UNAPPLIED (network gated). Do NOT fabricate work.
 
 
-## (auto, run 63) 2026-07-06 16:07 UTC -- AUDIT-ONLY exit. No completable item. Tree healthy.
-Precheck clean (git-precheck renamed 3 stale locks aside via mv: index.lock/HEAD.lock/objects/maintenance.lock,
-age ~3203s; branch=main OK, author OK, tree clean). Client `tsc --noEmit` exit 0; server `tsc --noEmit`
-exit 0; `npm test` **285 passing** (27 files, 2.92s) -- identical to runs 44-62. Did NOT re-probe egress
-(header says live/network checks do not apply and must not gate an auto-run; handoff establishes github-only).
-Independently re-walked the FULL unchecked list (`grep -c '^\s*- \[ \]'` = 33 lines = ~16 distinct items,
-matching the documented set exactly) and read the 18.2 (L835) and 18.3 (L847) bodies directly to confirm
-both remain interactive/visual/network refactors, not offline-verifiable. Phase 22 STILL a bare heading
-(`grep -c '^## 22\.'` = 0). Identical blocked/parked/gated/undecomposed/visual set as runs 21-62, no
-box-tick wins:
-- PARKED/externally-gated (skip per header): R.7 BetterStack (L160), 5.3 Sumsub (L485), 8.1 OANDA (L550),
-  9.3/9.4 stores (L582/587), 10.1-10.6 domain (L598-624), 20.2 forgot-pw (L1085).
-- 18.2 chart drawing (L835): interactive + `chart_drawings` round-trip + visual -> not offline-verifiable.
-- 18.3 light/dark (L847): ~58-component themed-lookup refactor, VISUAL acceptance; not decomposed 18.3a-g.
-- 18.7 AI assistant (L999): Claude API key + network + live verify + multi-page chat UI.
-- 18.8 (L911): oversized parent; offline backend slices all shipped `[x]`; remaining sub-pages visual.
-- 19.2 (L1169): parent [x]; only open box is a UI-only browser-verify sub-item (not offline-doable).
-- 21.1 admin audit (L1185): static audit done in docs/admin-audit.md; acceptance = LIVE 200 per route (network).
-- 21.7 KYC (L1227): live doc upload + signed Storage image preview -> visual + network.
-- 21.11 credit bucket (L1251): *(optional)* product/business decision -- not autonomous.
-- 21.12 stop-out (L1257): depends on 21.14 (not done) -> dependency unmet.
-- 21.14 account groups (L1268): item text says "design and scope as its own mini-phase" -- undecomposed.
-- Phase 22 (Gamification): STILL a bare heading, ZERO `## 22.x` items.
-No file changed except this STATE.md entry. Markdown-only -> NO deploy (deploy.yml paths-ignore covers
-`**.md`). Committing STATE.md only. Migration 031 STILL UNAPPLIED (network gated). Do NOT fabricate work.
-
-
-## CRITICAL operating notes (carry forward every run)
-- **Network egress is GITHUB-ONLY** (probed run 44): github.com 200; api.supabase.com + railway both fail
-  (HTTP 000 / curl exit 56). The TODO header's "Supabase Management API allowlisted" is WRONG here.
-  Deploy = push to `main` -> GitHub Actions ships railway+vercel. Live-URL / migration-apply is NOT
-  reachable from an auto-run; defer all live verify + migration-apply to an interactive session.
-- **The Edit/Write file-tools TRUNCATE files on this mount.** Use `python3` string-replace (or a heredoc
-  whole-file write) in bash for ALL file edits, then verify `wc -l` + `tail`. Never trust the Edit tool here.
-- **NUL-byte check the RIGHT way:** `tr -cd '\000' < file | wc -c` (must be 0). `grep -c $'\x00'` is USELESS.
-- Sensitive large files to edit ONLY via python string-replace: `server/src/routes/admin.ts`,
-  `lib/api.ts`, `server/test/helpers/supabaseMock.ts` (mock's two table literals use DIFFERENT
-  indentation -- replace separately).
-- deploy.yml has `paths-ignore` for `**.md`/`docs/**`/`scripts/**`/`e2e/**` -- doc/MD edits do NOT deploy.
-- **On this Windows mount you cannot `rm` files in `.git`** ("Operation not permitted") but you CAN `mv`.
-  `scripts/git-precheck.sh` self-heals stale `*.lock` files -- run it at start.
-- **Migration 031** (`031_account_last_seen.sql`) STILL UNAPPLIED -- `/api/admin/online` 500s live until
-  applied. Interactive/network run only:
-  `SUPABASE_PAT=... python scripts/apply-migration.py supabase/migrations/031_account_last_seen.sql`
-
-## PENDING LIVE VERIFY (deferred to an interactive/network run)
-- **31 migration + 21.1 live half:** apply 031, then curl each of the 24 admin routes with an admin JWT,
-  confirm 200 + shape per `docs/admin-audit.md`, fill the live status into the Verdict column, THEN mark 21.1 [x].
-- **21.9 live half:** confirm an account's `equity`/`margin_level_pct` on the user-search list match its
-  row in the Accounts analytics leaderboard.
-- 18.8a robot-runs, 18.8c price-alerts log, 18.8e/f transactions type-filter, 21.x admin slices
-  (positions, force-close/modify, analytics, trades blotter, online, notify, CSV export) --
-  backend-shipped + offline-tested, awaiting live-DB confirm.
-- Visual sub-items: 18.2 chart tools, 18.3 light/dark mode, 18.8b/18.8d screen UIs -- screenshot run.
-
-## To unblock future auto-runs
-(a) grant network egress (railway/supabase/Claude API) for the live-verify items + migration 031;
-(b) approve building 21.11 (credit bucket -- a product decision); or (c) decompose Phase 22
-(Gamification -- still just a heading, ZERO `## 22.x` sub-items) and 18.3 (light/dark, recommend split
-18.3a-g) into sized `## x.y` sub-items with offline-checkable acceptance. No easy box-tick wins remain;
-every open `[ ]` is real blocked/parked/gated/dependency-blocked work.
-
-## Prior runs (pruned)
-- Runs 21-39: AUDIT-ONLY exits; every concrete item blocked/parked/gated/undecomposed.
-- Runs 25-27: stray `**Files:**` box tidies for already-shipped 21.1/21.8/21.9 (now fully cleared).
-- Runs 11-13: admin backend slices (18.8a/c, 18.8e/f) shipped, offline-tested green.
