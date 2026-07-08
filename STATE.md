@@ -1,6 +1,51 @@
 # STATE -- handoff notes for the next agent
 
 
+## (auto, run 72) 2026-07-08 22:10 UTC -- AUDIT-ONLY exit. No completable item. Tree healthy.
+**Tree looked dirty on entry but was NOT a user edit -- did NOT STOP.** `git status` showed `.gitignore`
++ `STATE.md` staged AND unstaged, but `git diff HEAD` was EMPTY: run 71's temp-index commit left the index
+diverged from HEAD (a staged reversal that removed run 71's STATE entry + err.txt-ignore line, plus an
+unstaged re-reversal that added them back) so working-tree content == HEAD exactly. Cleared the phantom with
+`git reset` (MIXED, never `--hard`) -> `git status` now "nothing to commit, working tree clean". No file
+content was changed by the reset; run 71 (commit cfc6db5) is intact in HEAD.
+Precheck: `git-precheck.sh` clean (branch=main OK, author OK, tree clean); client `tsc --noEmit` exit 0;
+server `tsc --noEmit` exit 0; `npm test` **285 passing** (27 files) -- identical to runs 44-71. Did NOT
+probe live/network (header: those checks don't apply and must not gate an auto-run).
+Independently re-walked the FULL unchecked set and read the BODIES of 18.2 (L835), 18.3 (L847), 18.8 (L911),
+18.7 (L999), 19.2 (L1169), 21.1 (L1185), 21.7 (L1227), 21.11 (L1251), 21.12 (L1257), 21.14 (L1268) directly
+-- not rubber-stamped. Every offline-verifiable backend slice is already `[x]` (21.9/21.10/21.13/21.15/21.16,
+18.8a/c/e/f). Remaining unchecked = genuinely blocked, same set as runs 21-71:
+- PARKED/externally-gated (skip per header): R.7 BetterStack (L160), 5.3 Sumsub (L485), 8.1 OANDA (L550),
+  9.3/9.4 stores (L582/587), 10.1-10.6 domain (L598-624), 20.2 forgot-pw (L1085).
+- 18.2 chart drawing: interactive + `chart_drawings` round-trip + screenshot -> not offline-verifiable.
+- 18.3 light/dark: 66-file themed-lookup refactor, VISUAL acceptance (hook exists; conversion is the work);
+  not decomposed into real 18.3a-g checkboxes. Top user-facing gap (re-reported 2026-06-11).
+- 18.8: oversized parent; offline backend slices all shipped; remaining sub-pages are visual UI + 18.8d
+  depends on 18.7.
+- 18.7 AI assistant: Claude API key + network + live verify + multi-page chat UI.
+- 19.2: only open box is a UI-only browser-verify sub-item.
+- 21.1 admin audit: static audit done (docs/admin-audit.md); acceptance = LIVE 200 per route (network).
+- 21.7 KYC: live doc upload + signed Storage image preview -> visual + network.
+- 21.11 credit bucket: *(optional)* product/business decision -- not autonomous.
+- 21.12 stop-out: depends on 21.14 (not done) -> dependency unmet.
+- 21.14 account groups: item says "design and scope as its own mini-phase" -- undecomposed design call.
+Phase 22 STILL a bare heading (zero `## 22.x` items). No file changed except this STATE.md entry
+(markdown-only -> NO deploy; deploy.yml paths-ignore covers `**.md`). Migration 031 (`accounts.last_seen`,
+from already-`[x]` 21.13) STILL UNAPPLIED (network-gated; not a checkbox item -> does not gate this run).
+Do NOT fabricate work.
+**STALL NOTE (51 consecutive audit-only runs):** to unblock, pick one: (a) a network-enabled run (apply mig
+031, hit Claude API, live-verify 21.1/21.7); (b) a screenshot-capable run for the 18.3 theme fix (hook
+exists; needs the 66-file conversion verified per-screen); (c) make the 21.11 credit-bucket product call;
+(d) decompose 21.14 account-groups into offline sub-items.
+**GIT-LOCK STATE:** the WSL mount denies ALL `.git` unlinks again this run ("Operation not permitted"), so
+`git-precheck.sh` and I can only RENAME stale locks aside (`mv`), never delete them -> ~200 harmless
+`.git/*.lock.stale.*` files have accumulated (untracked, inside `.git/`, do NOT affect `git status` tree
+cleanliness). The stray 0-byte `err.txt` is still un-deletable and still gitignored -> stays out of status.
+If `git commit` fails on the lock, use run 71's temp-index trick: `cp .git/index /tmp/tmpidx &&
+GIT_INDEX_FILE=/tmp/tmpidx git add STATE.md && GIT_INDEX_FILE=/tmp/tmpidx git commit`. Next run that gets an
+unlink-permitting mount should `rm -f .git/*.stale.* .git/objects/*.stale.* err.txt` to clean up.
+
+
 ## (auto, run 71) 2026-07-08 18:09 UTC -- AUDIT-ONLY exit. No completable item. Tree healthy.
 Precheck clean (git-precheck: branch=main OK, author OK, tree clean; one 0-byte `.git/index.lock` was
 present but only ~44s old so precheck left it -- it's a stale WSL-mount artifact that is un-`unlink`-able
@@ -94,50 +139,4 @@ interactive/visual/network/undecomposed/product-decision work. Phase 22 STILL a 
 - PARKED/externally-gated (skip per header): R.7 BetterStack (L160), 5.3 Sumsub (L485), 8.1 OANDA (L550),
   9.3/9.4 stores (L582/587), 10.1-10.6 domain (L598-624), 20.2 forgot-pw (L1085).
 - 18.2 chart drawing: interactive + `chart_drawings` round-trip + screenshot -> not offline-verifiable.
-- 18.3 light/dark: ~58-component themed-lookup refactor, VISUAL acceptance; not decomposed 18.3a-g.
-  (User re-reported 2026-06-11; still the top real user-facing gap. Partial migration is risky -> needs a
-  screenshot-capable run.)
-- 18.7 AI assistant: Claude API key + network + live verify + multi-page chat UI.
-- 18.8: oversized parent; offline backend slices all shipped `[x]`; remaining sub-pages visual.
-- 19.2: only open box is a UI-only browser-verify sub-item.
-- 21.1 admin audit: static audit done (docs/admin-audit.md); acceptance = LIVE 200 per route (network).
-- 21.7 KYC: live doc upload + signed Storage image preview -> visual + network.
-- 21.11 credit bucket: *(optional)* product/business decision -- not autonomous.
-- 21.12 stop-out: depends on 21.14 (not done) -> dependency unmet.
-- 21.14 account groups: item says "design and scope as its own mini-phase" -- undecomposed.
-- Phase 22 (Gamification): bare heading, zero `## 22.x` items.
-No file changed except this STATE.md entry (markdown-only -> NO deploy; deploy.yml paths-ignore covers
-`**.md`). Migration 031 STILL UNAPPLIED (network-gated; not a checkbox item). Do NOT fabricate work.
-**STALL NOTE for the user:** the list has been audit-only for ~48 consecutive runs. To unblock the next
-run, the user must pick one: (a) give a network-enabled run (apply mig 031, hit Claude API, live-verify);
-(b) give a screenshot-capable run for the 18.3 theme fix (top user-facing bug); (c) make the 21.11
-credit-bucket product call; or (d) decompose 21.14 account-groups into offline sub-items.
-
-
-## (auto, run 68) 2026-07-07 22:08 UTC -- AUDIT-ONLY exit. No completable item. Tree healthy.
-Precheck clean (git-precheck renamed 3 stale locks aside: index.lock/HEAD.lock/objects/maintenance.lock,
-age ~14378s; branch=main OK, author OK, tree clean). Client `tsc --noEmit` exit 0; server `tsc --noEmit`
-exit 0; `npm test` **285 passing** (27 files, 8.06s) -- identical to runs 44-67. Did NOT probe egress
-(header: live/network checks do not apply, must not gate an auto-run).
-Independently re-walked the full unchecked set (`grep -c '^\s*- \[ \]'` = 33 sub-bullet lines = ~16 distinct
-items) and read the bodies of the non-PARKED candidates directly (18.2 L835, 18.3 L847, 18.7 L999, 18.8 L911,
-21.1 L1185, 21.7 L1227, 21.11 L1251, 21.12 L1257, 21.14 L1268). Each remains interactive/visual/network/
-undecomposed/product-decision -- no offline-verifiable slice. Phase 22 still a bare heading
-(`grep -c '^## 22\.'` = 0; file ends L1292). Same set as runs 21-67:
-- PARKED/externally-gated (skip per header): R.7 BetterStack (L160), 5.3 Sumsub (L485), 8.1 OANDA (L550),
-  9.3/9.4 stores (L582/587), 10.1-10.6 domain (L598-624), 20.2 forgot-pw (L1085).
-- 18.2 chart drawing: interactive + `chart_drawings` round-trip + screenshot -> not offline-verifiable.
-- 18.3 light/dark: ~58-component themed-lookup refactor, VISUAL acceptance; not decomposed into 18.3a-g.
-  A partial theme migration is risky (half-light/half-dark = worse than consistent dark) -> leave for a
-  screenshot-capable run. (User re-reported this bug 2026-06-11; still the top real user-facing gap.)
-- 18.7 AI assistant: Claude API key + network + live verify + multi-page chat UI.
-- 18.8: oversized parent; offline backend slices all shipped `[x]`; remaining sub-pages visual.
-- 19.2 (L1169): only open box is a UI-only browser-verify sub-item.
-- 21.1 admin audit: static audit done in docs/admin-audit.md; acceptance = LIVE 200 per route (network).
-- 21.7 KYC: live doc upload + signed Storage image preview -> visual + network.
-- 21.11 credit bucket: *(optional)* product/business decision -- not autonomous.
-- 21.12 stop-out: depends on 21.14 (not done) -> dependency unmet.
-- 21.14 account groups: item says "design and scope as its own mini-phase" -- undecomposed.
-- Phase 22 (Gamification): bare heading, zero `## 22.x` items.
-No file changed except this STATE.md entry (markdown-only -> NO deploy; deploy.yml paths-ignore covers `**.md`).
-Migration 031 STILL UNAPPLIED (network-gated; not a checkbox item). Do NOT fabricate work.
+- 18.3 light/dark: ~58-component them
