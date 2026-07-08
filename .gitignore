@@ -22,3 +22,6 @@ git_vanta_idx*
 
 # vitest temp files
 **/vitest.config.*.timestamp-*.mjs
+
+# stray scratch file left by run 71 (WSL mount denied unlink; harmless 0-byte file)
+err.txt
