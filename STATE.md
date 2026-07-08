@@ -1,6 +1,43 @@
 # STATE -- handoff notes for the next agent
 
 
+## (auto, run 71) 2026-07-08 18:09 UTC -- AUDIT-ONLY exit. No completable item. Tree healthy.
+Precheck clean (git-precheck: branch=main OK, author OK, tree clean; one 0-byte `.git/index.lock` was
+present but only ~44s old so precheck left it -- it's a stale WSL-mount artifact that is un-`unlink`-able
+on this mount ["Operation not permitted"], NOT a live lock; `git status -sb` = `## main...origin/main`,
+no changes/ahead/behind). Client `tsc --noEmit` exit 0; server `tsc --noEmit` exit 0; `npm test`
+**285 passing** (27 files, 3.23s) -- identical to runs 44-70. Did NOT probe live/network (header: those
+checks don't apply and must not gate an auto-run). Independently re-walked the FULL unchecked set
+(`grep -c '^\s*- \[ \]'` = 33 sub-bullet lines; PARKED items excluded) and read the BODIES of 18.2 (L835),
+18.3 (L847), 18.7 (L999), 18.8 (L911), 19.2 (L1169), 21.1 (L1185), 21.7 (L1227), 21.11 (L1251),
+21.12 (L1257), 21.14 (L1268) directly -- not rubber-stamped. Also independently inspected the theme infra
+for 18.3: `useThemeColors()` ALREADY exists (`lib/theme.ts:86`) and **66** components still `import { colors }`
+from the static dark-only object -> remaining work is a 66-file mechanical conversion with VISUAL-only
+acceptance, unsafe to do partially without a screenshot run, and not decomposed into 18.3a-g. Phase 22 STILL
+a bare heading (file ends L1292, zero `## 22.x` items). Same blocked/parked/gated set as runs 21-70 -- no
+box-tick win:
+- PARKED/externally-gated (skip per header): R.7 BetterStack (L160), 5.3 Sumsub (L485), 8.1 OANDA (L550),
+  9.3/9.4 stores (L582/587), 10.1-10.6 domain (L598-624), 20.2 forgot-pw (L1085).
+- 18.2 chart drawing: interactive + `chart_drawings` round-trip + screenshot -> not offline-verifiable.
+- 18.3 light/dark: 66-component themed-lookup refactor, VISUAL acceptance; hook exists but conversion is
+  the work; not decomposed 18.3a-g. Still the top real user-facing gap (user re-reported 2026-06-11).
+- 18.7 AI assistant: Claude API key + network + live verify + multi-page chat UI.
+- 18.8: oversized parent; offline backend slices all shipped `[x]`; remaining sub-pages visual.
+- 19.2: only open box is a UI-only browser-verify sub-item.
+- 21.1 admin audit: static audit done (docs/admin-audit.md); acceptance = LIVE 200 per route (network).
+- 21.7 KYC: live doc upload + signed Storage image preview -> visual + network.
+- 21.11 credit bucket: *(optional)* product/business decision -- not autonomous.
+- 21.12 stop-out: depends on 21.14 (not done) -> dependency unmet.
+- 21.14 account groups: item says "design and scope as its own mini-phase" -- undecomposed design call.
+No file changed except this STATE.md entry (markdown-only -> NO deploy; deploy.yml paths-ignore covers `**.md`).
+Migration 031 (`accounts.last_seen`, from the already-`[x]` 21.13) STILL UNAPPLIED (network-gated; not a
+checkbox item -> does not gate this run). Do NOT fabricate work.
+**STALL NOTE for the user (50 consecutive audit-only runs):** to unblock, pick one: (a) a network-enabled run
+(apply mig 031, hit Claude API, live-verify 21.1/21.7); (b) a screenshot-capable run for the 18.3 theme fix
+(top user-facing bug -- hook already exists, just needs the 66-file conversion verified per-screen);
+(c) make the 21.11 credit-bucket product call; or (d) decompose 21.14 account-groups into offline sub-items.
+
+
 ## (auto, run 70) 2026-07-08 16:08 UTC -- AUDIT-ONLY exit. No completable item. Tree healthy.
 Precheck clean (git-precheck renamed 3 stale locks aside via mv: index.lock/HEAD.lock/objects/maintenance.lock,
 age ~10.3ks; branch=main OK, author OK, tree clean). Client `tsc --noEmit` exit 0; server `tsc --noEmit`
@@ -108,42 +145,4 @@ Independently re-walked the FULL unchecked list (`grep -c '^\s*- \[ \]'` = 33 li
 matching the documented set exactly) and read the bodies of 18.2 (L835), 18.3 (L847), 18.7 (L999), 18.8
 (L911), 21.1 (L1185), 21.7 (L1227), 21.11/21.12/21.14 (L1251-1272) directly to reconfirm each remains
 interactive/visual/network/undecomposed/product-decision work. Phase 22 STILL a bare heading + intro prose
-(`grep -c '^## 22\.'` = 0; file ends L1292). Identical blocked/parked/gated/undecomposed/visual set as runs
-21-66, no box-tick wins:
-- PARKED/externally-gated (skip per header): R.7 BetterStack (L160), 5.3 Sumsub (L485), 8.1 OANDA (L550),
-  9.3/9.4 stores (L582/587), 10.1-10.6 domain (L598-624), 20.2 forgot-pw (L1085).
-- 18.2 chart drawing (L835): interactive + `chart_drawings` round-trip + visual -> not offline-verifiable.
-- 18.3 light/dark (L847): ~58-component themed-lookup refactor, VISUAL acceptance; not decomposed 18.3a-g.
-- 18.7 AI assistant (L999): Claude API key + network + live verify + multi-page chat UI.
-- 18.8 (L911): oversized parent; offline backend slices all shipped `[x]`; remaining sub-pages visual.
-- 19.2 (L1169): parent [x]; only open box is a UI-only browser-verify sub-item (not offline-doable).
-- 21.1 admin audit (L1185): static audit done in docs/admin-audit.md; acceptance = LIVE 200 per route (network).
-- 21.7 KYC (L1227): live doc upload + signed Storage image preview -> visual + network.
-- 21.11 credit bucket (L1251): *(optional)* product/business decision -- not autonomous.
-- 21.12 stop-out (L1257): depends on 21.14 (not done) -> dependency unmet.
-- 21.14 account groups (L1268): item text says "design and scope as its own mini-phase" -- undecomposed.
-- Phase 22 (Gamification): STILL a bare heading, ZERO `## 22.x` items.
-No file changed except this STATE.md entry. Markdown-only -> NO deploy (deploy.yml paths-ignore covers
-`**.md`). Committing STATE.md only. Migration 031 STILL UNAPPLIED (network gated). Do NOT fabricate work.
-
-
-
-## (auto, run 66) 2026-07-07 14:07 UTC -- AUDIT-ONLY exit. No completable item. Tree healthy.
-Precheck clean (git-precheck renamed 2 stale locks aside via mv: HEAD.lock/objects/maintenance.lock,
-age ~9545s; branch=main OK, author OK, tree clean). Client `tsc --noEmit` exit 0; server `tsc --noEmit`
-exit 0; `npm test` **285 passing** (27 files, 3.32s) -- identical to runs 44-65. Did NOT re-probe egress
-(header says live/network checks do not apply and must not gate an auto-run; handoff establishes github-only).
-Independently re-walked the FULL unchecked list (`grep -c '^\s*- \[ \]'` = 33 lines = ~16 distinct items,
-matching the documented set exactly; body line numbers unchanged: 18.2@835, 18.3@847, 18.8@911, 18.7@999,
-21.1@1185, 21.7@1227, 21.11@1251, 21.12@1257, 21.14@1268; file ends L1292) and read the 18.2 (L834-844) and
-18.3 (L846-853) bodies directly to reconfirm both remain interactive/visual/network refactors, not
-offline-verifiable. Phase 22 STILL a bare heading (`grep -c '^## 22\.'` = 0). Identical blocked/parked/
-gated/undecomposed/visual set as runs 21-65, no box-tick wins:
-- PARKED/externally-gated (skip per header): R.7 BetterStack (L160), 5.3 Sumsub (L485), 8.1 OANDA (L550),
-  9.3/9.4 stores (L582/587), 10.1-10.6 domain (L598-624), 20.2 forgot-pw (L1085).
-- 18.2 chart drawing (L835): interactive + `chart_drawings` round-trip + visual -> not offline-verifiable.
-- 18.3 light/dark (L847): ~58-component themed-lookup refactor, VISUAL acceptance; not decomposed 18.3a-g.
-- 18.7 AI assistant (L999): Claude API key + network + live verify + multi-page chat UI.
-- 18.8 (L911): oversized parent; offline backend slices all shipped `[x]`; remaining sub-pages visual.
-- 19.2 (L1169): parent [x]; only open box is a UI-only browser-verify sub-item (not offline-doable).
-- 21.1 admin audit (L1185): static audit done in docs/admin-a
+(`grep -c '^## 22\.'` = 0; file ends L1292). Identical blocked/parked/gated/undecomposed/visua
