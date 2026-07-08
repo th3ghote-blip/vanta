@@ -1,6 +1,39 @@
 # STATE -- handoff notes for the next agent
 
 
+## (auto, run 69) 2026-07-08 13:14 UTC -- AUDIT-ONLY exit. No completable item. Tree healthy.
+Precheck clean (git-precheck renamed 1 stale lock aside: index.lock, age ~46958s; branch=main OK,
+author OK, tree clean). Client `tsc --noEmit` exit 0; server `tsc --noEmit` exit 0; `npm test`
+**285 passing** (27 files, 10.01s) -- identical to runs 44-68. Did NOT probe live/network (header: those
+checks do not apply and must not gate an auto-run). Independently re-walked the FULL unchecked set
+(`grep -n '^\s*- \[ \]'` -> the documented ~16-item set; body line numbers unchanged: 18.2@835, 18.3@847,
+18.8@911, 18.7@999, 19.2@1169, 21.1@1185, 21.7@1227, 21.11@1251, 21.12@1257, 21.14@1268; file ends L1292)
+and read the 18.2/18.3 and 21.1/21.7/21.11/21.12/21.14 bodies directly to reconfirm each remains
+interactive/visual/network/undecomposed/product-decision work. Phase 22 STILL a bare heading
+(`grep -c '^## 22\.'` = 0). Same blocked/parked/gated set as runs 21-68 -- no box-tick win:
+- PARKED/externally-gated (skip per header): R.7 BetterStack (L160), 5.3 Sumsub (L485), 8.1 OANDA (L550),
+  9.3/9.4 stores (L582/587), 10.1-10.6 domain (L598-624), 20.2 forgot-pw (L1085).
+- 18.2 chart drawing: interactive + `chart_drawings` round-trip + screenshot -> not offline-verifiable.
+- 18.3 light/dark: ~58-component themed-lookup refactor, VISUAL acceptance; not decomposed 18.3a-g.
+  (User re-reported 2026-06-11; still the top real user-facing gap. Partial migration is risky -> needs a
+  screenshot-capable run.)
+- 18.7 AI assistant: Claude API key + network + live verify + multi-page chat UI.
+- 18.8: oversized parent; offline backend slices all shipped `[x]`; remaining sub-pages visual.
+- 19.2: only open box is a UI-only browser-verify sub-item.
+- 21.1 admin audit: static audit done (docs/admin-audit.md); acceptance = LIVE 200 per route (network).
+- 21.7 KYC: live doc upload + signed Storage image preview -> visual + network.
+- 21.11 credit bucket: *(optional)* product/business decision -- not autonomous.
+- 21.12 stop-out: depends on 21.14 (not done) -> dependency unmet.
+- 21.14 account groups: item says "design and scope as its own mini-phase" -- undecomposed.
+- Phase 22 (Gamification): bare heading, zero `## 22.x` items.
+No file changed except this STATE.md entry (markdown-only -> NO deploy; deploy.yml paths-ignore covers
+`**.md`). Migration 031 STILL UNAPPLIED (network-gated; not a checkbox item). Do NOT fabricate work.
+**STALL NOTE for the user:** the list has been audit-only for ~48 consecutive runs. To unblock the next
+run, the user must pick one: (a) give a network-enabled run (apply mig 031, hit Claude API, live-verify);
+(b) give a screenshot-capable run for the 18.3 theme fix (top user-facing bug); (c) make the 21.11
+credit-bucket product call; or (d) decompose 21.14 account-groups into offline sub-items.
+
+
 ## (auto, run 68) 2026-07-07 22:08 UTC -- AUDIT-ONLY exit. No completable item. Tree healthy.
 Precheck clean (git-precheck renamed 3 stale locks aside: index.lock/HEAD.lock/objects/maintenance.lock,
 age ~14378s; branch=main OK, author OK, tree clean). Client `tsc --noEmit` exit 0; server `tsc --noEmit`
@@ -113,33 +146,3 @@ undecomposed/visual set as runs 21-64, no box-tick wins:
 - Phase 22 (Gamification): STILL a bare heading, ZERO `## 22.x` items.
 No file changed except this STATE.md entry. Markdown-only -> NO deploy (deploy.yml paths-ignore covers
 `**.md`). Committing STATE.md only. Migration 031 STILL UNAPPLIED (network gated). Do NOT fabricate work.
-
-
-## (auto, run 64) 2026-07-06 20:07 UTC -- AUDIT-ONLY exit. No completable item. Tree healthy.
-Precheck clean (git-precheck renamed 3 stale locks aside via mv: index.lock/HEAD.lock/objects/maintenance.lock,
-age ~14324s; branch=main OK, author OK, tree clean). Client `tsc --noEmit` exit 0; server `tsc --noEmit`
-exit 0; `npm test` **285 passing** (27 files, 9.25s) -- identical to runs 44-63. Did NOT re-probe egress
-(header says live/network checks do not apply and must not gate an auto-run; handoff establishes github-only).
-Independently re-walked the FULL unchecked list (`grep -c '^\s*- \[ \]'` = 33 lines = ~16 distinct items,
-matching the documented set exactly; body line numbers unchanged: 18.2@835, 18.3@847, 18.8@911, 18.7@999,
-21.1@1185, 21.7@1227, 21.11@1251, 21.12@1257, 21.14@1268; file ends L1292) and read the 18.2/18.3 (L833-853)
-and 21.11/21.12/21.14 (L1249-1272) bodies directly to reconfirm each remains interactive/visual/network/
-undecomposed/product-decision work. Phase 22 STILL a bare heading (`grep -c '^## 22\.'` = 0). Identical
-blocked/parked/gated/undecomposed/visual set as runs 21-63, no box-tick wins:
-- PARKED/externally-gated (skip per header): R.7 BetterStack (L160), 5.3 Sumsub (L485), 8.1 OANDA (L550),
-  9.3/9.4 stores (L582/587), 10.1-10.6 domain (L598-624), 20.2 forgot-pw (L1085).
-- 18.2 chart drawing (L835): interactive + `chart_drawings` round-trip + visual -> not offline-verifiable.
-- 18.3 light/dark (L847): ~58-component themed-lookup refactor, VISUAL acceptance; not decomposed 18.3a-g.
-- 18.7 AI assistant (L999): Claude API key + network + live verify + multi-page chat UI.
-- 18.8 (L911): oversized parent; offline backend slices all shipped `[x]`; remaining sub-pages visual.
-- 19.2 (L1169): parent [x]; only open box is a UI-only browser-verify sub-item (not offline-doable).
-- 21.1 admin audit (L1185): static audit done in docs/admin-audit.md; acceptance = LIVE 200 per route (network).
-- 21.7 KYC (L1227): live doc upload + signed Storage image preview -> visual + network.
-- 21.11 credit bucket (L1251): *(optional)* product/business decision -- not autonomous.
-- 21.12 stop-out (L1257): depends on 21.14 (not done) -> dependency unmet.
-- 21.14 account groups (L1268): item text says "design and scope as its own mini-phase" -- undecomposed.
-- Phase 22 (Gamification): STILL a bare heading, ZERO `## 22.x` items.
-No file changed except this STATE.md entry. Markdown-only -> NO deploy (deploy.yml paths-ignore covers
-`**.md`). Committing STATE.md only. Migration 031 STILL UNAPPLIED (network gated). Do NOT fabricate work.
-
-
