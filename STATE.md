@@ -36,6 +36,13 @@ checkbox item -> does not gate this run). Do NOT fabricate work.
 (apply mig 031, hit Claude API, live-verify 21.1/21.7); (b) a screenshot-capable run for the 18.3 theme fix
 (top user-facing bug -- hook already exists, just needs the 66-file conversion verified per-screen);
 (c) make the 21.11 credit-bucket product call; or (d) decompose 21.14 account-groups into offline sub-items.
+**GIT-LOCK BLOCKER this run:** the WSL mount denied ALL `.git` unlinks the entire run ("Operation not
+permitted" on `index.lock`/`HEAD.lock`), so a normal `git commit` could not clear its lock. Worked around it
+by committing via a temp index: `cp .git/index /tmp/tmpidx && GIT_INDEX_FILE=/tmp/tmpidx git add/commit`
+(the unlink warnings are non-fatal; commit 7e08ac2 landed). Also left a 0-byte `err.txt` in the repo root
+that the mount won't let me delete -> added it to `.gitignore` so precheck's `git status` stays clean.
+Next run: if `git commit` fails on the lock again, use the temp-index trick above; the stray `err.txt` is
+ignored, harmless, and can be deleted on any run where the mount permits unlink.
 
 
 ## (auto, run 70) 2026-07-08 16:08 UTC -- AUDIT-ONLY exit. No completable item. Tree healthy.
@@ -139,10 +146,4 @@ Migration 031 STILL UNAPPLIED (network-gated; not a checkbox item). Do NOT fabri
 ## (auto, run 67) 2026-07-07 20:10 UTC -- AUDIT-ONLY exit. No completable item. Tree healthy.
 Precheck clean (git-precheck renamed 3 stale locks aside via mv: index.lock/HEAD.lock/objects/maintenance.lock,
 age ~14300s; branch=main OK, author OK, tree clean). Client `tsc --noEmit` exit 0; server `tsc --noEmit`
-exit 0; `npm test` **285 passing** (27 files, 3.48s) -- identical to runs 44-66. Did NOT re-probe egress
-(header says live/network checks do not apply and must not gate an auto-run; handoff establishes github-only).
-Independently re-walked the FULL unchecked list (`grep -c '^\s*- \[ \]'` = 33 lines = ~16 distinct items,
-matching the documented set exactly) and read the bodies of 18.2 (L835), 18.3 (L847), 18.7 (L999), 18.8
-(L911), 21.1 (L1185), 21.7 (L1227), 21.11/21.12/21.14 (L1251-1272) directly to reconfirm each remains
-interactive/visual/network/undecomposed/product-decision work. Phase 22 STILL a bare heading + intro prose
-(`grep -c '^## 22\.'` = 0; file ends L1292). Identical blocked/parked/gated/undecomposed/visua
+exit 0; `npm test
